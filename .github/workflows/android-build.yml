@@ -46,7 +46,7 @@ jobs:
 
       - name: 替换更新检查地址
         run: |
-          sed -i 's|https://updates.rikka-ai.com/|https://gh.llkk.cc/https://github.com/ruitong719/rikkahub-ci/releases/download/latest/update.json|g' app/src/main/java/me/rerere/rikkahub/utils/UpdateChecker.kt
+          sed -i 's|https://updates.rikka-ai.com/|https://ghproxy.net/https://github.com/ruitong719/rikkahub-ci/releases/download/latest/update.json|g' app/src/main/java/me/rerere/rikkahub/utils/UpdateChecker.kt
           echo "✅ 已替换更新检查地址"
 
         
@@ -142,8 +142,8 @@ jobs:
           - 🔄 修改了版本号：\`${ORIGINAL_VERSION}\` → \`${NEW_VERSION_NAME}\`
           - 🎨 修改成了旧版的图标文件
           - 🌐 已修改更新地址为自定义地址（下载地址指向本项目的每日构建）
-            - 更新检查地址：https://gh.llkk.cc/https://github.com/ruitong719/rikkahub-ci/releases/download/latest/update.json
-            - APK 下载地址：https://gh.llkk.cc/https://github.com/ruitong719/rikkahub-ci/releases/download/latest/app-release.apk
+            - 更新检查地址：https://ghproxy.net/https://github.com/ruitong719/rikkahub-ci/releases/download/latest/update.json
+            - APK 下载地址：https://ghproxy.net/https://github.com/ruitong719/rikkahub-ci/releases/download/latest/app-release.apk
 
           ℹ️ 版本信息
           - 🏷️ 版本号：**${NEW_VERSION_NAME}**
@@ -183,7 +183,7 @@ jobs:
           # 计算文件大小（字节）
           APK_SIZE_BYTES=$(stat -c%s "$APK_FILE")
           APK_SIZE_MB=$(echo "scale=2; $APK_SIZE_BYTES / 1024 / 1024" | bc)
-          APK_URL="https://gh.llkk.cc/https://github.com/ruitong719/rikkahub-ci/releases/download/latest/app-release.apk"
+          APK_URL="https://ghproxy.net/https://github.com/ruitong719/rikkahub-ci/releases/download/latest/app-release.apk"
 
           # 使用 jq 正确生成 JSON
           jq -n \
