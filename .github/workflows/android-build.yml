@@ -9,7 +9,7 @@ jobs:
       contents: write
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 还原 Google Services
         run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
