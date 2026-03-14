@@ -67,7 +67,7 @@ import me.rerere.rikkahub.ui.hooks.rememberCustomTtsState
 import me.rerere.rikkahub.ui.pages.assistant.AssistantPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantBasicPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantDetailPage
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantInjectionsPage
+import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantExtensionsPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantLocalToolPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantMcpPage
 import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantMemoryPage
@@ -81,7 +81,10 @@ import me.rerere.rikkahub.ui.pages.favorite.FavoritePage
 import me.rerere.rikkahub.ui.pages.history.HistoryPage
 import me.rerere.rikkahub.ui.pages.imggen.ImageGenPage
 import me.rerere.rikkahub.ui.pages.log.LogPage
-import me.rerere.rikkahub.ui.pages.prompts.PromptPage
+import me.rerere.rikkahub.ui.pages.extensions.ExtensionsPage
+import me.rerere.rikkahub.ui.pages.extensions.SkillsPage
+import me.rerere.rikkahub.ui.pages.extensions.PromptPage
+import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesPage
 import me.rerere.rikkahub.ui.pages.search.SearchPage
 import me.rerere.rikkahub.ui.pages.stats.StatsPage
 import me.rerere.rikkahub.ui.pages.setting.SettingAboutPage
@@ -316,7 +319,7 @@ class RouteActivity : ComponentActivity() {
                             }
 
                             entry<Screen.AssistantInjections> { key ->
-                                AssistantInjectionsPage(key.id)
+                                AssistantExtensionsPage(key.id)
                             }
 
                             entry<Screen.Translator> {
@@ -396,8 +399,20 @@ class RouteActivity : ComponentActivity() {
                                 LogPage()
                             }
 
+                            entry<Screen.Extensions> {
+                                ExtensionsPage()
+                            }
+
+                            entry<Screen.QuickMessages> {
+                                QuickMessagesPage()
+                            }
+
                             entry<Screen.Prompts> {
                                 PromptPage()
+                            }
+
+                            entry<Screen.Skills> {
+                                SkillsPage()
                             }
 
                             entry<Screen.MessageSearch> {
@@ -560,7 +575,16 @@ sealed interface Screen : NavKey {
     data object Log : Screen
 
     @Serializable
+    data object Extensions : Screen
+
+    @Serializable
+    data object QuickMessages : Screen
+
+    @Serializable
     data object Prompts : Screen
+
+    @Serializable
+    data object Skills : Screen
 
     @Serializable
     data object MessageSearch : Screen
