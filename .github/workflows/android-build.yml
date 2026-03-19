@@ -84,9 +84,24 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装 Bun
+        run: npm install -g bun
+
+      - name: 构建 web-ui
+        run: |
+          cd web-ui
+          bun install
+          bun run build
+          cd ..
+
       - name: 配置 Gradle
         uses: gradle/actions/setup-gradle@v4
-         
+
       - name: 赋予执行权限
         run: chmod +x gradlew
 
