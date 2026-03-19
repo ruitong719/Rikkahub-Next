@@ -234,18 +234,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 安装 coscmd
-        run: pip install coscmd
-
-      - name: 配置 coscmd
-        run: |
-          coscmd config -a ${{ secrets.TENCENT_CLOUD_SECRET_ID }} \
-            -s ${{ secrets.TENCENT_CLOUD_SECRET_KEY }} \
-            -b ${{ secrets.COS_BUCKET }} \
-            -r ${{ secrets.COS_REGION }}
-
-      - name: 上传 APK 到腾讯云 COS
-        run: coscmd upload app/build/outputs/apk/release/app-release.apk /app-release.apk
-
-      - name: 上传 update.json 到腾讯云 COS
-        run: coscmd upload update.json /update.json
+  
