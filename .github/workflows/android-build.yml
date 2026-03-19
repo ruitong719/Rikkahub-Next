@@ -46,8 +46,8 @@ jobs:
 
       - name: 替换更新检查地址
         run: |
-          sed -i 's|https://updates.rikka-ai.com/|https://github.com/ruitong719/rikkahub-ci/releases/download/latest/update.json|g' app/src/main/java/me/rerere/rikkahub/utils/UpdateChecker.kt
-          echo "✅ 已替换更新检查地址"
+          sed -i 's|https://updates.rikka-ai.com/|https://${{ secrets.COS_HOST }}/|g' app/src/main/java/me/rerere/rikkahub/utils/UpdateChecker.kt
+          echo "✅ 已替换更新检查地址为腾讯云 COS"
 
         
       - name: 修改版本号
@@ -141,9 +141,7 @@ jobs:
           ⚙️ CI 自定义修改
           - 🔄 修改了版本号：\`${ORIGINAL_VERSION}\` → \`${NEW_VERSION_NAME}\`
           - 🎨 修改成了旧版的图标文件
-          - 🌐 已修改更新地址为自定义地址（下载地址指向本项目的每日构建）
-            - 更新检查地址：https://github.com/ruitong719/rikkahub-ci/releases/download/latest/update.json
-            - APK 下载地址：https://github.com/ruitong719/rikkahub-ci/releases/download/latest/app-release.apk
+          - 🌐 已修改更新地址为腾讯云 COS 地址
 
           ℹ️ 版本信息
           - 🏷️ 版本号：**${NEW_VERSION_NAME}**
@@ -183,7 +181,7 @@ jobs:
           # 计算文件大小（字节）
           APK_SIZE_BYTES=$(stat -c%s "$APK_FILE")
           APK_SIZE_MB=$(echo "scale=2; $APK_SIZE_BYTES / 1024 / 1024" | bc)
-          APK_URL="https://github.com/ruitong719/rikkahub-ci/releases/download/latest/app-release.apk"
+          APK_URL="https://${{ secrets.COS_HOST }}/app-release.apk"
 
           # 使用 jq 正确生成 JSON
           jq -n \
@@ -220,3 +218,23 @@ jobs:
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 上传到腾讯云 COS
+        uses: peter-evans/tencent-oss-cos-action@v1
+        with:
+          secret_id: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
+          secret_key: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
+          cos_bucket: ${{ secrets.COS_BUCKET }}
+          cos_region: ${{ secrets.COS_REGION }}
+          cos_host: ${{ secrets.COS_HOST }}
+          command: cp app/build/outputs/apk/release/app-release.apk cos://${{ secrets.COS_BUCKET }}/app-release.apk --region ${{ secrets.COS_REGION }}
+
+      - name: 上传 update.json 到腾讯云 COS
+        uses: peter-evans/tencent-oss-cos-action@v1
+        with:
+          secret_id: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
+          secret_key: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
+          cos_bucket: ${{ secrets.COS_BUCKET }}
+          cos_region: ${{ secrets.COS_REGION }}
+          cos_host: ${{ secrets.COS_HOST }}
+          command: cp update.json cos://${{ secrets.COS_BUCKET }}/update.json --region ${{ secrets.COS_REGION }}
