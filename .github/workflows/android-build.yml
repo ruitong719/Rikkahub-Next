@@ -235,7 +235,7 @@ jobs:
       - name: 上传 Release 到 COS
         run: |
           coscmd upload -f -y update.json /
-          cd app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release.apk.1
+          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release.apk.1
           coscmd upload -f -y app/build/outputs/apk/release/app-release.apk.1 /
           
 
