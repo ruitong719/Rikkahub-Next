@@ -228,7 +228,7 @@ jobs:
       - name: 安装腾讯云 CLI
         run: pip install coscmd
     
-     - name: 配置腾讯云 COS 认证
+      - name: 配置腾讯云 COS 认证
         run: |
           coscmd config -a ${{ secrets.TENCENT_CLOUD_SECRET_ID }} -s ${{ secrets.TENCENT_CLOUD_SECRET_KEY }} -b ${{ secrets.COS_BUCKET }} -r ${{ secrets.COS_REGION }}
       
