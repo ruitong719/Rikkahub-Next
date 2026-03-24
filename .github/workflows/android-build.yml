@@ -46,8 +46,8 @@ jobs:
 
       - name: 替换更新检查地址
         run: |
-          sed -i 's|https://updates.rikka-ai.com/|https://${{ secrets.COS_HOST }}/|g' app/src/main/java/me/rerere/rikkahub/utils/UpdateChecker.kt
-          echo "✅ 已替换更新检查地址为腾讯云 COS"
+          sed -i 's|https://updates.rikka-ai.com/|http://${{ secrets.MINIO_HOST }}/rikkahub/|g' app/src/main/java/me/rerere/rikkahub/utils/UpdateChecker.kt
+          echo "✅ 已替换更新检查地址为自建对象存储"
 
         
       - name: 修改版本号
@@ -155,8 +155,8 @@ jobs:
 
           ⚙️ CI 自定义修改
           - 🔄 修改了版本号：\`${ORIGINAL_VERSION}\` → \`${NEW_VERSION_NAME}\`
-          - 🎨 修改成了旧版的图标文件
-          - 🌐 已修改更新地址为腾讯云 COS 地址
+          - 🎨 回退旧版的图标文件
+          - 🌐 修改更新地址为自建对象存储
 
           ℹ️ 版本信息
           - 🏷️ 版本号：**${NEW_VERSION_NAME}**
@@ -196,7 +196,7 @@ jobs:
           # 计算文件大小（字节）
           APK_SIZE_BYTES=$(stat -c%s "$APK_FILE")
           APK_SIZE_MB=$(echo "scale=2; $APK_SIZE_BYTES / 1024 / 1024" | bc)
-          APK_URL="https://${{ secrets.COS_HOST }}/app-release.apk.1"
+          APK_URL="http://${{ secrets.MINIO_HOST }}/rikkahub/app-release.apk"
 
           # 使用 jq 正确生成 JSON
           jq -n \
@@ -218,27 +218,8 @@ jobs:
                 }
               ]
             }' > update.json
-            
-            
-      - name: 设置 Python 3.10
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.10"
           
-      - name: 安装腾讯云 CLI
-        run: pip install coscmd
-    
-      - name: 配置腾讯云 COS 认证
-        run: |
-          coscmd config -a ${{ secrets.TENCENT_CLOUD_SECRET_ID }} -s ${{ secrets.TENCENT_CLOUD_SECRET_KEY }} -b ${{ secrets.COS_BUCKET }} -r ${{ secrets.COS_REGION }}
-      
-      - name: 上传 Release 到 COS
-        run: |
-          coscmd upload -f -y update.json /
-          cp app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/app-release.apk.1
-          coscmd upload -f -y app/build/outputs/apk/release/app-release.apk.1 /
-          
-
+        
       - name: 发布到 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -254,4 +235,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: 安装 MinIO Client
+        run: |
+          wget https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x mc
+          sudo mv mc /usr/local/bin/
+
+      - name: 配置 MinIO 别名
+        run: |
+          mc alias set myminio http://${{ secrets.MINIO_HOST }} ${{ secrets.MINIO_ROOT_USER }} ${{ secrets.MINIO_ROOT_PASSWORD }}
+
+      - name: 上传 Release 到 MinIO
+        run: |
+          # 上传到 MinIO（bucket: rikkahub）
+          mc cp update.json myminio/rikkahub/update.json
+          mc cp app/build/outputs/apk/release/app-release.apk myminio/rikkahub/app-release.apk
+          echo "✅ 文件已上传至 MinIO"
   
