@@ -46,7 +46,7 @@ jobs:
 
       - name: 替换更新检查地址
         run: |
-          sed -i 's|https://updates.rikka-ai.com/|http://${{ secrets.MINIO_HOST }}/rikkahub/|g' app/src/main/java/me/rerere/rikkahub/utils/UpdateChecker.kt
+          sed -i 's|https://updates.rikka-ai.com/|http://${{ secrets.MINIO_HOST }}/rikkahub/update.json|g' app/src/main/java/me/rerere/rikkahub/utils/UpdateChecker.kt
           echo "✅ 已替换更新检查地址为自建对象存储"
 
         
