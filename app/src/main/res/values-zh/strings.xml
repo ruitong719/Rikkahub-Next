@@ -983,5 +983,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_provider_page_claude_prompt_cache_ttl_1h">1 小时</string>
   <string name="setting_provider_page_claude_prompt_cache_ttl_5m">5 分钟</string>
   <string name="setting_provider_page_claude_prompt_cache_ttl">提示缓存时长</string>
+  <string name="assistant_page_temperature_warning">通常为 1。对于推理模型不建议修改。</string>
+  <string name="chat_page_check_title_model_settings">检查标题模型设置</string>
 </resources>
 

@@ -983,5 +983,7 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_provider_page_claude_prompt_cache_ttl_1h">1시간</string>
   <string name="setting_provider_page_claude_prompt_cache_ttl_5m">5분</string>
   <string name="setting_provider_page_claude_prompt_cache_ttl">프롬프트 캐시 TTL</string>
+  <string name="assistant_page_temperature_warning">일반적으로 1입니다. 추론 모델에서는 변경을 권장하지 않습니다.</string>
+  <string name="chat_page_check_title_model_settings">제목 모델 설정 확인</string>
 </resources>
 
