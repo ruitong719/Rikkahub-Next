@@ -1021,5 +1021,7 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_asr_configure_volcengine_websocket_desc">Volcengine 스트리밍 ASR 엔드포인트</string>
   <string name="setting_asr_configure_resource_id">리소스 ID</string>
   <string name="setting_asr_configure_resource_id_desc">과금용 X-Api-Resource-Id</string>
+  <string name="assistant_page_message_template_missing_message">템플릿에 {{ message }}가 없어 사용자 메시지가 전송되지 않습니다</string>
+  <string name="extension_content_manage">관리</string>
 </resources>
 

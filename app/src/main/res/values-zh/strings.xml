@@ -1023,5 +1023,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_asr_configure_volcengine_websocket_desc">Volcengine 流式 ASR 端点</string>
   <string name="setting_asr_configure_resource_id">资源 ID</string>
   <string name="setting_asr_configure_resource_id_desc">用于计费的 X-Api-Resource-Id</string>
+  <string name="assistant_page_message_template_missing_message">模板不包含 {{ message }}，用户消息将不会被发送</string>
+  <string name="extension_content_manage">管理</string>
 </resources>
 
