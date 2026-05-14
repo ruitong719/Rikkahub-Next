@@ -123,6 +123,8 @@
   <string name="assistant_page_stream_output_desc">是否启用消息的流式输出</string>
   <string name="assistant_page_strict">严谨</string>
   <string name="assistant_page_system_prompt">系统提示词</string>
+  <string name="assistant_page_allow_conversation_system_prompt">独立对话系统提示</string>
+  <string name="assistant_page_allow_conversation_system_prompt_desc">允许每个对话单独设置系统提示词</string>
   <string name="assistant_page_tab_basic">基础设定</string>
   <string name="assistant_page_tab_extensions">扩展管理</string>
   <string name="assistant_page_tab_local_tools">本地工具</string>
@@ -171,7 +173,7 @@
   <string name="backup_page_export_desc">导出APP数据为文件</string>
   <string name="backup_page_exporting">正在导出...</string>
   <string name="backup_page_files">文件</string>
-  <string name="backup_page_import_chatbox_desc">导入ChatBox提供商配置</string>
+  <string name="backup_page_import_chatbox_desc">导入 ChatBox 提供商配置和完整聊天记录</string>
   <string name="backup_page_import_cherry_studio_desc">导入Cherry Studio提供商配置</string>
   <string name="backup_page_import_desc">导入本地备份文件</string>
   <string name="backup_page_import_export">本地</string>
@@ -1025,5 +1027,9 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_asr_configure_resource_id_desc">用于计费的 X-Api-Resource-Id</string>
   <string name="assistant_page_message_template_missing_message">模板不包含 {{ message }}，用户消息将不会被发送</string>
   <string name="extension_content_manage">管理</string>
+  <string name="chat_page_conversation_system_prompt">对话系统提示</string>
+  <string name="chat_page_conversation_system_prompt_hint">覆盖此对话的助手系统提示</string>
+  <string name="chat_page_conversation_system_prompt_clear">清除</string>
+  <string name="chat_page_conversation_system_prompt_save">保存</string>
 </resources>
 

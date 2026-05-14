@@ -171,7 +171,7 @@
   <string name="backup_page_export_desc">앱 데이터를 파일로 내보내기</string>
   <string name="backup_page_exporting">내보내는 중...</string>
   <string name="backup_page_files">파일</string>
-  <string name="backup_page_import_chatbox_desc">ChatBox 공급자 구성 가져오기</string>
+  <string name="backup_page_import_chatbox_desc">ChatBox 공급자 구성과 전체 채팅 기록 가져오기</string>
   <string name="backup_page_import_cherry_studio_desc">Cherry Studio 공급자 설정 가져오기</string>
   <string name="backup_page_import_desc">로컬 백업 파일 가져오기</string>
   <string name="backup_page_import_export">로컬</string>
@@ -1023,5 +1023,11 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_asr_configure_resource_id_desc">과금용 X-Api-Resource-Id</string>
   <string name="assistant_page_message_template_missing_message">템플릿에 {{ message }}가 없어 사용자 메시지가 전송되지 않습니다</string>
   <string name="extension_content_manage">관리</string>
+  <string name="assistant_page_allow_conversation_system_prompt">대화별 시스템 프롬프트</string>
+  <string name="assistant_page_allow_conversation_system_prompt_desc">각 대화에서 어시스턴트의 시스템 프롬프트를 재정의할 수 있도록 허용</string>
+  <string name="chat_page_conversation_system_prompt">대화 시스템 프롬프트</string>
+  <string name="chat_page_conversation_system_prompt_hint">이 대화에서 어시스턴트의 시스템 프롬프트를 재정의합니다</string>
+  <string name="chat_page_conversation_system_prompt_clear">지우기</string>
+  <string name="chat_page_conversation_system_prompt_save">저장</string>
 </resources>
 
