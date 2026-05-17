@@ -44,6 +44,8 @@
   <string name="assistant_page_add_header">헤더 추가</string>
   <string name="assistant_page_allow_conversation_system_prompt">대화별 시스템 프롬프트</string>
   <string name="assistant_page_allow_conversation_system_prompt_desc">각 대화에서 어시스턴트의 시스템 프롬프트를 재정의할 수 있도록 허용</string>
+  <string name="assistant_page_allow_conversation_prompt_injection">대화별 프롬프트 주입</string>
+  <string name="assistant_page_allow_conversation_prompt_injection_desc">각 대화가 자체 프롬프트 주입 및 로어북을 바인딩할 수 있도록 허용</string>
   <string name="assistant_page_available_variables">사용 가능한 변수: </string>
   <string name="assistant_page_background_opacity">배경 투명도</string>
   <string name="assistant_page_background_opacity_desc">채팅 배경 이미지의 표시 투명도를 조절합니다</string>
@@ -785,7 +787,7 @@
   <string name="setting_page_donate">후원</string>
   <string name="setting_page_donate_desc">앱이 마음에 드시면 제작자의 작업을 후원해 주세요</string>
   <string name="setting_page_dynamic_color">동적 색상</string>
-  <string name="setting_page_dynamic_color_desc">동적 색상 사용</string>
+  <string name="setting_page_dynamic_color_desc">배경화면을 기반으로 앱 테마 색상을 동적으로 생성할지 여부</string>
   <string name="setting_page_extensions">확장 기능</string>
   <string name="setting_page_extensions_desc">프롬프트 인젝션, 스킬 등을 관리합니다</string>
   <string name="setting_page_general_settings">일반 설정</string>
@@ -817,7 +819,21 @@
   <string name="setting_page_sponsor_alert_desc">앱을 100번 이상 실행하셨네요! 만족스럽게 사용하고 계시다면 개발자를 후원해 주세요.</string>
   <string name="setting_page_sponsor_alert_dismiss">나중에</string>
   <string name="setting_page_sponsor_alert_title">개발자 지원하기</string>
-  <string name="setting_page_theme_setting">테마 설정</string>
+  <string name="setting_page_theme_setting">테마</string>
+  <string name="setting_page_theme_setting_desc">앱 색상 구성 사용자 지정</string>
+  <string name="setting_theme_page_preset_themes">프리셋 테마</string>
+  <string name="setting_theme_page_custom_themes">사용자 지정 테마</string>
+  <string name="setting_theme_page_add_theme">새로 만들기</string>
+  <string name="setting_theme_page_no_custom_themes">사용자 지정 테마가 없습니다</string>
+  <string name="setting_theme_page_create_theme">테마 만들기</string>
+  <string name="setting_theme_page_edit_theme">테마 편집</string>
+  <string name="setting_theme_page_theme_name">테마 이름</string>
+  <string name="setting_theme_page_primary_color">기본 색상</string>
+  <string name="setting_theme_page_secondary_color">보조 색상</string>
+  <string name="setting_theme_page_tertiary_color">세 번째 색상</string>
+  <string name="setting_theme_page_preview">미리보기</string>
+  <string name="setting_theme_page_save">저장</string>
+  <string name="setting_theme_page_dynamic_color_hint">동적 색상이 활성화되어 있습니다. 사용자 지정 테마를 사용하려면 디스플레이 설정에서 비활성화하세요.</string>
   <string name="setting_page_tts_service">음성 서비스</string>
   <string name="setting_page_tts_service_desc">텍스트-음성 및 음성 인식 제공업체 구성</string>
   <string name="setting_page_tts_settings">TTS 설정</string>
@@ -1058,3 +1074,4 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="web_search_disabled">웹 검색 비활성화됨</string>
   <string name="web_search_enabled">웹 검색 활성화됨</string>
 </resources>
+
