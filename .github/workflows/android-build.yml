@@ -83,11 +83,27 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: 'gradle'
-
+        
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+      
       - name: 设置 Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'pnpm'
+      
+      - name: 安装 Bun
+        run: npm install -g bun
+
+      - name: 构建 web-ui
+        run: |
+          cd web-ui
+          bun install
+          bun run build
+          cd ..
 
       - name: 配置 Gradle
         uses: gradle/actions/setup-gradle@v4
