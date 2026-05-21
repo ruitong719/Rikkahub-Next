@@ -58,7 +58,7 @@ jobs:
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: 'android-build.yml',
+              workflow_id: 'android-build-2.yml',
               ref: 'master'
             });
             console.log('✅ Android Build triggered successfully!');
