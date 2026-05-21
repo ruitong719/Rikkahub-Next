@@ -99,7 +99,8 @@ jobs:
       # ── 预构建 web-ui ──
       # 上游 pnpm-workspace.yaml 缺 packages 字段，先修补再统一用 pnpm
       - name: 修复 pnpm workspace 配置
-        run: sed -i '1i packages: []' web-ui/pnpm-workspace.yaml
+        run: |
+          sed -i '1i packages: []' web-ui/pnpm-workspace.yaml
 
       - name: 构建 web-ui
         run: |
