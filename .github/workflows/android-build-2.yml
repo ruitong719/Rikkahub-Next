@@ -96,12 +96,16 @@ jobs:
           cache: 'pnpm'
           cache-dependency-path: 'web-ui/pnpm-lock.yaml'
 
-      # ── 预构建 web-ui（Gradle buildWebUi 的依赖项 pnpm run build 需要 node_modules） ──
+      # ── 预构建 web-ui ──
+      # pnpm 仅用于 Gradle 的 buildWebUi task，这里用 bun 绕过 pnpm-workspace.yaml 缺少 packages 的问题
+      - name: 安装 Bun
+        run: npm install -g bun
+
       - name: 构建 web-ui
         run: |
           cd web-ui
-          pnpm install --frozen-lockfile
-          pnpm run build
+          bun install
+          bun run build
 
       - name: 配置 Gradle
         uses: gradle/actions/setup-gradle@v4
