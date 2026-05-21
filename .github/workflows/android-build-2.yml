@@ -97,19 +97,15 @@ jobs:
           cache-dependency-path: 'web-ui/pnpm-lock.yaml'
 
       # ── 预构建 web-ui ──
-      # pnpm 仅用于 Gradle 的 buildWebUi task，这里用 bun 绕过 pnpm-workspace.yaml 缺少 packages 的问题
-      - name: 安装 Bun
-        run: npm install -g bun
+      # 上游 pnpm-workspace.yaml 缺 packages 字段，先修补再统一用 pnpm
+      - name: 修复 pnpm workspace 配置
+        run: sed -i '1i packages: []' web-ui/pnpm-workspace.yaml
 
       - name: 构建 web-ui
         run: |
           cd web-ui
-          bun install
-          bun run build
-
-      # ── 修补 pnpm workspace（上游文件缺 packages 字段，CI 运行时修复不提交） ──
-      - name: 修复 pnpm workspace 配置
-        run: sed -i '1i packages: []' web-ui/pnpm-workspace.yaml
+          pnpm install --frozen-lockfile
+          pnpm run build
 
       - name: 配置 Gradle
         uses: gradle/actions/setup-gradle@v4
