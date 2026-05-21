@@ -107,6 +107,10 @@ jobs:
           bun install
           bun run build
 
+      # ── 修补 pnpm workspace（上游文件缺 packages 字段，CI 运行时修复不提交） ──
+      - name: 修复 pnpm workspace 配置
+        run: sed -i '1i packages: []' web-ui/pnpm-workspace.yaml
+
       - name: 配置 Gradle
         uses: gradle/actions/setup-gradle@v4
 
