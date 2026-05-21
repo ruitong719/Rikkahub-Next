@@ -1,4 +1,4 @@
-name: RikkaHub Release Build
+name: RikkaHub Release Build v2
 on:
   workflow_dispatch:
 
@@ -49,7 +49,6 @@ jobs:
           sed -i 's|https://updates.rikka-ai.com/|http://${{ secrets.MINIO_HOST }}/rikkahub/update.json|g' app/src/main/java/me/rerere/rikkahub/utils/UpdateChecker.kt
           echo "✅ 已替换更新检查地址为自建对象存储"
 
-        
       - name: 修改版本号
         id: version_update
         run: |
@@ -61,7 +60,7 @@ jobs:
           echo "original_version=${VERSION_NAME}" >> $GITHUB_OUTPUT
           echo "new_version=${NEW_VERSION_NAME}" >> $GITHUB_OUTPUT      
           echo "✅ 已修改版本号"
-            
+
       - name: 解码密钥到模块目录
         run: |
           echo "${{ secrets.KEYSTORE_FILE }}" | base64 --ignore-garbage -d > app/release-key.p12
@@ -76,35 +75,33 @@ jobs:
           keyPassword=${{ secrets.KEY_PASSWORD }}
           storeType=PKCS12
           EOF
-          
+
       - name: 配置 JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: 'gradle'
-        
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
+
+      # ── Node & pnpm 环境 ──
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 9
-      
+
       - name: 设置 Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: 'web-ui/pnpm-lock.yaml'
-      
-      - name: 安装 Bun
-        run: npm install -g bun
 
+      # ── 预构建 web-ui（Gradle buildWebUi 的依赖项 pnpm run build 需要 node_modules） ──
       - name: 构建 web-ui
         run: |
           cd web-ui
-          bun install
-          bun run build
-          cd ..
+          pnpm install --frozen-lockfile
+          pnpm run build
 
       - name: 配置 Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -134,7 +131,6 @@ jobs:
           ORIGINAL_VERSION=${{ steps.version_update.outputs.original_version }}
           NEW_VERSION_NAME=${{ steps.version_update.outputs.new_version }}
 
-          # 获取上游项目今天的 commit
           TODAY_START=$(date -u +%Y-%m-%dT00:00:00Z)
           COMMIT_LIST=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/rikkahub/rikkahub/commits?since=$TODAY_START&per_page=20" | \
@@ -153,7 +149,6 @@ jobs:
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "version_name=$NEW_VERSION_NAME" >> $GITHUB_OUTPUT
 
-          # 生成 Release 描述
           cat > release_notes.md << EOF
           📱 RikkaHub 上游项目 https://github.com/rikkahub/rikkahub
 
@@ -179,7 +174,6 @@ jobs:
           NEW_VERSION_NAME=${{ steps.version_update.outputs.new_version }}
           BUILD_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%dT%H:%M:%S+08:00')
 
-          # 获取上游项目今天的 commit 作为 changelog
           TODAY_START=$(date -u +%Y-%m-%dT00:00:00Z)
           COMMIT_LIST=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/rikkahub/rikkahub/commits?since=$TODAY_START&per_page=20" | \
@@ -193,19 +187,16 @@ jobs:
             COMMIT_LIST="今天暂无 commit"
           fi
 
-          # 查找 APK 文件并计算大小
           APK_FILE=$(find app/build/outputs/apk/release -name "app-release.apk" -type f | head -1)
           if [ -z "$APK_FILE" ]; then
             echo "❌ 未找到 APK 文件"
             exit 1
           fi
 
-          # 计算文件大小（字节）
           APK_SIZE_BYTES=$(stat -c%s "$APK_FILE")
           APK_SIZE_MB=$(echo "scale=2; $APK_SIZE_BYTES / 1024 / 1024" | bc)
           APK_URL="http://${{ secrets.MINIO_HOST }}/rikkahub/app-release.apk"
 
-          # 使用 jq 正确生成 JSON
           jq -n \
             --arg version "${NEW_VERSION_NAME}" \
             --arg publishedAt "${BUILD_TIME}" \
@@ -225,8 +216,7 @@ jobs:
                 }
               ]
             }' > update.json
-          
-        
+
       - name: 发布到 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -254,8 +244,6 @@ jobs:
 
       - name: 上传 Release 到 MinIO
         run: |
-          # 上传到 MinIO（bucket: rikkahub）
           mc cp update.json myminio/rikkahub/update.json
           mc cp app/build/outputs/apk/release/app-release.apk myminio/rikkahub/app-release.apk
           echo "✅ 文件已上传至 MinIO"
-  
