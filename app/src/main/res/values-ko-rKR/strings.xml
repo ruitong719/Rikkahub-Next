@@ -1095,5 +1095,15 @@ mDNS 주소: .local 호스트네임을 사용하며, IP를 몰라도 같은 네�
   <string name="setting_page_preferences_general_desc">상호작용 방식, 스크롤, 입력 설정</string>
   <string name="setting_page_preferences_ui">UI 환경설정</string>
   <string name="setting_page_preferences_ui_desc">메시지 표시, 글꼴, 코드 블록</string>
+  <string name="skills_page_import_from_file">파일에서 가져오기</string>
+  <string name="skills_page_add_manually">수동으로 추가</string>
+  <string name="setting_model_page_tab_model">모델</string>
+  <string name="setting_model_page_tab_prompt">프롬프트</string>
+  <string name="setting_model_page_prompt_translation">번역</string>
+  <string name="setting_model_page_prompt_title">제목 생성</string>
+  <string name="setting_model_page_prompt_suggestion">채팅 답변 제안</string>
+  <string name="setting_model_page_prompt_ocr">OCR 인식</string>
+  <string name="setting_model_page_prompt_compress">컨텍스트 압축</string>
+  <string name="setting_display_page_bubble_opacity_title">버블 불투명도</string>
 </resources>
 
