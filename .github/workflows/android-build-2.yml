@@ -109,7 +109,10 @@ jobs:
           cd web-ui
           pnpm install --frozen-lockfile
           pnpm run build
-
+          
+      - name: 安装 zsh（上游 buildWebUi 需要）
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
+        
       - name: 配置 Gradle
         uses: gradle/actions/setup-gradle@v4
 
