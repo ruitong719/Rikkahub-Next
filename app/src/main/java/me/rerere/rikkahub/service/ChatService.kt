@@ -45,11 +45,13 @@ import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.GenerationChunk
 import me.rerere.rikkahub.data.ai.GenerationHandler
+import me.rerere.rikkahub.data.ai.SubAgentRunner
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.createConversationTools
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
 import me.rerere.rikkahub.data.ai.tools.createSearchTools
 import me.rerere.rikkahub.data.ai.tools.createSkillTools
+import me.rerere.rikkahub.data.ai.tools.createSubAgentTools
 import me.rerere.rikkahub.data.ai.tools.createWorkspaceTools
 import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
@@ -154,6 +156,9 @@ class ChatService(
 ) {
     // workspace 系统提示注入 (依赖 workspaceRepository, 故在类内构造)
     private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository)
+
+    // subagent 嵌套执行核心（复用 GenerationHandler，无需 Koin 注册）
+    private val subAgentRunner = SubAgentRunner(generationHandler)
 
     // 统一会话管理
     private val sessions = ConcurrentHashMap<Uuid, ConversationSession>()
@@ -534,22 +539,7 @@ class ChatService(
                 },
                 outputTransformers = outputTransformers,
                 tools = buildList {
-                    if (assistant.enableWebSearch) {
-                        addAll(createSearchTools(settings))
-                    }
-                    addAll(localTools.getTools(assistant.localTools, conversationId))
-                    if (assistant.enableRecentChatsReference) {
-                        addAll(createConversationTools(conversationRepo, assistant.id))
-                    }
-                    addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd, conversationId))
-                    if (assistant.enabledSkills.isNotEmpty()) {
-                        addAll(
-                            createSkillTools(
-                                enabledSkills = assistant.enabledSkills,
-                                allSkills = skillManager.listSkills(),
-                            )
-                        )
-                    }
+                    // MCP 工具名校验：无效时中止整个生成（保持原行为）
                     mcpManager.getAllAvailableTools().also { allTools ->
                         val invalidNames = allTools
                             .map { it.second }
@@ -567,16 +557,52 @@ class ChatService(
                             )
                             return
                         }
-                    }.forEach { (serverId, serverName, tool) ->
-                        add(
-                            Tool(
-                                name = "mcp__${serverName}__${tool.name}",
-                                description = tool.description ?: "",
-                                parameters = { tool.inputSchema },
-                                needsApproval = { tool.needsApproval },
-                                execute = {
-                                    mcpManager.callTool(serverId, tool.name, it.jsonObject)
-                                },
+                    }
+                    val mainTools = buildList {
+                        if (assistant.enableWebSearch) {
+                            addAll(createSearchTools(settings))
+                        }
+                        addAll(localTools.getTools(assistant.localTools, conversationId))
+                        if (assistant.enableRecentChatsReference) {
+                            addAll(createConversationTools(conversationRepo, assistant.id))
+                        }
+                        addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd, conversationId))
+                        if (assistant.enabledSkills.isNotEmpty()) {
+                            addAll(
+                                createSkillTools(
+                                    enabledSkills = assistant.enabledSkills,
+                                    allSkills = skillManager.listSkills(),
+                                )
+                            )
+                        }
+                        mcpManager.getAllAvailableTools().forEach { (serverId, serverName, tool) ->
+                            add(
+                                Tool(
+                                    name = "mcp__${serverName}__${tool.name}",
+                                    description = tool.description ?: "",
+                                    parameters = { tool.inputSchema },
+                                    needsApproval = { tool.needsApproval },
+                                    execute = {
+                                        mcpManager.callTool(serverId, tool.name, it.jsonObject)
+                                    },
+                                )
+                            )
+                        }
+                    }
+                    addAll(mainTools)
+                    // subagent 工具：catalog = 主工具池（不含 subagent 工具，v1 禁止嵌套）
+                    if (assistant.subagentIds.isNotEmpty()) {
+                        addAll(
+                            createSubAgentTools(
+                                subAgents = settings.subagents.filter { it.id in assistant.subagentIds },
+                                assistant = assistant,
+                                settings = settings,
+                                memories = memories,
+                                conversationSystemPrompt = conversation.customSystemPrompt,
+                                conversationHistory = conversation.currentMessages,
+                                toolCatalog = mainTools,
+                                allSkills = skillManager.listSkills(),
+                                subAgentRunner = subAgentRunner,
                             )
                         )
                     }
