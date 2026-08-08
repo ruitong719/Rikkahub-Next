@@ -27,6 +27,8 @@
   <string name="assistant_extensions_page_tab_mode_injections">Mode Injections</string>
   <string name="assistant_extensions_page_tab_quick_messages">Quick Messages</string>
   <string name="assistant_extensions_page_tab_skills">Skills</string>
+  <string name="assistant_extensions_page_tab_subagents">Subagents</string>
+  <string name="assistant_extensions_page_empty_subagents">No subagents yet</string>
   <string name="assistant_extensions_page_title">Extensions</string>
   <string name="assistant_importer_import_failed">Import failed</string>
   <string name="assistant_importer_import_tavern_json">Import Tavern Character Card (JSON)</string>

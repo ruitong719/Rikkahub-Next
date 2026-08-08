@@ -1,9 +1,15 @@
 package me.rerere.rikkahub.ui.pages.assistant.detail
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -20,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.rikkahub.R
 import kotlinx.coroutines.launch
@@ -44,7 +51,7 @@ fun AssistantExtensionsPage(id: String) {
     val navController = LocalNavController.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState { 4 }
+    val pagerState = rememberPagerState { 5 }
 
     Scaffold(
         topBar = {
@@ -86,6 +93,11 @@ fun AssistantExtensionsPage(id: String) {
                     selected = pagerState.currentPage == 3,
                     onClick = { scope.launch { pagerState.animateScrollToPage(3) } },
                     text = { Text(stringResource(R.string.assistant_extensions_page_tab_skills)) }
+                )
+                Tab(
+                    selected = pagerState.currentPage == 4,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(4) } },
+                    text = { Text(stringResource(R.string.assistant_extensions_page_tab_subagents)) }
                 )
             }
 
@@ -204,6 +216,60 @@ fun AssistantExtensionsPage(id: String) {
                                 )
                                 TextButton(
                                     onClick = { navController.navigate(Screen.Skills) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(stringResource(R.string.assistant_extensions_page_goto_extensions))
+                                }
+                            }
+                        }
+                    }
+
+                    4 -> {
+                        if (settings.subagents.isEmpty()) {
+                            ExtensionEmptyState(
+                                message = stringResource(R.string.assistant_extensions_page_empty_subagents),
+                                buttonText = stringResource(R.string.assistant_extensions_page_goto_extensions),
+                                onAction = { navController.navigate(Screen.SubAgents) },
+                            )
+                        } else {
+                            Column {
+                                LazyColumn(
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(16.dp),
+                                ) {
+                                    items(settings.subagents, key = { it.id.toString() }) { subAgent ->
+                                        ListItem(
+                                            headlineContent = {
+                                                Text(subAgent.name.ifBlank { subAgent.id.toString() })
+                                            },
+                                            supportingContent = if (subAgent.description.isNotBlank()) {
+                                                {
+                                                    Text(
+                                                        text = subAgent.description,
+                                                        maxLines = 2,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                    )
+                                                }
+                                            } else null,
+                                            trailingContent = {
+                                                Switch(
+                                                    checked = subAgent.id in assistant.subagentIds,
+                                                    onCheckedChange = { checked ->
+                                                        val newIds = if (checked) {
+                                                            assistant.subagentIds + subAgent.id
+                                                        } else {
+                                                            assistant.subagentIds - subAgent.id
+                                                        }
+                                                        vm.update(assistant.copy(subagentIds = newIds))
+                                                    },
+                                                )
+                                            },
+                                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                        )
+                                    }
+                                }
+                                TextButton(
+                                    onClick = { navController.navigate(Screen.SubAgents) },
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
                                     Text(stringResource(R.string.assistant_extensions_page_goto_extensions))
