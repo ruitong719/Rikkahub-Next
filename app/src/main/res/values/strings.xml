@@ -362,6 +362,17 @@
   <string name="extension_selector_tab_skills">Skills</string>
   <string name="extensions_page_agent_skills">Agent Skills</string>
   <string name="extensions_page_agent_skills_desc">Manage skill packages for AI to load on demand</string>
+  <string name="extensions_page_subagents">Subagents</string>
+  <string name="extensions_page_subagents_desc">Manage expert sub-agents the AI can delegate to</string>
+  <string name="subagents_page_title">Subagents</string>
+  <string name="subagents_page_empty">No subagents yet</string>
+  <string name="subagents_page_empty_desc">Create one to let the AI delegate focused tasks</string>
+  <string name="subagents_page_unnamed">Unnamed subagent</string>
+  <string name="subagents_page_meta">%1$d tools · %2$d skills</string>
+  <string name="subagents_page_duplicate">Duplicate</string>
+  <string name="subagents_page_delete_title">Delete subagent</string>
+  <string name="subagents_page_delete_message">Delete \"%1$s\"? This also removes it from all assistants.</string>
+  <string name="subagents_edit_placeholder">Edit page for %1$s (coming soon)</string>
   <string name="extensions_page_prompts">Prompts</string>
   <string name="extensions_page_prompts_desc">Manage and use custom prompts</string>
   <string name="extensions_page_quick_messages_desc">Manage shared quick message templates</string>
