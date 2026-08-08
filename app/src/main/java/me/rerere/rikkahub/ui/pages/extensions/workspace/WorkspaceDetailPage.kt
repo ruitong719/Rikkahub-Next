@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.ui.pages.extensions.workspace
 
 import android.content.Intent
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import androidx.activity.compose.BackHandler
@@ -43,6 +44,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -54,7 +56,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.ArrowTurnBackward
 import me.rerere.hugeicons.stroke.Bash
@@ -121,6 +125,21 @@ fun WorkspaceDetailPage(id: String) {
         if (uri == null) return@rememberLauncherForActivityResult
         val outputStream = context.contentResolver.openOutputStream(uri) ?: return@rememberLauncherForActivityResult
         vm.exportFile(entry, outputStream)
+    }
+    // 导出到手机的 SAF 树目录选择器：持久化读写权限，供 workspace_export_to_phone 工具使用
+    val exportDirPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        }.onFailure { e ->
+            android.util.Log.w("WorkspaceDetailPage", "takePersistableUriPermission failed: ${e.message}")
+        }
+        vm.setExportTargetUri(uri)
     }
 
     BackHandler(enabled = pagerState.currentPage == 1 && state.path.isNotBlank()) {
@@ -189,6 +208,8 @@ fun WorkspaceDetailPage(id: String) {
                     installProgress = installProgress,
                     onInstallRootfs = { showInstallDialog = true },
                     onToolApprovalChange = vm::setToolApproval,
+                    onChooseExportTarget = { exportDirPicker.launch(null) },
+                    onClearExportTarget = vm::clearExportTargetUri,
                 )
 
                 1 -> WorkspaceFilesPage(
@@ -312,6 +333,8 @@ private fun WorkspaceBasicPage(
     installProgress: RootfsInstallProgress?,
     onInstallRootfs: () -> Unit,
     onToolApprovalChange: (String, Boolean) -> Unit,
+    onChooseExportTarget: () -> Unit,
+    onClearExportTarget: () -> Unit,
 ) {
     val shellStatus = workspace?.shellStatus
     val installing = installProgress != null || shellStatus == WorkspaceShellStatus.INSTALLING.name
@@ -389,10 +412,105 @@ private fun WorkspaceBasicPage(
         }
 
         item {
+            WorkspaceExportTargetCard(
+                workspace = workspace,
+                onChooseTarget = onChooseExportTarget,
+                onClearTarget = onClearExportTarget,
+            )
+        }
+
+        item {
             WorkspaceToolApprovalCard(
                 workspace = workspace,
                 onToolApprovalChange = onToolApprovalChange,
             )
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceExportTargetCard(
+    workspace: WorkspaceEntity?,
+    onChooseTarget: () -> Unit,
+    onClearTarget: () -> Unit,
+) {
+    val context = LocalContext.current
+    val exportUriString = workspace?.exportTargetUri
+    val configured = !exportUriString.isNullOrBlank()
+    val displayName by produceState(initialValue = null as String?, key1 = exportUriString) {
+        value = exportUriString?.takeIf { it.isNotBlank() }?.let { raw ->
+            withContext(Dispatchers.IO) {
+                runCatching { resolveTreeDisplayName(context, android.net.Uri.parse(raw)) }.getOrNull()
+            }
+        }
+    }
+    val statusText = when {
+        !configured -> stringResource(R.string.workspace_detail_export_not_set)
+        displayName != null -> displayName
+        else -> stringResource(R.string.workspace_detail_export_permission_lost)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CustomColors.cardColorsOnSurfaceContainer,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = stringResource(R.string.workspace_detail_export_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.workspace_detail_export_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(onClick = onChooseTarget, enabled = workspace != null) {
+                    Icon(HugeIcons.Folder01, contentDescription = null)
+                    Text(
+                        text = stringResource(R.string.workspace_detail_export_choose),
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+                if (configured) {
+                    TextButton(onClick = onClearTarget, enabled = workspace != null) {
+                        Text(stringResource(R.string.workspace_detail_export_clear))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 解析 SAF 树目录的显示名（DocumentsContract），失败返回 null（可能权限失效） */
+private fun resolveTreeDisplayName(context: Context, treeUri: android.net.Uri): String? {
+    val docId = DocumentsContract.getTreeDocumentId(treeUri)
+    val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+    return context.contentResolver.query(docUri, null, null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameIndex >= 0) cursor.getString(nameIndex) else null
+        } else {
+            null
         }
     }
 }
@@ -465,6 +583,7 @@ private fun workspaceToolApprovalItems() = listOf(
     "workspace_write_file" to stringResource(R.string.workspace_detail_tool_write_file),
     "workspace_edit_file" to stringResource(R.string.workspace_detail_tool_edit_file),
     "workspace_shell" to stringResource(R.string.workspace_detail_tool_shell),
+    "workspace_export_to_phone" to stringResource(R.string.workspace_detail_tool_export),
 )
 
 @Composable

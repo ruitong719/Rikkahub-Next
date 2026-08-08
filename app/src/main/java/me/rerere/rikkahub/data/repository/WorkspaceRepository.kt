@@ -109,6 +109,16 @@ class WorkspaceRepository(
         return true
     }
 
+    /** 设置/清除导出到手机的 SAF 树目录 URI */
+    suspend fun setExportTargetUri(id: String, exportTargetUri: String?): Boolean {
+        val workspace = dao.getById(id) ?: return false
+        return dao.updateExportTargetUri(
+            id = id,
+            exportTargetUri = exportTargetUri,
+            updatedAt = System.currentTimeMillis(),
+        ) > 0
+    }
+
     suspend fun installRootfs(
         id: String,
         url: String,

@@ -1194,6 +1194,13 @@
   <string name="workspace_detail_tool_delete_file">Delete File</string>
   <string name="workspace_detail_tool_move_file">Move File</string>
   <string name="workspace_detail_tool_shell">Execute Command</string>
+  <string name="workspace_detail_tool_export">Export to Phone</string>
+  <string name="workspace_detail_export_title">Export to Phone</string>
+  <string name="workspace_detail_export_desc">The AI can export workspace files to the phone folder you choose here (via the workspace_export_to_phone tool).</string>
+  <string name="workspace_detail_export_choose">Choose Folder</string>
+  <string name="workspace_detail_export_clear">Clear</string>
+  <string name="workspace_detail_export_not_set">Not set</string>
+  <string name="workspace_detail_export_permission_lost">Permission lost, please choose again</string>
   <string name="workspace_detail_install_rootfs_desc">Will download tar.gz and extract to the linux directory of %s.</string>
   <string name="workspace_detail_download_url">tar.gz download URL</string>
   <string name="workspace_detail_area_files">Files</string>
