@@ -47,24 +47,24 @@ class WorkspaceMountManager(
     private val settingsStore: SettingsStore,
 ) {
     data class SyncStats(
-        val filesSynced: Int = 0,
-        val dirsCreated: Int = 0,
-        val totalBytes: Long = 0L,
-        val skipped: Int = 0,
-        val errors: List<String> = emptyList(),
+        var filesSynced: Int = 0,
+        var dirsCreated: Int = 0,
+        var totalBytes: Long = 0L,
+        var skipped: Int = 0,
+        var errors: MutableList<String> = mutableListOf(),
     )
 
     fun mountsFlow(): Flow<List<WorkspaceMountConfig>> =
         settingsStore.settingsFlow.map { it.workspaceMounts }
 
-    suspend fun listMounts(): List<WorkspaceMountConfig> =
+    fun listMounts(): List<WorkspaceMountConfig> =
         settingsStore.settingsFlow.value.workspaceMounts
 
     suspend fun cacheDir(config: WorkspaceMountConfig): File =
         File(context.filesDir, "mnt/${config.id}")
 
     /** 当前生效的 bind mounts（仅缓存目录已存在的挂载点） */
-    suspend fun activeBindMounts(): List<WorkspaceBindMount> =
+    fun activeBindMounts(): List<WorkspaceBindMount> =
         listMounts().mapNotNull { config ->
             val dir = File(context.filesDir, "mnt/${config.id}")
             if (dir.isDirectory) {
