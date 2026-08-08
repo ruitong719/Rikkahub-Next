@@ -4,6 +4,7 @@ import android.content.Context
 import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.files.SkillManager
+import me.rerere.rikkahub.data.files.WorkspaceBgManager
 import me.rerere.rikkahub.data.files.WorkspaceMountManager
 import me.rerere.rikkahub.data.files.WorkspacePhoneExporter
 import me.rerere.rikkahub.data.repository.ConversationRepository
@@ -75,7 +76,7 @@ val repositoryModule = module {
     }
 
     single {
-        WorkspaceRepository(get(), get(), get(), get(), get())
+        WorkspaceRepository(get(), get(), get(), get(), get(), get())
     }
 
     single {
@@ -88,6 +89,10 @@ val repositoryModule = module {
 
     single {
         WorkspaceMountManager(get(), get())
+    }
+
+    single {
+        WorkspaceBgManager(get(), get(), get())
     }
 
     single {

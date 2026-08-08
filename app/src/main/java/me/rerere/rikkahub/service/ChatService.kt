@@ -61,6 +61,7 @@ import me.rerere.rikkahub.data.ai.transformers.RegexOutputTransformer
 import me.rerere.rikkahub.data.ai.transformers.TemplateTransformer
 import me.rerere.rikkahub.data.ai.transformers.ThinkTagTransformer
 import me.rerere.rikkahub.data.ai.transformers.TimeReminderTransformer
+import me.rerere.rikkahub.data.ai.transformers.BackgroundTaskReminderTransformer
 import me.rerere.rikkahub.data.ai.transformers.WorkspaceReminderTransformer
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
@@ -71,6 +72,7 @@ import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.files.FilesManager
+import me.rerere.rikkahub.data.files.WorkspaceBgManager
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
@@ -148,6 +150,7 @@ class ChatService(
     private val skillManager: SkillManager,
     private val workspaceRepository: WorkspaceRepository,
     private val folderRepository: FolderRepository,
+    private val workspaceBgManager: WorkspaceBgManager,
 ) {
     // workspace 系统提示注入 (依赖 workspaceRepository, 故在类内构造)
     private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository)
@@ -527,6 +530,7 @@ class ChatService(
                     addAll(inputTransformers)
                     add(templateTransformer)
                     add(workspaceReminderTransformer)
+                    add(backgroundTaskReminder(conversationId))
                 },
                 outputTransformers = outputTransformers,
                 tools = buildList {
@@ -537,7 +541,7 @@ class ChatService(
                     if (assistant.enableRecentChatsReference) {
                         addAll(createConversationTools(conversationRepo, assistant.id))
                     }
-                    addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd))
+                    addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd, conversationId))
                     if (assistant.enabledSkills.isNotEmpty()) {
                         addAll(
                             createSkillTools(
@@ -634,7 +638,11 @@ class ChatService(
         }
     }
 
-    private suspend fun createWorkspaceToolsIfReady(workspaceId: String?, cwd: String? = null): List<Tool> {
+    private suspend fun createWorkspaceToolsIfReady(
+        workspaceId: String?,
+        cwd: String? = null,
+        conversationId: Uuid? = null,
+    ): List<Tool> {
         if (workspaceId.isNullOrBlank()) return emptyList()
         val workspace = workspaceRepository.getById(workspaceId) ?: return emptyList()
         if (workspace.shellStatus != WorkspaceShellStatus.READY.name) {
@@ -644,8 +652,16 @@ class ChatService(
             )
             return emptyList()
         }
-        return createWorkspaceTools(workspaceId, workspaceRepository, cwd)
+        return createWorkspaceTools(workspaceId, workspaceRepository, cwd, conversationId?.toString())
     }
+
+    /** 后台任务完成提醒：绑定当前对话，任务完成后下次生成时注入 <bg_reminder> */
+    private fun backgroundTaskReminder(conversationId: Uuid?): BackgroundTaskReminderTransformer =
+        BackgroundTaskReminderTransformer(
+            workspaceRepository = workspaceRepository,
+            bgManager = workspaceBgManager,
+            conversationId = conversationId?.toString(),
+        )
 
     // ---- 检查无效消息 ----
 

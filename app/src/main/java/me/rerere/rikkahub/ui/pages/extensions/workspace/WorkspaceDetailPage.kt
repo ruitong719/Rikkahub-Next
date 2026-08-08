@@ -758,6 +758,11 @@ private fun workspaceToolApprovalItems() = listOf(
     "workspace_export_to_phone" to stringResource(R.string.workspace_detail_tool_export),
     "workspace_mount_list" to stringResource(R.string.workspace_detail_tool_mount_list),
     "workspace_mount_sync" to stringResource(R.string.workspace_detail_tool_mount_sync),
+    "workspace_bg_start" to stringResource(R.string.workspace_detail_tool_bg_start),
+    "workspace_bg_status" to stringResource(R.string.workspace_detail_tool_bg_status),
+    "workspace_bg_output" to stringResource(R.string.workspace_detail_tool_bg_output),
+    "workspace_bg_kill" to stringResource(R.string.workspace_detail_tool_bg_kill),
+    "workspace_bg_list" to stringResource(R.string.workspace_detail_tool_bg_list),
 )
 
 @Composable

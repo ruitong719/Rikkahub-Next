@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.db.dao.WorkspaceDAO
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
+import me.rerere.rikkahub.data.files.WorkspaceBgManager
 import me.rerere.rikkahub.data.files.WorkspaceMountManager
 import me.rerere.rikkahub.utils.JsonInstant
 import me.rerere.workspace.RootfsInstallProgress
@@ -31,6 +32,7 @@ class WorkspaceRepository(
     private val rootfsInstaller: RootfsInstaller,
     private val settingsStore: SettingsStore,
     private val mountManager: WorkspaceMountManager,
+    private val bgManager: WorkspaceBgManager,
 ) {
     fun listFlow(): Flow<List<WorkspaceEntity>> = dao.listFlow()
 
@@ -313,6 +315,8 @@ class WorkspaceRepository(
         val workspace = dao.getById(id) ?: return false
         dao.deleteById(id)
         withContext(Dispatchers.IO) {
+            // 终止常驻 headless 会话，避免 proot 持续持有已删除的 rootfs
+            bgManager.killSession(workspace.root)
             manager.deleteWorkspace(workspace.root)
         }
         cleanupAssistantReferences(id)

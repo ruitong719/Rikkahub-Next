@@ -1212,6 +1212,11 @@
   <string name="workspace_detail_mount_empty">No mounts yet</string>
   <string name="workspace_detail_tool_mount_list">List Mounts</string>
   <string name="workspace_detail_tool_mount_sync">Sync Mount</string>
+  <string name="workspace_detail_tool_bg_start">Start Background Task</string>
+  <string name="workspace_detail_tool_bg_status">Background Task Status</string>
+  <string name="workspace_detail_tool_bg_output">Read Background Output</string>
+  <string name="workspace_detail_tool_bg_kill">Kill Background Task</string>
+  <string name="workspace_detail_tool_bg_list">List Background Tasks</string>
   <string name="workspace_detail_install_rootfs_desc">Will download tar.gz and extract to the linux directory of %s.</string>
   <string name="workspace_detail_download_url">tar.gz download URL</string>
   <string name="workspace_detail_area_files">Files</string>
