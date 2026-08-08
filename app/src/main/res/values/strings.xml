@@ -1291,6 +1291,12 @@
   <string name="tool_ui_screen_time_total">Total screen time</string>
   <string name="assistant_page_local_tools_calendar_title">Calendar</string>
   <string name="assistant_page_local_tools_calendar_desc">Let the AI query and create calendar events</string>
+  <string name="assistant_page_local_tools_todo_title">Todo</string>
+  <string name="assistant_page_local_tools_todo_desc">Let the AI keep a per-conversation todo list</string>
+  <string name="todo_status_button">Todo list</string>
+  <string name="todo_sheet_title">Todo (%1$d active / %2$d total)</string>
+  <string name="todo_sheet_empty">No todos yet. Ask the AI to note something down for you.</string>
+  <string name="todo_sheet_completed">Completed</string>
   <string name="chat_message_tool_calendar_query">Query calendar events</string>
   <string name="chat_message_tool_calendar_create">Create event: %1$s</string>
   <string name="chat_page_move_to_folder">Move to Folder</string>

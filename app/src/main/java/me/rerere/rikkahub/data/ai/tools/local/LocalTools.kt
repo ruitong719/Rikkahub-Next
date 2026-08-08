@@ -5,12 +5,14 @@ import me.rerere.ai.core.Tool
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.event.AppEventBus
 import me.rerere.tts.provider.TTSManager
+import kotlin.uuid.Uuid
 
 class LocalTools(
     private val context: Context,
     private val eventBus: AppEventBus,
     private val ttsManager: TTSManager,
     private val settingsStore: SettingsStore,
+    private val todoStore: TodoStore,
 ) {
     val javascriptTool by lazy { buildJavascriptTool() }
 
@@ -28,7 +30,7 @@ class LocalTools(
 
     val calendarCreateTool by lazy { buildCalendarCreateTool(context) }
 
-    fun getTools(options: List<LocalToolOption>): List<Tool> {
+    fun getTools(options: List<LocalToolOption>, conversationId: Uuid? = null): List<Tool> {
         val tools = mutableListOf<Tool>()
         if (options.contains(LocalToolOption.JavascriptEngine)) {
             tools.add(javascriptTool)
@@ -51,6 +53,12 @@ class LocalTools(
         if (options.contains(LocalToolOption.Calendar)) {
             tools.add(calendarQueryTool)
             tools.add(calendarCreateTool)
+        }
+        // todo 工具按对话隔离：必须知道 conversationId 才能定位数据文件
+        if (options.contains(LocalToolOption.Todo) && conversationId != null) {
+            tools.add(buildTodoCreateTool(todoStore, conversationId))
+            tools.add(buildTodoUpdateTool(todoStore, conversationId))
+            tools.add(buildTodoCompleteTool(todoStore, conversationId))
         }
         return tools
     }

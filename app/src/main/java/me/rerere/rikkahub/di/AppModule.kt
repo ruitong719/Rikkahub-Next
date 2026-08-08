@@ -3,6 +3,7 @@ package me.rerere.rikkahub.di
 import kotlinx.serialization.json.Json
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
+import me.rerere.rikkahub.data.ai.tools.local.TodoStore
 import me.rerere.rikkahub.data.event.AppEventBus
 import me.rerere.rikkahub.service.ChatNotificationManager
 import me.rerere.rikkahub.service.ChatService
@@ -14,6 +15,7 @@ import me.rerere.rikkahub.utils.UpdateChecker
 import me.rerere.rikkahub.web.WebServerManager
 import me.rerere.tts.provider.TTSManager
 import org.koin.dsl.module
+import java.io.File
 
 val appModule = module {
     single<Json> { JsonInstant }
@@ -23,7 +25,11 @@ val appModule = module {
     }
 
     single {
-        LocalTools(get(), get(), get(), get())
+        LocalTools(get(), get(), get(), get(), get())
+    }
+
+    single {
+        TodoStore(File(get<Context>().filesDir, "todo"))
     }
 
     single {

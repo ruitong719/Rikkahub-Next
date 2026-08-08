@@ -537,7 +537,7 @@ class ChatService(
                     if (assistant.enableWebSearch) {
                         addAll(createSearchTools(settings))
                     }
-                    addAll(localTools.getTools(assistant.localTools))
+                    addAll(localTools.getTools(assistant.localTools, conversationId))
                     if (assistant.enableRecentChatsReference) {
                         addAll(createConversationTools(conversationRepo, assistant.id))
                     }

@@ -90,6 +90,8 @@ import me.rerere.hugeicons.stroke.ArrowUp02
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.FullScreen
 import me.rerere.hugeicons.stroke.Zap
+import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
+import me.rerere.rikkahub.data.ai.tools.local.TodoItem
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
@@ -131,6 +133,7 @@ fun ChatInput(
     onCancelClick: () -> Unit,
     onSendClick: () -> Unit,
     onLongSendClick: () -> Unit,
+    todos: List<TodoItem> = emptyList(),
 ) {
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
@@ -295,6 +298,21 @@ fun ChatInput(
                                         onUpdateAssistant(assistant.copy(reasoningLevel = it))
                                     },
                                     onlyIcon = true,
+                                )
+                            }
+
+                            // Todo（思考深度之后）：仅当助手启用了 Todo 本地工具时显示
+                            if (assistant.localTools.contains(LocalToolOption.Todo)) {
+                                var showTodoSheet by remember { mutableStateOf(false) }
+                                if (showTodoSheet) {
+                                    TodoSheet(
+                                        todos = todos,
+                                        onDismiss = { showTodoSheet = false },
+                                    )
+                                }
+                                TodoStatusButton(
+                                    activeCount = todos.count { !it.completed },
+                                    onClick = { showTodoSheet = true },
                                 )
                             }
 

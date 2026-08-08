@@ -28,6 +28,8 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.files.FilesManager
+import me.rerere.rikkahub.data.ai.tools.local.TodoItem
+import me.rerere.rikkahub.data.ai.tools.local.TodoStore
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.Conversation
@@ -55,10 +57,14 @@ class ChatVM(
     val updateChecker: UpdateChecker,
     private val filesManager: FilesManager,
     private val favoriteRepository: FavoriteRepository,
+    private val todoStore: TodoStore,
 ) : ViewModel() {
     private val _conversationId: Uuid = Uuid.parse(id)
     val conversation: StateFlow<Conversation> = chatService.getConversationFlow(_conversationId)
     var chatListInitialized by mutableStateOf(false) // 聊天列表是否已经滚动到底部
+
+    // 当前对话的 todo 列表（与 todo_* 工具共享 TodoStore，实时联动）
+    val todos: StateFlow<List<TodoItem>> = todoStore.todos(_conversationId)
 
     // 聊天输入状态 - 保存在 ViewModel 中避免 TransactionTooLargeException
     val inputState = ChatInputState()
