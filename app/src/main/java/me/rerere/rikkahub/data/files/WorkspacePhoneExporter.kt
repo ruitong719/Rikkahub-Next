@@ -176,7 +176,7 @@ class WorkspacePhoneExporter(
         currentCoroutineContext().ensureActive()
     }
 
-    private fun mimeTypeFor(name: String): String {
+private fun mimeTypeFor(name: String): String {
         val ext = name.substringAfterLast('.', "").lowercase()
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
     }
@@ -224,4 +224,10 @@ internal fun sanitizeTargetDir(raw: String): List<String> {
         "target_dir must not contain '.' or '..'"
     }
     return segments
+}
+
+/** 按扩展名推断 MIME 类型（SAF 创建文件用） */
+internal fun mimeTypeFor(name: String): String {
+    val ext = name.substringAfterLast('.', "").lowercase()
+    return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
 }

@@ -29,6 +29,8 @@ val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
     "workspace_edit_file" to false,
     "workspace_shell" to true,
     "workspace_export_to_phone" to true,
+    "workspace_mount_list" to false,
+    "workspace_mount_sync" to true,
 )
 
 fun resolveWorkspaceToolApproval(name: String, overrides: Map<String, Boolean>): Boolean =
@@ -51,7 +53,7 @@ suspend fun createWorkspaceTools(
         createEditFileTool(workspaceId, ::needsApproval, workspaceRepository),
         createShellTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd),
         createWorkspaceExportTool(workspaceId, ::needsApproval, workspaceRepository),
-    )
+    ) + createWorkspaceMountTools(::needsApproval)
 }
 
 private val IMAGE_EXTENSIONS = setOf(

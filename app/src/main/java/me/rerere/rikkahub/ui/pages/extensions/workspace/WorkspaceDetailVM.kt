@@ -4,14 +4,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.getAndUpdate
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
+import me.rerere.rikkahub.data.files.SyncDirection
+import me.rerere.rikkahub.data.files.WorkspaceMountConfig
+import me.rerere.rikkahub.data.files.WorkspaceMountManager
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.workspace.RootfsInstallProgress
 import me.rerere.workspace.RootfsInstallStage
@@ -22,6 +27,7 @@ import me.rerere.workspace.WorkspaceStorageArea
 class WorkspaceDetailVM(
     private val id: String,
     private val repository: WorkspaceRepository,
+    private val mountManager: WorkspaceMountManager,
 ) : ViewModel() {
     private val _state = MutableStateFlow(WorkspaceDetailState())
     val state = _state.asStateFlow()
@@ -34,6 +40,15 @@ class WorkspaceDetailVM(
 
     private val _installError = MutableStateFlow<String?>(null)
     val installError = _installError.asStateFlow()
+
+    private val _mountMessage = MutableStateFlow<String?>(null)
+    val mountMessage = _mountMessage.asStateFlow()
+
+    val mounts = mountManager.mountsFlow().stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = emptyList(),
+    )
 
     init {
         loadWorkspace()
@@ -188,6 +203,38 @@ class WorkspaceDetailVM(
             repository.setExportTargetUri(id, null)
             loadWorkspace()
         }
+    }
+
+    fun addMount(name: String, uri: android.net.Uri) {
+        viewModelScope.launch {
+            runCatching { mountManager.addMount(name, uri) }
+                .onSuccess { _mountMessage.value = "Mount added: /mnt/${it.name}" }
+                .onFailure { e -> _mountMessage.value = "Add mount failed: ${e.message}" }
+        }
+    }
+
+    fun removeMount(mountId: String) {
+        viewModelScope.launch {
+            runCatching { mountManager.removeMount(mountId) }
+                .onSuccess { _mountMessage.value = if (it) "Mount removed" else "Mount not found" }
+                .onFailure { e -> _mountMessage.value = "Remove mount failed: ${e.message}" }
+        }
+    }
+
+    fun syncMount(mountId: String, direction: SyncDirection) {
+        viewModelScope.launch {
+            runCatching { mountManager.syncMount(mountId, direction) }
+                .onSuccess { stats ->
+                    _mountMessage.value =
+                        "Sync ${direction.name.lowercase()} done: ${stats.filesSynced} files, " +
+                            "${stats.totalBytes} bytes, ${stats.errors.size} errors"
+                }
+                .onFailure { e -> _mountMessage.value = "Sync failed: ${e.message}" }
+        }
+    }
+
+    fun consumeMountMessage() {
+        _mountMessage.value = null
     }
 
     fun installRootfs(url: String) {

@@ -1201,6 +1201,17 @@
   <string name="workspace_detail_export_clear">Clear</string>
   <string name="workspace_detail_export_not_set">Not set</string>
   <string name="workspace_detail_export_permission_lost">Permission lost, please choose again</string>
+  <string name="workspace_detail_mount_title">Phone Directory Mounts</string>
+  <string name="workspace_detail_mount_desc">Mount phone folders into the workspace at /mnt/&lt;name&gt; so the AI can read and write them.</string>
+  <string name="workspace_detail_mount_add">Add Mount</string>
+  <string name="workspace_detail_mount_remove">Remove</string>
+  <string name="workspace_detail_mount_sync">Sync</string>
+  <string name="workspace_detail_mount_name_hint">Mount name</string>
+  <string name="workspace_detail_mount_confirm">OK</string>
+  <string name="workspace_detail_mount_cancel">Cancel</string>
+  <string name="workspace_detail_mount_empty">No mounts yet</string>
+  <string name="workspace_detail_tool_mount_list">List Mounts</string>
+  <string name="workspace_detail_tool_mount_sync">Sync Mount</string>
   <string name="workspace_detail_install_rootfs_desc">Will download tar.gz and extract to the linux directory of %s.</string>
   <string name="workspace_detail_download_url">tar.gz download URL</string>
   <string name="workspace_detail_area_files">Files</string>
