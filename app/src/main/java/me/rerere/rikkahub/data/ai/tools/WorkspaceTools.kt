@@ -36,6 +36,7 @@ val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
     "workspace_bg_output" to false,
     "workspace_bg_kill" to true,
     "workspace_bg_list" to false,
+    "workspace_create_backup" to true,
 )
 
 fun resolveWorkspaceToolApproval(name: String, overrides: Map<String, Boolean>): Boolean =
@@ -60,7 +61,8 @@ suspend fun createWorkspaceTools(
         createShellTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd),
         createWorkspaceExportTool(workspaceId, ::needsApproval, workspaceRepository),
     ) + createWorkspaceMountTools(::needsApproval) +
-        createWorkspaceBgTools(workspaceId, ::needsApproval, workspaceRepository, conversationId)
+        createWorkspaceBgTools(workspaceId, ::needsApproval, workspaceRepository, conversationId) +
+        listOf(createWorkspaceBackupTool(workspaceId, ::needsApproval, workspaceRepository))
 }
 
 private val IMAGE_EXTENSIONS = setOf(

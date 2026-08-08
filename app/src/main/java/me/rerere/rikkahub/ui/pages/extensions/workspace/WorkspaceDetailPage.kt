@@ -763,6 +763,7 @@ private fun workspaceToolApprovalItems() = listOf(
     "workspace_bg_output" to stringResource(R.string.workspace_detail_tool_bg_output),
     "workspace_bg_kill" to stringResource(R.string.workspace_detail_tool_bg_kill),
     "workspace_bg_list" to stringResource(R.string.workspace_detail_tool_bg_list),
+    "workspace_create_backup" to stringResource(R.string.workspace_detail_tool_create_backup),
 )
 
 @Composable

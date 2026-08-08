@@ -1,0 +1,67 @@
+package me.rerere.rikkahub.data.ai.tools
+
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import me.rerere.ai.core.InputSchema
+import me.rerere.ai.core.Tool
+import me.rerere.ai.ui.UIMessagePart
+import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.datastore.WebDavConfig
+import me.rerere.rikkahub.data.repository.WorkspaceRepository
+import me.rerere.rikkahub.data.sync.webdav.WebDavSync
+import me.rerere.workspace.WorkspaceManager
+import org.koin.java.KoinJavaComponent.getKoin
+import java.io.File
+
+/**
+ * workspace_create_backup: 复用"备份与恢复—导出到本地"的备份生成逻辑，
+ * 在 /workspace 下生成 backup.zip，并返回文件路径供 LLM 处理。
+ *
+ * 注意：备份 zip 包含全部聊天记录/设置/上传文件（隐私敏感），默认需要用户审批。
+ * 功能四修复后，zip 内的数据库是 wal_checkpoint 后的一致性快照。
+ */
+fun createWorkspaceBackupTool(
+    workspaceId: String,
+    needsApproval: (String) -> Boolean,
+    workspaceRepository: WorkspaceRepository,
+): Tool = Tool(
+    name = "workspace_create_backup",
+    description = buildString {
+        append("Create a full app backup (settings, database and files) as /workspace/backup.zip inside the workspace. ")
+        append("Returns the file path. ")
+        append("The zip contains all conversations and settings - treat it as sensitive. ")
+        append("Use workspace_shell (e.g. unzip -l) to inspect it; the database inside is a consistent snapshot.")
+    },
+    parameters = { InputSchema.Obj(properties = buildJsonObject {}, required = emptyList()) },
+    needsApproval = { needsApproval("workspace_create_backup") },
+    execute = {
+        val workspace = workspaceRepository.getById(workspaceId)
+            ?: error("Workspace not found: $workspaceId")
+
+        val settingsStore = getKoin().get<SettingsStore>()
+        val webDavSync = getKoin().get<WebDavSync>()
+        val backupFile = webDavSync.prepareBackupFile(
+            settingsStore.settingsFlow.value.webDavConfig.copy(
+                items = WebDavConfig.BackupItem.entries
+            )
+        )
+
+        // 复制到工作区文件区 /workspace/backup.zip（固定文件名，每次覆盖）
+        val workspaceManager = getKoin().get<WorkspaceManager>()
+        val target = File(workspaceManager.filesDir(workspace.root), "backup.zip")
+        backupFile.copyTo(target, overwrite = true)
+        backupFile.delete()
+
+        listOf(
+            UIMessagePart.Text(
+                buildJsonObject {
+                    put("path", "/workspace/backup.zip")
+                    put("name", "backup.zip")
+                    put("sizeBytes", target.length())
+                    put("createdAt", System.currentTimeMillis())
+                    put("message", "Backup file created. Use workspace_shell to inspect it.")
+                }.toString()
+            )
+        )
+    },
+)
