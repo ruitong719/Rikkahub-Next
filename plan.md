@@ -1,7 +1,7 @@
 # RikkaHub 工作区新功能开发计划
 
 分支：`dev`（基于 `master`，HEAD `576f2341`）
-状态：功能一~五已实施（HEAD `10498cb5`）；**功能六（Subagent）为新增草稿，待确认后实施**
+状态：**功能一~八全部已实施**（HEAD `2bce87cc`）；功能六（Subagent）、功能七（Todo）、功能八（per-tool prompt）为本次新增
 
 ---
 
@@ -530,10 +530,10 @@ run(subAgent, assistant, settings, conversationSystemPrompt, conversationHistory
 - `WorkspaceDetailVM` 加 `setToolPrompt(toolName, prompt)` / `clearToolPrompt(toolName)`（参照 `setToolApproval:186` 模式 + `loadWorkspace()`）
 - `strings.xml`：对话框标题/按钮/默认标记文案（只加 base）
 
-### 待确认
+### 已定案（v1 边界，用户确认）
 
-1. **编辑范围**：v1 只编辑注入 `<workspace>` 块的 per-tool 提示词文本；**不动** `Tool.description`（函数定义，模型经 function calling schema 看到）。若需连 description 一起可编辑，列为 v2。
-2. **UI 形态**：默认用对话框（简单）；若工具行信息量大可改独立页面。
+1. **编辑范围**：v1 只编辑注入 `<workspace>` 块的 per-tool 提示词文本；**不动** `Tool.description`（函数定义，模型经 function calling schema 看到）。description 可编辑列为 v2。
+2. **UI 形态**：采用对话框（工具行点击打开 `ToolPromptEditDialog`）。
 
 ### 实施步骤
 
