@@ -1,7 +1,7 @@
 # RikkaHub 工作区新功能开发计划
 
 分支：`dev`（基于 `master`，HEAD `576f2341`）
-状态：**草稿，待确认后实施**
+状态：功能一~五已实施（HEAD `10498cb5`）；**功能六（Subagent）为新增草稿，待确认后实施**
 
 ---
 
@@ -259,6 +259,289 @@ workspace_export_to_phone
 2. **与功能四的关系**：直接复用 `prepareBackupFile`；功能四将 `prepareBackupFile` 内部改为一致性数据库快照后，本工具自动受益（zip 内的 db 快照正确）
 3. **LLM 使用**：拿到路径后可 `workspace_read_file`（zip 是二进制，更适合 `workspace_shell` unzip / python 处理）——在工具描述中提示
 4. **隐私注意**：备份含全量数据，生成到工作区 = LLM 可读，需审批兜底
+
+---
+
+## 功能六：Subagent（子智能体，主 Agent 可调用的专家工具）
+
+### 需求来源
+
+用户调研了主流 Agent 框架的 subagent 实现（LangGraph / CrewAI / AutoGen / OpenAI Agents SDK / Claude Code / Semantic Kernel 等），总结出四种实现路径：**tool-based（函数调用）、handoff（控制权移交）、graph/workflow（子图编排）、message-passing（消息总线）**，以及通用工程要点：上下文隔离、权限隔离、结构化输出、防无限递归、可观测性。
+
+### 已确认决策（用户拍板）
+
+| 决策点 | 选择 |
+|---|---|
+| 触发方式 | **仅 tool-based**：主 Agent 通过工具调用启动 subagent，不引入 handoff/graph/消息总线 |
+| 定义存储 | **SettingsStore JSON 列表**（与 Assistant/MCP_SERVERS 同模式，无 DB 迁移） |
+| 模型 | 定义里**可选模型**，缺省继承主 Agent 当前模型（`assistant.chatModelId ?: settings.chatModelId`） |
+| 审批 | **派发时一次审批**：`run_subagent` 按定义默认需审批；subagent **内部工具自动执行**，不再弹审批 |
+| 上下文 | **继承主 Agent 系统提示/记忆 + 带入主 Agent 对话记录（过滤 think 过程），再叠加任务** |
+| 执行方式 | v1 **同步阻塞 + 超时**；异步列为后续版本 |
+| 嵌套 | **v1 禁止嵌套**：subagent 工具池不含任何 subagent 工具，无递归问题 |
+| Skills | **共享扩展管理里的 Skills**：SubAgent 定义内 `enabledSkills` 按需启用（与 Assistant.enabledSkills 同模式）；skill 工具由 subagent 自己的启用列表构建，不走 allowlist |
+| UI | 管理入口放**设置—通用设置—扩展管理**（`ExtensionsPage` 加一项）；Assistant 配置仍勾选可用 subagent（`subagentIds`）；运行过程按**普通 tool call** 展示 |
+| 预设 | 内置 **3 个示例预设**（可删除、可复制修改） |
+
+### 设计
+
+#### 1. 数据模型（新文件 `app/.../data/model/SubAgent.kt`）
+
+```kotlin
+@Serializable
+data class SubAgent(
+    val id: Uuid = Uuid.random(),
+    val name: String = "",                  // 显示名；slug 化后作为工具名的一部分
+    val description: String = "",           // 工具描述：主 Agent 据此决定何时调用
+    val systemPrompt: String = "",          // 追加到主 Agent system prompt 之后的专属提示
+    val modelId: Uuid? = null,              // null = 继承主 Agent 模型
+    val toolAllowlist: Set<String> = emptySet(), // 工具名或类别标签（见 §4），空 = 纯文本专家
+    val enabledSkills: Set<String> = emptySet(), // 启用的 skill 名称（共享扩展管理里的 Skills，见 §4.1）
+    val maxSteps: Int = 64,                 // 内部循环步数上限（主循环默认 256）
+    val timeoutMs: Long = 120_000,          // 超时；超时返回 {status:"timeout"}
+    val requiresApproval: Boolean = true,   // 派发该 subagent 是否需用户审批
+)
+```
+
+#### 2. 存储（`app/.../data/datastore/PreferencesStore.kt`）
+
+- 新增 `val SUBAGENTS = stringPreferencesKey("subagents")`（companion，参照 `MCP_SERVERS:118`）
+- `Settings` 数据类（`PreferencesStore.kt:517`）加 `val subagents: List<SubAgent> = DEFAULT_SUBAGENTS`
+- 读取（参照 `workspaceMounts:222`）：`subagents = preferences[SUBAGENTS]?.let { decode } ?: DEFAULT_SUBAGENTS`——**key 不存在才注入默认**，用户保存过（含删光）后以用户数据为准，天然满足"预设可删除"
+- 保存（参照 `WORKSPACE_MOUNTS:402`）：`preferences[SUBAGENTS] = JsonInstant.encodeToString(settings.subagents)`
+- `DEFAULT_SUBAGENTS` 定义 3 个预设（参照 `DEFAULT_ASSISTANTS:721` 模式，固定 id）：
+  - `code-reviewer`：审查代码质量/安全/可维护性，只读分析不改文件；tools=`[workspace_read, workspace_shell]`；`requiresApproval=true`（有 shell）
+  - `researcher`：调研问题、收集归纳信息；tools=`[search, workspace_read]`；`requiresApproval=false`（只读+搜索，低危）
+  - `data-analyst`：在工作区运行脚本分析数据；tools=`[workspace_read, workspace_write, workspace_shell, workspace_bg]`；`requiresApproval=true`
+
+#### 3. Assistant 关联（`app/.../data/model/Assistant.kt`）
+
+- `Assistant` 加 `val subagentIds: Set<Uuid> = emptySet()`（参照 `enabledSkills` 模式：全局定义、per-assistant 启用）
+
+#### 4. 工具 allowlist（类别标签 + 精确工具名）
+
+`toolAllowlist` 元素支持两种：
+- **类别标签**（UI 按组勾选），固定映射表：
+
+| 标签 | 匹配的工具（前缀） |
+|---|---|
+| `workspace_read` | `workspace_read_file` |
+| `workspace_write` | `workspace_write_file`、`workspace_edit_file` |
+| `workspace_shell` | `workspace_shell` |
+| `workspace_other` | `workspace_export_to_phone`、`workspace_mount_*`、`workspace_bg_*`、`workspace_create_backup` |
+| `search` | `search_web`、`scrape_web` |
+| `mcp` | `mcp__*`（所有 MCP 工具） |
+| `conversation` | `recent_chats`、`conversation_search` |
+| `local` | `ask_user` 除外：`calendar_*`、`clipboard_tool`、`eval_javascript`、`get_screen_time`、`text_to_speech`、`get_time_info`、`todo_*` |
+
+- **精确工具名**：如 `workspace_read_file`、`search_web`，直接命中
+- 匹配规则：`entry == toolName || entry 是工具名前缀`；**`ask_user` 一律排除**（子循环内等待用户交互会死锁/挂起）
+- 空 allowlist = 无工具，subagent 退化为"只读文本专家"
+
+#### 4.1 Skill 工具（共享扩展管理的 Skills）
+
+- `SubAgent.enabledSkills` 与 `Assistant.enabledSkills` 同语义：从扩展管理维护的全局 skills 库（`SkillManager.listSkills()`）按名称勾选
+- 构建：subagent 的 skill 工具 = `createSkillTools(enabledSkills = subAgent.enabledSkills, allSkills = skillManager.listSkills())`（现有工厂，`SkillsTools.kt`）
+- **不走 allowlist**：勾了就给 `use_skill` 工具，没勾就没有——完全由用户按需启用
+
+#### 5. 执行核心（新文件 `app/.../data/ai/SubAgentRunner.kt`）
+
+**复用现有 `GenerationHandler.generateText` 作为嵌套循环**（`GenerationHandler.kt:73` 的循环本身无共享可变状态，每次 flow 局部变量，理论上可重入），不重写 Agent 循环：
+
+```
+run(subAgent, assistant, settings, conversationSystemPrompt, conversationHistory,
+    task, context, memories, toolCatalog, allSkills): String(JSON)
+├─ 解析 model = settings.findModelById(subAgent.modelId ?: assistant.chatModelId ?: settings.chatModelId)
+├─ 合成"虚拟 Assistant"：
+│    systemPrompt = 主 effectiveSystemPrompt（含 conversation 覆盖逻辑）
+│                   + "\n\n" + subAgent.systemPrompt
+│    chatModelId = subAgent.modelId，其余参数继承主 Assistant
+├─ 工具集 =
+│    toolCatalog.filter(allowlist 匹配).map { it.copy(needsApproval = { false }) }
+│    + createSkillTools(subAgent.enabledSkills, allSkills)      // 共享的 skills，按需启用
+│    （catalog = 主 Agent 工具池剔除 subagent 工具后传入，v1 无嵌套）
+├─ 消息 =
+│    stripReasoning(conversationHistory)                        // 主 Agent 对话记录，过滤 think
+│    + [ UIMessage.user(task + [<context>…</context>]) ]        // 叠加任务
+├─ memories = 主 Agent memories（enableMemory 继承时生效）
+├─ withTimeout(timeoutMs) { generationHandler.generateText(…, maxSteps=subAgent.maxSteps,
+│     processingStatus=独立 MutableStateFlow, input/outputTransformers=空).collect(取最后 messages) }
+└─ 提取最后一条 assistant 文本 → 结构化 JSON
+```
+
+- **上下文语义**（用户拍板）：继承 persona（system prompt）+ 记忆 + **带入主 Agent 对话记录**，再叠加任务
+- **不带入 think 过程**：`stripReasoning()` 纯函数 = 过滤每条消息的 `UIMessagePart.Reasoning` part，并剥离 `Text` part 中残留的 `<think>...</think>` 片段（复用 `ThinkTagTransformer` 的 `THINKING_REGEX`）；对话历史的长度由 `generateInternal` 的 `limitContext(assistant.contextMessageLimit)` 统一截断（subagent 合成 Assistant 继承主 limit）
+- 不应用主 Agent 的 input/output transformers（避免时间注入/OCR/占位符等副作用污染子循环）
+- **结果 JSON**（返回主 Agent 的 tool output）：
+  ```json
+  { "status": "success|error|timeout",
+    "result": "最终回答或错误信息",
+    "steps": 6,
+    "usage": { "inputTokens": 0, "outputTokens": 0 } }
+  ```
+- 循环因 `maxSteps` 耗尽而结束时无最终文本 → `result` 附"达到最大步数" + 最近消息摘要
+- 实例化：`ChatService` 内部构造 `SubAgentRunner(generationHandler)`（与 `BackgroundTaskReminderTransformer` 同模式，无需 Koin 注册）
+
+#### 6. 工具注册（新文件 `app/.../data/ai/tools/SubAgentTools.kt` + `ChatService.kt`）
+
+- **每个启用的 subagent 生成一个独立工具**（Claude Code 式：主 Agent 同时看到多个"专家"，各自有精准 description）：
+  - 工具名：`subagent_<slug>`（slug = name 小写、非字母数字转 `_`；冲突时追加短 id，如 `subagent_code_reviewer_a1b2`）
+  - 参数：`task`（必填 string）+ `context`（可选 string，主 Agent 传必要背景）
+  - `description`：subAgent.description + 附注（超时/步数/返回 JSON 格式提示）
+  - `needsApproval = { subAgent.requiresApproval }`
+- `ChatService.handleMessageComplete` 工具组装（`ChatService.kt:536` buildList）重构为：
+  1. 先构建 `mainTools`（现有全部工具：search/local/conversation/workspace/skills/MCP，逻辑不变）
+  2. `addAll(mainTools)`
+  3. `if (assistant.subagentIds.isNotEmpty()) addAll(createSubAgentTools(…))`，工厂参数：
+     - `subAgents`（按 `assistant.subagentIds` 过滤后的定义列表）、`assistant`、`settings`、`memories`（handleMessageComplete 局部变量）、`conversationSystemPrompt`（= conversation.customSystemPrompt）、`conversationHistory`（= conversation.currentMessages，生成前快照，Runner 内 stripReasoning）、`workspaceCwd`、`conversationId`、`toolCatalog = mainTools`、`allSkills`（= skillManager.listSkills()）
+- **workspace 工具复用**：subagent 若 allowlist 含 workspace 类别，其工具来自 `createWorkspaceTools(workspaceId, repo, cwd, conversationId)`（同一工厂，自动带审批映射与挂载表）
+
+#### 7. UI
+
+- **设置—通用设置—扩展管理**（`ExtensionsPage.kt`）新增 "Subagents" 入口 item（Icon + 标题 + 描述，navigate `Screen.SubAgents`，参照现有 Skills 条目 `ExtensionsPage.kt:53`）
+- subagent 管理页（参照 `SkillsPage.kt` 模式）：
+  - `app/.../ui/pages/extensions/subagents/SubAgentsPage.kt`：列表 + 新增 + 删除 + "复制预设"
+  - `SubAgentEditPage.kt`：name / description / systemPrompt / 模型选择（可选，参照 Assistant 模型选择）/ 工具 allowlist 分组勾选（按 §4 类别）/ **Skills 勾选（共享扩展管理 Skills，复用 `SkillsContent` 勾选模式，参照 `AssistantExtensionsPage.kt:195-206`）** / maxSteps / timeoutMs / requiresApproval
+  - `RouteActivity.kt`：`Screen.SubAgents`、`Screen.SubAgentEdit(id)` + 路由条目（参照 `Screen.Skills:493`）
+- Assistant 配置页（`AssistantExtensionsPage.kt`，参照 `SkillsContent:191-206`）：新增"可用 subagent"卡片——勾选 `assistant.subagentIds` + "管理"按钮跳转扩展管理
+- `values/strings.xml`：新增英文文案（只加 base）
+- 聊天内：subagent 运行按普通 tool call 渲染（结果 JSON 文本），v1 不做特殊折叠展示
+
+### 实施步骤（每步独立提交到 dev）
+
+1. **数据层**：`SubAgent.kt`（模型 + 3 预设，含 `enabledSkills`）+ `PreferencesStore` 存储 + `Assistant.subagentIds`——无行为变化，可独立验证
+2. **执行层**：`SubAgentRunner.kt`（含 `stripReasoning` 纯函数）+ `SubAgentTools.kt` + `ChatService` 组装重构（传入 conversationHistory/allSkills）
+3. **UI**：扩展管理入口 + `SubAgentsPage` / `SubAgentEditPage`（含 Skills 勾选）+ 路由 + Assistant 配置勾选 + strings
+4. **测试**：allowlist 匹配、slug 化、`stripReasoning`、结果 JSON 组装为纯函数 → JVM 单测（参照 `WorkspacePhoneExporterTest`）
+
+### 风险与验证
+
+- **GenerationHandler 重入**：嵌套调用同一实例是否安全需代码 review + 真机验证；若发现问题，备选方案是 SubAgentRunner 自实现精简循环（不复用 generateText），代价是重复工具执行/审批状态逻辑
+- **超时取消**：`withTimeout` 取消依赖 provider 调用响应取消（现有 CancellationException 传播链已处理，需真机确认）
+- **记忆可写**：enableMemory 继承主值 → subagent 内部生成的 memory 工具可读写记忆（与主 Agent 同权限）；v1 接受，文档提示
+- **token 成本**：每次派发 = 子循环 + 主 Agent 消费结果 + **带入对话记录（去 think 后仍可能较大）**；工具描述提示；历史长度由 contextMessageLimit 截断兜底
+- **工具名冲突**：slug 冲突追加短 id
+- **沙箱无 Android SDK**：全部改动需在 Android Studio `assembleDebug` 验证编译，嵌套循环重入与超时取消需真机验证
+
+---
+
+## 功能七：Todo 本地工具（替代 todo-manager skill）
+
+### 需求（用户拍板）
+
+把 `/skills/todo-manager` 的 todo 能力改为 **RikkaHub 内置本地工具**（不再作为 skill 使用）。预期保持简单：**仅在一个对话内使用**，只需三个操作：创建任务、编辑任务、标记已完成。不做 list/get/search/summarize/delete。
+
+> 注：原 skill 的 `todo` 是 workspace 里的 Linux 二进制（`/skills/todo-manager/todo`），Android App 进程无法直接执行，因此用 Kotlin 复刻逻辑，数据存 App 私有目录。
+
+### 设计
+
+- **数据作用域 = 单个对话**：`context.filesDir/todo/<conversationId>.json`，每个对话一个独立任务列表；LLM 在对话内创建/编辑/完成的任务只对该对话可见
+- **文件格式**：裸 JSON 数组（与原 CLI 兼容）`[{id, title, description, created_at, completed, completed_at}]`；id = 12 位随机 hex（与原 CLI 一致）；时间 ISO-8601
+- **工具**（3 个，单职责，参照 `CalendarTool` 拆分模式）：
+  - `todo_create`：`title`（必填）+ `description`（可选）
+  - `todo_update`：`id`（必填）+ `title`/`description`（可选，至少一个）
+  - `todo_complete`：`id`（必填）+ `completed`（可选，默认 true，可取消完成）
+  - 返回 JSON：`{status:"ok", todo:{...}}` 或 `{status:"error", message:"未找到 ID 为 'xxx' 的待办事项"}`
+- **接入**：
+  - `LocalToolOption` 加 `data object Todo`（`LocalToolOption.kt`）
+  - `LocalTools.getTools(options, conversationId: Uuid? = null)` 加 conversationId 参数；`ChatService.kt:540` 调用处传入；conversationId 为 null 时不注册 todo 工具（仅此一处调用，影响面小）
+  - 新文件 `app/.../data/ai/tools/local/TodoTool.kt`（三个 build 函数）
+  - `AssistantLocalToolPage.kt` 加勾选行 + `strings.xml` 加 title/desc 文案（参照 `calendar_title/calendar_desc:1292`）
+  - 功能六 §4 allowlist 的 `local` 类别前缀表追加 `todo_*`（subagent 可勾选 todo 工具）
+- **并发与清理**：单文件读写做原子写（临时文件 + rename）；对话删除不清理 todo 文件，v1 接受
+
+### 对话内 UI（用户拍板：聊天页输入框下加 todo 图标，位于思考深度之后）
+
+- **入口**：`ChatInput` 工具条横向滚动 Row（`ChatInput.kt:241`），位置 = `ModelSelector → SearchPickerButton → ReasoningButton` 之后；仅当 `assistant.localTools` 含 `Todo` 时显示（未启用则该助手不出现入口）
+- **图标**：`TodoStatusButton`——HugeIcons 清单图标 + Material3 `BadgedBox` 角标（未完成任务数 N>0 时显示红色数字；N=0 灰显），样式对齐 `ReasoningButton` 的 `ToggleSurface`
+- **展示**：点击弹 `ModalBottomSheet`（参照 `ReasoningPicker.kt` 的 ModalBottomSheet 用法）：
+  - 标题：Todo（未完成 X / 共 Y）
+  - 未完成组在前：title、description（次要色小字）、创建时间（`M/d HH:mm`）
+  - 已完成组置灰 + 删除线
+  - 空态："暂无待办，可以让我帮你记录"
+  - **纯只读展示，无任何用户操作**；完成/取消完成**仅由模型通过 `todo_complete` 工具更新**（用户在对话里让模型标记完成）——不做新增/编辑/删除/勾选等交互，新增编辑同样走对话自然语言 + `todo_*` 工具
+- **数据接入**：抽 `TodoStore`（`app/.../data/ai/tools/local/TodoStore.kt`）：封装 `filesDir/todo/<conversationId>.json` 读写 + `MutableStateFlow<List<TodoItem>>` 缓存；`TodoTool.kt` 三个工具与 UI 共用同一数据源 → LLM 创建任务后图标角标**实时更新**
+  - `fun todos(conversationId: Uuid): StateFlow<List<TodoItem>>`（UI 只读）
+  - `suspend fun setCompleted(conversationId: Uuid, id: String, completed: Boolean)`（仅 `todo_complete` 工具调用）
+- **ChatVM**：注入 TodoStore，加 `val todos: StateFlow<List<TodoItem>>`（按 `_conversationId`）；`ChatPageContent` 只读传给 `ChatInput`（新增参数 `todos`，无交互回调）
+- **图标选择**：项目内已确认存在 `LeftToRightListBullet`；优先尝试 `Task01`/`ListChecklist`（hugeicons 外部库，沙箱无法验证），编译不过则回退 `LeftToRightListBullet`
+
+### 实施步骤
+
+1. `TodoStore.kt`（读写 + flow，纯 Kotlin 可 JVM 测）＋ `TodoTool.kt`（三个工具）＋ `LocalToolOption.Todo` + `LocalTools.getTools` 签名
+2. `ChatService.kt:540` 传 conversationId + `AssistantLocalToolPage` 勾选行 + strings + 功能六 allowlist 表补 `todo_*`
+3. UI：`TodoStatusButton`/`TodoSheet`（新文件 `app/.../ui/components/ai/TodoSheet.kt`）+ `ChatInput` 工具条接入 + `ChatVM.todos` + `ChatPageContent` 传参
+4. 测试：TodoStore 读写/ID 生成/错误语义/角标计数 → JVM 单测
+
+### 已知缺陷记录（暂不单独修复，随功能八顺带解决）
+
+1. **`buildWorkspacePrompt` 的 "Available tools" 列表与工具集不同步**（`WorkspaceReminderTransformer.kt:47-50`）：系统提示里只列了 `workspace_read_file` / `write_file` / `edit_file` / `shell` 四个，后加的 `workspace_export_to_phone`、`workspace_mount_*`、`workspace_bg_*`、`workspace_create_backup` 都不在列表里。模型仍能通过函数定义的 description 知道这些工具，但 `<workspace>` 块的说明是过时的。
+
+---
+
+## 功能八：workspace 工具提示词可编辑（per-tool prompt）
+
+### 需求（用户拍板）
+
+把 `workspace_` 系列工具（13 个）的**注入提示词**提取为 per-workspace、per-tool 可编辑配置。入口：**设置—扩展管理—工作区—某一工作区—Basic tab—工具审批**卡片，点击某个工具行 → 编辑该工具对应的注入提示词。
+
+### 设计
+
+#### 1. 数据层（参照 `toolApprovals` 现有模式）
+
+- `WorkspaceEntity`（`app/.../data/db/entity/WorkspaceEntity.kt`）加可空列：
+  ```kotlin
+  // 工具提示词的用户覆盖项 (toolName -> prompt)，未覆盖的工具沿用默认提示词
+  @ColumnInfo("tool_prompts")
+  val toolPrompts: String? = null,   // JSON Map<String, String>
+  ```
+- `AppDatabase` version 25→26，`AutoMigration(from = 25, to = 26)`（加可空列，自动迁移即可）
+- `WorkspaceDAO` 加 `updateToolPrompts(id, toolPrompts, updatedAt)`
+- `WorkspaceRepository` 加：
+  - `setToolPrompt(id, toolName, prompt)`：读实体 → `toolPromptOverrides() + (toolName to prompt)` → upsert（参照 `setToolApproval:105`）
+  - `clearToolPrompt(id, toolName)`：删除覆盖项（恢复默认）
+- 实体方法 `toolPromptOverrides(): Map<String, String> = JsonInstant.decodeFromString(toolPrompts ?: "{}")`
+
+#### 2. 默认提示词表（新文件 `app/.../data/ai/tools/WorkspaceToolPrompts.kt`）
+
+- `DEFAULT_WORKSPACE_TOOL_PROMPTS: Map<String, String>`——13 个工具的默认注入提示词（英文，从各工具 description 提炼，风格对齐现有 `<workspace>` 块 Available tools 条目）：
+  - `workspace_read_file` / `write_file` / `edit_file` / `shell`：沿用 `WorkspaceReminderTransformer.kt:48-50` 现有描述
+  - `workspace_export_to_phone` / `mount_list` / `mount_sync` / `bg_*` / `create_backup`：从各自 `Tool.description` 提炼一句话说明
+- 同时定义 `WORKSPACE_TOOL_NAMES`（13 个工具名列表，供 UI 与注入逻辑遍历）
+
+#### 3. 注入逻辑改造（`WorkspaceReminderTransformer.kt`）
+
+- `buildWorkspacePrompt` 保留通用说明（workspace 名、`/workspace` 挂载、绝对路径、`/skills`、`/upload`、cwd、偏好提示）
+- **"Available tools" 列表改为动态生成**：
+  ```
+  val prompts = workspace.toolPromptOverrides() + DEFAULT_WORKSPACE_TOOL_PROMPTS  // 覆盖优先
+  WORKSPACE_TOOL_NAMES.forEach { name -> appendLine("  - `$name`: ${prompts[name]}") }
+  ```
+- 顺带修复缺陷 1：13 个工具全覆盖，列表不再与工具集脱节
+- 注意：`WorkspaceReminderTransformer` 已注入 `workspaceRepository`，直接读最新配置；用户改提示词后下次生成即生效
+
+#### 4. UI（`WorkspaceDetailPage.kt` 工具审批卡片）
+
+- `WorkspaceToolApprovalCard` 每行工具：保留 Switch（审批），**行本身可点击**（`Row.clickable`）打开编辑对话框
+- 新组件 `ToolPromptEditDialog`（同文件或 `WorkspaceToolPromptDialog.kt`）：
+  - 标题：工具名 + 显示名
+  - 多行 `OutlinedTextField`：当前提示词（覆盖值；未覆盖时显示默认提示词并标注"默认"）
+  - "恢复默认"按钮（调用 `clearToolPrompt`）、保存（`setToolPrompt`）、取消
+- `WorkspaceDetailVM` 加 `setToolPrompt(toolName, prompt)` / `clearToolPrompt(toolName)`（参照 `setToolApproval:186` 模式 + `loadWorkspace()`）
+- `strings.xml`：对话框标题/按钮/默认标记文案（只加 base）
+
+### 待确认
+
+1. **编辑范围**：v1 只编辑注入 `<workspace>` 块的 per-tool 提示词文本；**不动** `Tool.description`（函数定义，模型经 function calling schema 看到）。若需连 description 一起可编辑，列为 v2。
+2. **UI 形态**：默认用对话框（简单）；若工具行信息量大可改独立页面。
+
+### 实施步骤
+
+1. 数据层：`WorkspaceEntity.toolPrompts` + DAO + Repository + DB 25→26 AutoMigration
+2. 默认表：`WorkspaceToolPrompts.kt`
+3. 注入改造：`WorkspaceReminderTransformer` 动态生成 Available tools（顺带修复缺陷 1）
+4. UI：工具行点击 + `ToolPromptEditDialog` + VM + strings
+5. 测试：默认表覆盖全部工具名、覆盖/恢复逻辑 → JVM 单测
 
 ---
 
