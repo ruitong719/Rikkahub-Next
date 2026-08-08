@@ -124,6 +124,28 @@ class WorkspaceRepository(
         ) > 0
     }
 
+    /** 覆盖某个工具的注入提示词；prompt 为空字符串等同清除覆盖（恢复默认） */
+    suspend fun setToolPrompt(id: String, toolName: String, prompt: String): Boolean {
+        val workspace = dao.getById(id) ?: return false
+        val prompts = workspace.toolPromptOverrides() + (toolName to prompt)
+        return dao.updateToolPrompts(
+            id = id,
+            toolPrompts = JsonInstant.encodeToString(prompts),
+            updatedAt = System.currentTimeMillis(),
+        ) > 0
+    }
+
+    /** 清除某个工具的提示词覆盖，恢复默认提示词 */
+    suspend fun clearToolPrompt(id: String, toolName: String): Boolean {
+        val workspace = dao.getById(id) ?: return false
+        val prompts = workspace.toolPromptOverrides() - toolName
+        return dao.updateToolPrompts(
+            id = id,
+            toolPrompts = JsonInstant.encodeToString(prompts),
+            updatedAt = System.currentTimeMillis(),
+        ) > 0
+    }
+
     suspend fun installRootfs(
         id: String,
         url: String,

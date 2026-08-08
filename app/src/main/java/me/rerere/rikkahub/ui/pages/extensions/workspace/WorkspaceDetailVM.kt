@@ -191,6 +191,22 @@ class WorkspaceDetailVM(
         }
     }
 
+    fun setToolPrompt(toolName: String, prompt: String) {
+        viewModelScope.launch {
+            val workspace = state.value.workspace ?: return@launch
+            repository.setToolPrompt(workspace.id, toolName, prompt)
+            loadWorkspace()
+        }
+    }
+
+    fun clearToolPrompt(toolName: String) {
+        viewModelScope.launch {
+            val workspace = state.value.workspace ?: return@launch
+            repository.clearToolPrompt(workspace.id, toolName)
+            loadWorkspace()
+        }
+    }
+
     fun setExportTargetUri(uri: android.net.Uri) {
         viewModelScope.launch {
             repository.setExportTargetUri(id, uri.toString())

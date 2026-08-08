@@ -1187,6 +1187,11 @@
   <string name="workspace_detail_enable_shell_desc">Allow this workspace to run a terminal environment using local Rootfs</string>
   <string name="workspace_detail_tool_approval">Tool Approval</string>
   <string name="workspace_detail_tool_approval_desc">When enabled, user confirmation is required before AI calls this tool</string>
+  <string name="workspace_detail_tool_prompt_hint">Tap a tool to edit the prompt injected into the model\'s system context</string>
+  <string name="workspace_detail_tool_prompt_label">Prompt</string>
+  <string name="workspace_detail_tool_prompt_using_default">Using the default prompt. Edit to customize.</string>
+  <string name="workspace_detail_tool_prompt_customized">Customized prompt (overrides the default).</string>
+  <string name="workspace_detail_tool_prompt_reset">Reset to default</string>
   <string name="workspace_detail_tool_list_files">List Files</string>
   <string name="workspace_detail_tool_read_file">Read File</string>
   <string name="workspace_detail_tool_write_file">Write File</string>

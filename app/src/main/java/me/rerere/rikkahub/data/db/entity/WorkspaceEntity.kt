@@ -36,9 +36,16 @@ data class WorkspaceEntity(
     // 导出到手机的 SAF 树目录 URI（用户在工作区设置中选择），null 表示未配置
     @ColumnInfo("export_target_uri")
     val exportTargetUri: String? = null,
+    // 工具提示词的用户覆盖项 (toolName -> prompt)，未覆盖的工具沿用默认提示词（WorkspaceToolPrompts.kt）
+    @ColumnInfo("tool_prompts")
+    val toolPrompts: String? = null,
 ) {
     fun toolApprovalOverrides(): Map<String, Boolean> = runCatching {
         JsonInstant.decodeFromString<Map<String, Boolean>>(toolApprovals)
+    }.getOrDefault(emptyMap())
+
+    fun toolPromptOverrides(): Map<String, String> = runCatching {
+        JsonInstant.decodeFromString<Map<String, String>>(toolPrompts ?: "{}")
     }.getOrDefault(emptyMap())
 
     fun toWorkspace(): Workspace = Workspace(

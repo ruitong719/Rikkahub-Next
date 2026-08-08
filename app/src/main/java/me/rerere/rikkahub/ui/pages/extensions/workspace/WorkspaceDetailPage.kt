@@ -73,6 +73,7 @@ import me.rerere.hugeicons.stroke.Refresh01
 import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.hugeicons.stroke.Share08
 import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.data.ai.tools.DEFAULT_WORKSPACE_TOOL_PROMPTS
 import me.rerere.rikkahub.data.ai.tools.resolveWorkspaceToolApproval
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.files.SyncDirection
@@ -265,6 +266,8 @@ fun WorkspaceDetailPage(id: String) {
                     installProgress = installProgress,
                     onInstallRootfs = { showInstallDialog = true },
                     onToolApprovalChange = vm::setToolApproval,
+                    onToolPromptChange = vm::setToolPrompt,
+                    onResetToolPrompt = vm::clearToolPrompt,
                     onChooseExportTarget = { exportDirPicker.launch(null) },
                     onClearExportTarget = vm::clearExportTargetUri,
                     mounts = mounts,
@@ -395,6 +398,8 @@ private fun WorkspaceBasicPage(
     installProgress: RootfsInstallProgress?,
     onInstallRootfs: () -> Unit,
     onToolApprovalChange: (String, Boolean) -> Unit,
+    onToolPromptChange: (String, String) -> Unit,
+    onResetToolPrompt: (String) -> Unit,
     onChooseExportTarget: () -> Unit,
     onClearExportTarget: () -> Unit,
     mounts: List<WorkspaceMountConfig>,
@@ -500,6 +505,8 @@ private fun WorkspaceBasicPage(
             WorkspaceToolApprovalCard(
                 workspace = workspace,
                 onToolApprovalChange = onToolApprovalChange,
+                onToolPromptChange = onToolPromptChange,
+                onResetToolPrompt = onResetToolPrompt,
             )
         }
     }
@@ -691,8 +698,12 @@ private fun resolveTreeDisplayName(context: Context, treeUri: android.net.Uri): 
 private fun WorkspaceToolApprovalCard(
     workspace: WorkspaceEntity?,
     onToolApprovalChange: (String, Boolean) -> Unit,
+    onToolPromptChange: (String, String) -> Unit,
+    onResetToolPrompt: (String) -> Unit,
 ) {
     val overrides = workspace?.toolApprovalOverrides().orEmpty()
+    val promptOverrides = workspace?.toolPromptOverrides().orEmpty()
+    var editingTool by remember { mutableStateOf<String?>(null) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -714,11 +725,18 @@ private fun WorkspaceToolApprovalCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Text(
+                    text = stringResource(R.string.workspace_detail_tool_prompt_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             workspaceToolApprovalItems().forEach { (toolName, label) ->
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = workspace != null) { editingTool = toolName },
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -747,6 +765,92 @@ private fun WorkspaceToolApprovalCard(
             }
         }
     }
+
+    val editing = editingTool
+    if (editing != null) {
+        val label = workspaceToolApprovalItems()
+            .firstOrNull { it.first == editing }?.second ?: editing
+        ToolPromptEditDialog(
+            toolName = editing,
+            label = label,
+            currentPrompt = promptOverrides[editing]
+                ?: DEFAULT_WORKSPACE_TOOL_PROMPTS[editing].orEmpty(),
+            isDefault = editing !in promptOverrides,
+            onSave = { prompt ->
+                onToolPromptChange(editing, prompt)
+                editingTool = null
+            },
+            onReset = {
+                onResetToolPrompt(editing)
+                editingTool = null
+            },
+            onDismiss = { editingTool = null },
+        )
+    }
+}
+
+@Composable
+private fun ToolPromptEditDialog(
+    toolName: String,
+    label: String,
+    currentPrompt: String,
+    isDefault: Boolean,
+    onSave: (String) -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(currentPrompt) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(label, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = toolName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 4,
+                    maxLines = 10,
+                    label = { Text(stringResource(R.string.workspace_detail_tool_prompt_label)) },
+                )
+                Text(
+                    text = if (isDefault) {
+                        stringResource(R.string.workspace_detail_tool_prompt_using_default)
+                    } else {
+                        stringResource(R.string.workspace_detail_tool_prompt_customized)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(text) }) {
+                Text(stringResource(R.string.common_save))
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (!isDefault) {
+                    TextButton(onClick = onReset) {
+                        Text(stringResource(R.string.workspace_detail_tool_prompt_reset))
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            }
+        },
+    )
 }
 
 @Composable
