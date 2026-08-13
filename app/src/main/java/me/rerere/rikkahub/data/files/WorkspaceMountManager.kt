@@ -123,10 +123,10 @@ class WorkspaceMountManager(
                     "Remove and re-add the mount."
             )
         val target = File(context.filesDir, "mnt/${config.id}").apply { mkdirs() }
-        val stats = MutableSyncStats()
+        val stats = SyncStats()
         copySafToLocal(treeDoc, target, stats)
         touchSyncTime(config)
-        stats.toStats()
+        stats
     }
 
     private suspend fun push(config: WorkspaceMountConfig): SyncStats = withContext(Dispatchers.IO) {
@@ -137,10 +137,10 @@ class WorkspaceMountManager(
             )
         val source = File(context.filesDir, "mnt/${config.id}")
         require(source.isDirectory) { "Mount cache does not exist: ${config.name}" }
-        val stats = MutableSyncStats()
+        val stats = SyncStats()
         copyLocalToSaf(source, treeDoc, stats)
         touchSyncTime(config)
-        stats.toStats()
+        stats
     }
 
     private suspend fun touchSyncTime(config: WorkspaceMountConfig) {
@@ -154,7 +154,7 @@ class WorkspaceMountManager(
     }
 
     /** SAF -> 本地缓存（增量：size+mtime 相同跳过） */
-    private suspend fun copySafToLocal(doc: DocumentFile, targetDir: File, stats: MutableSyncStats) {
+    private suspend fun copySafToLocal(doc: DocumentFile, targetDir: File, stats: SyncStats) {
         currentCoroutineContext().ensureActive()
         doc.listFiles().forEach { child ->
             val name = child.name ?: return@forEach
@@ -188,7 +188,7 @@ val input = context.contentResolver.openInputStream(child.uri)
     }
 
     /** 本地缓存 -> SAF（增量：size+mtime 相同跳过；v1 不删除 SAF 中多余的远端文件） */
-    private suspend fun copyLocalToSaf(sourceDir: File, parentDoc: DocumentFile, stats: MutableSyncStats) {
+    private suspend fun copyLocalToSaf(sourceDir: File, parentDoc: DocumentFile, stats: SyncStats) {
         currentCoroutineContext().ensureActive()
         sourceDir.listFiles().orEmpty().forEach { child ->
             val name = child.name
@@ -238,22 +238,5 @@ val input = context.contentResolver.openInputStream(child.uri)
     companion object {
         private val MOUNT_NAME_REGEX = Regex("[a-zA-Z0-9._-]+")
         private const val COPY_BUFFER_BYTES = 64 * 1024
-    }
-
-    /** 同步过程中的可变统计状态，结束后转成不可变的 [SyncStats] */
-    private class MutableSyncStats {
-        var filesSynced: Int = 0
-        var dirsCreated: Int = 0
-        var totalBytes: Long = 0L
-        var skipped: Int = 0
-        val errors = mutableListOf<String>()
-
-        fun toStats() = SyncStats(
-            filesSynced = filesSynced,
-            dirsCreated = dirsCreated,
-            totalBytes = totalBytes,
-            skipped = skipped,
-            errors = errors,
-        )
     }
 }
