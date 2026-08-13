@@ -32,7 +32,7 @@ data class WorkspaceEntity(
     val lastAccessAt: Long? = null,
     // 工具审批的用户覆盖项 (toolName -> needsApproval)，未覆盖的工具沿用默认值
     @ColumnInfo("tool_approvals", defaultValue = "{}")
-    val toolApprovals: String = "{",
+    val toolApprovals: String = "{}",
     // 导出到手机的 SAF 树目录 URI（用户在工作区设置中选择），null 表示未配置
     @ColumnInfo("export_target_uri")
     val exportTargetUri: String? = null,

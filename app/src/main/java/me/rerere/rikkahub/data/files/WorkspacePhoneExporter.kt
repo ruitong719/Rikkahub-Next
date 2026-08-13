@@ -118,7 +118,7 @@ class WorkspacePhoneExporter(
                     exportFile(child, targetDoc, overwrite, state)
                 }
             }.onFailure { e ->
-                state.errors += "${child.relativePath}: ${e.message ?: e.javaClass.simpleName}"
+                state.errors += "${child.relativePath()}: ${e.message ?: e.javaClass.simpleName}"
             }
         }
     }
@@ -143,7 +143,7 @@ class WorkspacePhoneExporter(
             ?: error("Failed to create file: ${source.name}")
 
         source.inputStream().use { input ->
-            val output = fileDoc.openOutputStream(context)
+            val output = context.contentResolver.openOutputStream(fileDoc.uri)
             if (output != null) {
                 output.use { out ->
                     val written = input.copyTo(out, bufferSize = COPY_BUFFER_BYTES)
@@ -155,7 +155,7 @@ class WorkspacePhoneExporter(
                 fileDoc.delete()
                 val recreated = targetDoc.createFile(mimeTypeFor(source.name), source.name)
                     ?: error("Failed to recreate file: ${source.name}")
-                recreated.openOutputStream(context)?.use { out ->
+                context.contentResolver.openOutputStream(recreated.uri)?.use { out ->
                     val written = source.inputStream().use { it.copyTo(out, bufferSize = COPY_BUFFER_BYTES) }
                     state.totalBytes += written
                 } ?: error("Failed to open output stream for ${source.name}")
@@ -181,7 +181,7 @@ class WorkspacePhoneExporter(
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
     }
 
-    private fun File.relativePath(): String = path.substringAfterLast('/')
+    private fun File.relativePath(): String = path.substringAfterLast('/').substringAfterLast('\\')
 
     private class ExportState {
         var filesExported: Int = 0

@@ -9,8 +9,8 @@ class WorkspacePhoneExporterTest {
         assertEquals(listOf("exports", "2026"), sanitizeTargetDir("exports/2026"))
         assertEquals(listOf("a"), sanitizeTargetDir("/a/"))
         assertEquals(listOf("a", "b"), sanitizeTargetDir("\\a\\b"))
-        assertEquals(emptyList(), sanitizeTargetDir(""))
-        assertEquals(emptyList(), sanitizeTargetDir("   "))
+        assertEquals(emptyList<String>(), sanitizeTargetDir(""))
+        assertEquals(emptyList<String>(), sanitizeTargetDir("   "))
     }
 
     @Test(expected = IllegalArgumentException::class)

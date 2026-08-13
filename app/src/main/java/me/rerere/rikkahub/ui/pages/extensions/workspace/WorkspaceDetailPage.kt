@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.ui.pages.extensions.workspace
 
+import android.content.Context
 import android.content.Intent
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
@@ -444,10 +445,10 @@ private fun WorkspaceExportTargetCard(
             }
         }
     }
-    val statusText = when {
+    val statusText: String = when {
         !configured -> stringResource(R.string.workspace_detail_export_not_set)
-        displayName != null -> displayName
-        else -> stringResource(R.string.workspace_detail_export_permission_lost)
+        else -> displayName?.takeIf { it.isNotBlank() }
+            ?: stringResource(R.string.workspace_detail_export_permission_lost)
     }
 
     Card(
