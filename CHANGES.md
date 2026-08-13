@@ -146,9 +146,19 @@
   - SHA-256：`5bbf4d25701ad159e1db3fe72f288d48a4f915e8c129c1057da1a11cd884a518`
 - 验证：apksigner v2 签名通过
 - 产物（`D:\Code2\rikkahub-ci\dist\`）：
-  - `RikkahubNext-arm64-v8a-release.apk`（34,950,608 字节，arm64 手机用）
-  - `RikkahubNext-universal-release.apk`（45,048,610 字节，全 ABI）
+  - `RikkahubNext-arm64-v8a-release.apk`（34,954,044 字节，arm64 手机用）
+  - `RikkahubNext-universal-release.apk`（45,052,046 字节，全 ABI）
   - （另有 x86_64 分包在 `app/build/outputs/apk/release/`，供模拟器）
+
+### 6.1 Release 2（2026-08-13，含中文翻译）
+
+- 新增功能的中文翻译全部合入 `values-zh`（75 条，commit `a9a016b8`），
+  各语言 `app_name` 统一为 Rikkahub Next，`Pull/Push` 硬编码提取为 string resource
+- 重新构建 release：`BUILD SUCCESSFUL in 3m 8s`
+- 产物（已更新至 `D:\Code2\rikkahub-ci\dist\`）：
+  - `RikkahubNext-arm64-v8a-release.apk`（34,954,044 字节）
+  - `RikkahubNext-universal-release.apk`（45,052,046 字节）
+- 同一 keystore 签名（指纹不变）
 
 ---
 
