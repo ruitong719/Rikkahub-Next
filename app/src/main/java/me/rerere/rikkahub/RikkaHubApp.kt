@@ -95,7 +95,8 @@ class RikkaHubApp : Application() {
         // Composer.setDiagnosticStackTraceMode(ComposeStackTraceMode.Auto)
     }
 
-    private fun incrementLaunchCount() {        get<AppScope>().launch {
+    private fun incrementLaunchCount() {
+        get<AppScope>().launch {
             runCatching {
                 val store = get<SettingsStore>()
                 val current = store.settingsFlowRaw.first()

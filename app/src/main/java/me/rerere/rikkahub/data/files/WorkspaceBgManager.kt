@@ -66,6 +66,8 @@ class WorkspaceBgManager(
         const val MAX_CONCURRENT_TASKS = 3
         const val BG_DIR = ".l2s.bg"
         const val MAX_OUTPUT_READ_BYTES = 2 * 1024 * 1024 // 2MB 单次读取上限
+        const val PROOT_EXEC = "libproot_exec.so"
+        const val PROOT_LOADER = "libproot_loader.so"
     }
 
     // ---------- 任务操作 ----------
@@ -183,10 +185,10 @@ class WorkspaceBgManager(
 
     // ---------- 会话管理 ----------
 
-    private fun ensureSession(workspaceRoot: String): HeadlessSession =
+    private suspend fun ensureSession(workspaceRoot: String): HeadlessSession =
         sessions[workspaceRoot]?.takeIf { it.isAlive() } ?: run {
             val session = HeadlessSession(workspaceRoot)
-            session.start()
+            session.start(mountManager.activeBindMounts())
             sessions[workspaceRoot] = session
             session
         }
@@ -275,7 +277,7 @@ class WorkspaceBgManager(
 
         fun isAlive(): Boolean = process?.isAlive == true
 
-        fun start() {
+        fun start(extraBindMounts: List<WorkspaceBindMount>) {
             val linuxDir = workspaceManager.linuxDir(root)
             val filesDir = workspaceManager.filesDir(root)
             val tempDir = workspaceManager.tempDir(root)
@@ -301,7 +303,7 @@ class WorkspaceBgManager(
                     command += "${mount.source.absolutePath}:${mount.target.trimEnd('/')}"
                 }
             }
-            mountManager.activeBindMounts().forEach { mount ->
+            extraBindMounts.forEach { mount ->
                 if (mount.source.exists()) {
                     command += "-b"
                     command += "${mount.source.absolutePath}:${mount.target.trimEnd('/')}"
