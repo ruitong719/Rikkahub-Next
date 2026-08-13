@@ -28,6 +28,15 @@ val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
     "workspace_write_file" to false,
     "workspace_edit_file" to false,
     "workspace_shell" to true,
+    "workspace_export_to_phone" to true,
+    "workspace_mount_list" to false,
+    "workspace_mount_sync" to true,
+    "workspace_bg_start" to true,
+    "workspace_bg_status" to false,
+    "workspace_bg_output" to false,
+    "workspace_bg_kill" to true,
+    "workspace_bg_list" to false,
+    "workspace_create_backup" to true,
 )
 
 fun resolveWorkspaceToolApproval(name: String, overrides: Map<String, Boolean>): Boolean =
@@ -37,6 +46,7 @@ suspend fun createWorkspaceTools(
     workspaceId: String?,
     workspaceRepository: WorkspaceRepository,
     cwd: String? = null,
+    conversationId: String? = null,
 ): List<Tool> {
     if (workspaceId.isNullOrBlank()) return emptyList()
     val approvalOverrides = workspaceRepository.getById(workspaceId)?.toolApprovalOverrides().orEmpty()
@@ -49,7 +59,10 @@ suspend fun createWorkspaceTools(
         createWriteFileTool(workspaceId, ::needsApproval, workspaceRepository),
         createEditFileTool(workspaceId, ::needsApproval, workspaceRepository),
         createShellTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd),
-    )
+        createWorkspaceExportTool(workspaceId, ::needsApproval, workspaceRepository),
+    ) + createWorkspaceMountTools(::needsApproval) +
+        createWorkspaceBgTools(workspaceId, ::needsApproval, workspaceRepository, conversationId) +
+        listOf(createWorkspaceBackupTool(workspaceId, ::needsApproval, workspaceRepository))
 }
 
 private val IMAGE_EXTENSIONS = setOf(

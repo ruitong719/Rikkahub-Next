@@ -3,6 +3,8 @@ package me.rerere.rikkahub.data.ai.transformers
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.rikkahub.data.ai.tools.DEFAULT_WORKSPACE_TOOL_PROMPTS
+import me.rerere.rikkahub.data.ai.tools.WORKSPACE_TOOL_NAMES
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.workspace.WorkspaceShellStatus
@@ -45,9 +47,13 @@ private fun buildWorkspacePrompt(workspace: WorkspaceEntity, cwd: String? = null
     appendLine("- The workspace files area is mounted at `/workspace`. Use it as your working directory; files written there persist across turns of this conversation.")
     appendLine("- All paths passed to workspace tools must be absolute and inside the Rootfs (for example `/workspace/notes.md`).")
     appendLine("- Available tools:")
-    appendLine("  - `workspace_read_file`: read file contents.")
-    appendLine("  - `workspace_write_file` / `workspace_edit_file`: create files, or make precise edits to existing files.")
-    appendLine("  - `workspace_shell`: run shell commands (the files area is mounted at /workspace).")
+    // 动态生成：用户覆盖优先，未覆盖的用默认表；保证列表与工具集同步（不再硬编码 4 个）
+    val prompts = workspace.toolPromptOverrides() + DEFAULT_WORKSPACE_TOOL_PROMPTS
+    WORKSPACE_TOOL_NAMES.forEach { name ->
+        prompts[name]?.let { prompt ->
+            appendLine("  - `$name`: $prompt")
+        }
+    }
     appendLine("- Prefer `workspace_shell` for tasks that standard Unix tools handle well, and prefer `workspace_edit_file` for targeted edits over rewriting whole files.")
     appendLine("- The skills directory is mounted at `/skills`. Each skill is a subdirectory `/skills/<skill-name>/` containing a `SKILL.md` (with `name` and `description` frontmatter) plus any supporting files. Read a skill's `SKILL.md` before using it, and follow its instructions.")
     appendLine("- Files the user uploaded are mounted at `/upload`. Treat `/upload` as READ-ONLY: read uploaded files from `/upload/<file-name>`, but never modify, overwrite, or delete anything there. If you need to change an uploaded file, copy it into `/workspace` first and edit the copy.")

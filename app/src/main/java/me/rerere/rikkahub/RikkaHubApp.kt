@@ -29,6 +29,7 @@ import me.rerere.rikkahub.di.dataSourceModule
 import me.rerere.rikkahub.di.repositoryModule
 import me.rerere.rikkahub.di.viewModelModule
 import me.rerere.rikkahub.data.files.FilesManager
+import me.rerere.rikkahub.data.files.WorkspaceBgManager
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.service.WebServerService
 import me.rerere.rikkahub.utils.CrashHandler
@@ -76,6 +77,9 @@ class RikkaHubApp : Application() {
         // cleanup workspace temp dirs (proot + rootfs /tmp)
         cleanupWorkspaceTempDirs()
 
+        // mark orphan background tasks (killed with the previous process) as failed
+        cleanupOrphanBgTasks()
+
         // check workspace integrity (mark workspaces with missing files as broken after backup restore)
         checkWorkspaceIntegrity()
 
@@ -110,6 +114,16 @@ class RikkaHubApp : Application() {
                 get<WorkspaceManager>().cleanupAllTempDirs()
             }.onFailure {
                 Log.e(TAG, "cleanupWorkspaceTempDirs failed", it)
+            }
+        }
+    }
+
+    private fun cleanupOrphanBgTasks() {
+        get<AppScope>().launch(Dispatchers.IO) {
+            runCatching {
+                get<WorkspaceBgManager>().cleanupOrphanTasks()
+            }.onFailure {
+                Log.w(TAG, "cleanupOrphanBgTasks failed", it)
             }
         }
     }

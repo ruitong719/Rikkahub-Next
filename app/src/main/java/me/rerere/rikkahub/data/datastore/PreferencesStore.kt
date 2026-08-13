@@ -35,12 +35,15 @@ import me.rerere.asr.ASRProviderSetting
 import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV1Migration
 import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV2Migration
 import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV3Migration
+import me.rerere.rikkahub.data.files.WorkspaceMountConfig
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.InjectionPosition
 import me.rerere.rikkahub.data.model.Lorebook
 import me.rerere.rikkahub.data.model.PromptInjection
 import me.rerere.rikkahub.data.model.QuickMessage
+import me.rerere.rikkahub.data.model.DEFAULT_SUBAGENTS
+import me.rerere.rikkahub.data.model.SubAgent
 import me.rerere.rikkahub.data.model.Tag
 import me.rerere.rikkahub.data.sync.s3.S3Config
 import me.rerere.rikkahub.ui.theme.CustomTheme
@@ -108,6 +111,9 @@ class SettingsStore(
         val ASSISTANTS = stringPreferencesKey("assistants")
         val ASSISTANT_TAGS = stringPreferencesKey("assistant_tags")
 
+        // Subagent
+        val SUBAGENTS = stringPreferencesKey("subagents")
+
         // 搜索
         val SEARCH_SERVICES = stringPreferencesKey("search_services")
         val SEARCH_COMMON = stringPreferencesKey("search_common")
@@ -121,6 +127,9 @@ class SettingsStore(
 
         // S3
         val S3_CONFIG = stringPreferencesKey("s3_config")
+
+        // 工作区 SAF 挂载点（全局共享，所有工作区可见 /mnt/<name>）
+        val WORKSPACE_MOUNTS = stringPreferencesKey("workspace_mounts")
 
         // TTS
         val TTS_PROVIDERS = stringPreferencesKey("tts_providers")
@@ -192,6 +201,9 @@ class SettingsStore(
                 } ?: emptyList(),
                 providers = JsonInstant.decodeFromString(preferences[PROVIDERS] ?: "[]"),
                 assistants = JsonInstant.decodeFromString(preferences[ASSISTANTS] ?: "[]"),
+                subagents = preferences[SUBAGENTS]?.let {
+                    JsonInstant.decodeFromString(it)
+                } ?: DEFAULT_SUBAGENTS,
                 dynamicColor = preferences[DYNAMIC_COLOR] != false,
                 themeId = preferences[THEME_ID] ?: PresetThemes[0].id,
                 customThemes = preferences[CUSTOM_THEMES]?.let {
@@ -215,6 +227,9 @@ class SettingsStore(
                 s3Config = preferences[S3_CONFIG]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: S3Config(),
+                workspaceMounts = preferences[WORKSPACE_MOUNTS]?.let {
+                    JsonInstant.decodeFromString<List<WorkspaceMountConfig>>(it)
+                } ?: emptyList(),
                 ttsProviders = preferences[TTS_PROVIDERS]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
@@ -384,6 +399,7 @@ class SettingsStore(
             preferences[ASSISTANTS] = JsonInstant.encodeToString(settings.assistants)
             preferences[SELECT_ASSISTANT] = settings.assistantId.toString()
             preferences[ASSISTANT_TAGS] = JsonInstant.encodeToString(settings.assistantTags)
+            preferences[SUBAGENTS] = JsonInstant.encodeToString(settings.subagents)
 
             preferences[SEARCH_SERVICES] = JsonInstant.encodeToString(settings.searchServices)
             preferences[SEARCH_COMMON] = JsonInstant.encodeToString(settings.searchCommonOptions)
@@ -392,6 +408,7 @@ class SettingsStore(
             preferences[MCP_SERVERS] = JsonInstant.encodeToString(settings.mcpServers)
             preferences[WEBDAV_CONFIG] = JsonInstant.encodeToString(settings.webDavConfig)
             preferences[S3_CONFIG] = JsonInstant.encodeToString(settings.s3Config)
+            preferences[WORKSPACE_MOUNTS] = JsonInstant.encodeToString(settings.workspaceMounts)
             preferences[TTS_PROVIDERS] = JsonInstant.encodeToString(settings.ttsProviders)
             settings.selectedTTSProviderId?.let {
                 preferences[SELECTED_TTS_PROVIDER] = it.toString()
@@ -533,6 +550,7 @@ data class Settings(
     val assistantId: Uuid = DEFAULT_ASSISTANT_ID,
     val providers: List<ProviderSetting> = DEFAULT_PROVIDERS,
     val assistants: List<Assistant> = DEFAULT_ASSISTANTS,
+    val subagents: List<SubAgent> = DEFAULT_SUBAGENTS,
     val assistantTags: List<Tag> = emptyList(),
     val searchServices: List<SearchServiceOptions> = listOf(SearchServiceOptions.DEFAULT),
     val searchCommonOptions: SearchCommonOptions = SearchCommonOptions(),
@@ -540,6 +558,7 @@ data class Settings(
     val mcpServers: List<McpServerConfig> = emptyList(),
     val webDavConfig: WebDavConfig = WebDavConfig(),
     val s3Config: S3Config = S3Config(),
+    val workspaceMounts: List<WorkspaceMountConfig> = emptyList(),
     val ttsProviders: List<TTSProviderSetting> = DEFAULT_TTS_PROVIDERS,
     val selectedTTSProviderId: Uuid = DEFAULT_SYSTEM_TTS_ID,
     val defaultTTSPlaybackSpeed: Float = 1.0f,

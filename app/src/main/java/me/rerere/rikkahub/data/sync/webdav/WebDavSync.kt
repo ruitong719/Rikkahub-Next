@@ -12,6 +12,7 @@ import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.WebDavConfig
 import me.rerere.rikkahub.data.datastore.migration.SettingsJsonMigrator
+import me.rerere.rikkahub.data.db.DatabaseBackupManager
 import me.rerere.rikkahub.utils.fileSizeToString
 import java.io.File
 import java.io.FileInputStream
@@ -25,11 +26,15 @@ import java.util.zip.ZipOutputStream
 
 private const val TAG = "WebDavSync"
 
+/** 与 WorkspaceManager 的 root 名校验保持一致，恢复时防止路径注入 */
+private val WORKSPACE_ID_REGEX = Regex("[A-Za-z0-9._-]+")
+
 class WebDavSync(
     private val settingsStore: SettingsStore,
     private val json: Json,
     private val context: Context,
     private val httpClient: HttpClient,
+    private val databaseBackupManager: DatabaseBackupManager,
 ) {
     private fun getClient(config: WebDavConfig): WebDavClient {
         return WebDavClient(config, httpClient)
@@ -147,22 +152,18 @@ class WebDavSync(
                 content = json.encodeToString(settingsStore.settingsFlow.value)
             )
 
-            // Backup database files
+            // Backup database files: 一致性快照（先 wal_checkpoint 合并，避免 WAL 撕裂快照丢失最新会话）
             if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
-                val dbFile = context.getDatabasePath("rikka_hub")
-                if (dbFile.exists()) {
-                    addFileToZip(zipOut, dbFile, "rikka_hub.db")
+                val snapshot = databaseBackupManager.createSnapshot(
+                    File(context.cacheDir, "rikka_hub_snapshot.db")
+                )
+                addFileToZip(zipOut, snapshot, "rikka_hub_snapshot.db")
+                val snapshotWal = File(snapshot.parentFile, "${snapshot.name}-wal")
+                if (snapshotWal.exists() && snapshotWal.length() > 0) {
+                    addFileToZip(zipOut, snapshotWal, "rikka_hub_snapshot-wal")
                 }
-
-                val walFile = File(dbFile.parentFile, "rikka_hub-wal")
-                if (walFile.exists()) {
-                    addFileToZip(zipOut, walFile, "rikka_hub-wal")
-                }
-
-                val shmFile = File(dbFile.parentFile, "rikka_hub-shm")
-                if (shmFile.exists()) {
-                    addFileToZip(zipOut, shmFile, "rikka_hub-shm")
-                }
+                snapshotWal.delete()
+                snapshot.delete()
             }
 
             // Backup app files
@@ -203,6 +204,35 @@ class WebDavSync(
                 } else {
                     Log.w(TAG, "prepareBackupFile: Fonts folder does not exist or is not a directory")
                 }
+
+                // 工作区文件: /workspace 文件区 + /root 用户主目录（不含整个 rootfs，体积可控）
+                val workspacesDir = File(context.filesDir, "workspaces")
+                if (workspacesDir.exists() && workspacesDir.isDirectory) {
+                    Log.i(TAG, "prepareBackupFile: Backing up workspaces from ${workspacesDir.absolutePath}")
+                    workspacesDir.listFiles()?.forEach { wsDir ->
+                        if (!wsDir.isDirectory) return@forEach
+                        val filesArea = File(wsDir, "files")
+                        if (filesArea.exists() && filesArea.isDirectory) {
+                            addDirectoryToZip(
+                                zipOut = zipOut,
+                                rootDir = filesArea,
+                                currentDir = filesArea,
+                                entryPrefix = "workspaces/${wsDir.name}/files/"
+                            )
+                        }
+                        val rootHome = File(wsDir, "linux/root")
+                        if (rootHome.exists() && rootHome.isDirectory) {
+                            addDirectoryToZip(
+                                zipOut = zipOut,
+                                rootDir = rootHome,
+                                currentDir = rootHome,
+                                entryPrefix = "workspaces/${wsDir.name}/linux/root/"
+                            )
+                        }
+                    }
+                } else {
+                    Log.w(TAG, "prepareBackupFile: Workspaces folder does not exist or is not a directory")
+                }
             }
         }
 
@@ -215,6 +245,11 @@ class WebDavSync(
 
     private suspend fun restoreFromBackupFile(backupFile: File, config: WebDavConfig) = withContext(Dispatchers.IO) {
         Log.i(TAG, "restoreFromBackupFile: Starting restore from ${backupFile.absolutePath}")
+
+        // 数据库快照/旧格式 db 暂存到 cacheDir，zip 循环结束后统一恢复
+        var pendingSnapshot: File? = null
+        var pendingLegacyDb: File? = null
+        var pendingLegacyWal: File? = null
 
         ZipInputStream(FileInputStream(backupFile)).use { zipIn ->
             var entry: ZipEntry?
@@ -237,36 +272,42 @@ class WebDavSync(
                             }
                         }
 
+                        // 新格式：一致性快照（主库 + 可选 wal 兜底）
+                        "rikka_hub_snapshot.db" -> {
+                            if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
+                                val snapshot = File(context.cacheDir, "restore_snapshot.db")
+                                FileOutputStream(snapshot).use { zipIn.copyTo(it) }
+                                pendingSnapshot = snapshot
+                            }
+                        }
+
+                        "rikka_hub_snapshot-wal" -> {
+                            if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
+                                val snapshotWal = File(context.cacheDir, "restore_snapshot.db-wal")
+                                FileOutputStream(snapshotWal).use { zipIn.copyTo(it) }
+                            }
+                        }
+
+                        // 旧格式兼容：复制 db + wal（shm 不再恢复，由 SQLite 重建）
                         "rikka_hub.db", "rikka_hub-wal", "rikka_hub-shm" -> {
                             if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
-                                val dbFile = when (zipEntry.name) {
-                                    "rikka_hub.db" -> context.getDatabasePath("rikka_hub")
-                                    "rikka_hub-wal" -> File(
-                                        context.getDatabasePath("rikka_hub").parentFile,
-                                        "rikka_hub-wal"
-                                    )
-
-                                    "rikka_hub-shm" -> File(
-                                        context.getDatabasePath("rikka_hub").parentFile,
-                                        "rikka_hub-shm"
-                                    )
-
-                                    else -> null
-                                }
-
-                                dbFile?.let { targetFile ->
-                                    Log.i(
-                                        TAG,
-                                        "restoreFromBackupFile: Restoring ${zipEntry.name} to ${targetFile.absolutePath}"
-                                    )
-                                    targetFile.parentFile?.mkdirs()
-                                    FileOutputStream(targetFile).use { outputStream ->
-                                        zipIn.copyTo(outputStream)
+                                when (zipEntry.name) {
+                                    "rikka_hub.db" -> {
+                                        val db = File(context.cacheDir, "restore_legacy.db")
+                                        FileOutputStream(db).use { zipIn.copyTo(it) }
+                                        pendingLegacyDb = db
                                     }
-                                    Log.i(
-                                        TAG,
-                                        "restoreFromBackupFile: Restored ${zipEntry.name} (${targetFile.length()} bytes)"
-                                    )
+
+                                    "rikka_hub-wal" -> {
+                                        val wal = File(context.cacheDir, "restore_legacy.db-wal")
+                                        FileOutputStream(wal).use { zipIn.copyTo(it) }
+                                        pendingLegacyWal = wal
+                                    }
+
+                                    else -> {
+                                        // shm 是共享内存索引，不恢复
+                                        Log.i(TAG, "restoreFromBackupFile: Skipping legacy shm entry")
+                                    }
                                 }
                             }
                         }
@@ -275,33 +316,12 @@ class WebDavSync(
                             if (config.items.contains(WebDavConfig.BackupItem.FILES) &&
                                 zipEntry.name.startsWith("${FileFolders.UPLOAD}/")
                             ) {
-                                val fileName = zipEntry.name.substringAfter("${FileFolders.UPLOAD}/")
-                                if (fileName.isNotEmpty()) {
-                                    val uploadFolder = File(context.filesDir, FileFolders.UPLOAD)
-                                    if (!uploadFolder.exists()) {
-                                        uploadFolder.mkdirs()
-                                        Log.i(TAG, "restoreFromBackupFile: Created upload directory")
-                                    }
-
-                                    val targetFile = File(uploadFolder, fileName)
-                                    Log.i(
-                                        TAG,
-                                        "restoreFromBackupFile: Restoring file ${zipEntry.name} to ${targetFile.absolutePath}"
-                                    )
-
-                                    try {
-                                        FileOutputStream(targetFile).use { outputStream ->
-                                            zipIn.copyTo(outputStream)
-                                        }
-                                        Log.i(
-                                            TAG,
-                                            "restoreFromBackupFile: Restored ${zipEntry.name} (${targetFile.length()} bytes)"
-                                        )
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "restoreFromBackupFile: Failed to restore file ${zipEntry.name}", e)
-                                        throw Exception("Failed to restore file ${zipEntry.name}: ${e.message}")
-                                    }
-                                }
+                                restoreSafeEntry(
+                                    root = File(context.filesDir, FileFolders.UPLOAD),
+                                    relative = zipEntry.name.substringAfter("${FileFolders.UPLOAD}/"),
+                                    entryName = zipEntry.name,
+                                    zipIn = zipIn,
+                                )
                             } else if (config.items.contains(WebDavConfig.BackupItem.FILES) &&
                                 zipEntry.name.startsWith("${FileFolders.SKILLS}/")
                             ) {
@@ -311,16 +331,17 @@ class WebDavSync(
                             ) {
                                 val fileName = zipEntry.name.substringAfter("${FileFolders.FONTS}/")
                                 if (fileName.isNotEmpty() && !fileName.contains('/')) {
-                                    val fontsFolder = File(context.filesDir, FileFolders.FONTS).apply { mkdirs() }
-                                    val targetFile = File(fontsFolder, fileName)
-                                    FileOutputStream(targetFile).use { outputStream ->
-                                        zipIn.copyTo(outputStream)
-                                    }
-                                    Log.i(
-                                        TAG,
-                                        "restoreFromBackupFile: Restored ${zipEntry.name} (${targetFile.length()} bytes)"
+                                    restoreSafeEntry(
+                                        root = File(context.filesDir, FileFolders.FONTS).apply { mkdirs() },
+                                        relative = fileName,
+                                        entryName = zipEntry.name,
+                                        zipIn = zipIn,
                                     )
                                 }
+                            } else if (config.items.contains(WebDavConfig.BackupItem.FILES) &&
+                                zipEntry.name.startsWith("workspaces/")
+                            ) {
+                                restoreWorkspaceEntry(zipIn, zipEntry.name)
                             } else {
                                 Log.i(TAG, "restoreFromBackupFile: Skipping entry ${zipEntry.name}")
                             }
@@ -332,7 +353,83 @@ class WebDavSync(
             }
         }
 
+        // 恢复数据库快照（新格式优先，旧格式兜底）
+        if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
+            val snapshot = pendingSnapshot ?: pendingLegacyDb
+            if (snapshot != null && snapshot.exists()) {
+                databaseBackupManager.restore(snapshot, legacyWal = pendingLegacyWal)
+                Log.i(TAG, "restoreFromBackupFile: Database restored, restart required")
+            }
+            File(context.cacheDir, "restore_snapshot.db").delete()
+            File(context.cacheDir, "restore_snapshot.db-wal").delete()
+            File(context.cacheDir, "restore_legacy.db").delete()
+            File(context.cacheDir, "restore_legacy.db-wal").delete()
+        }
+
         Log.i(TAG, "restoreFromBackupFile: Restore completed successfully")
+    }
+
+    /** 恢复普通文件，带 zip slip 路径穿越防护 */
+    private fun restoreSafeEntry(
+        root: File,
+        relative: String,
+        entryName: String,
+        zipIn: ZipInputStream,
+    ) {
+        if (relative.isBlank()) return
+        val target = safeResolve(root, relative) ?: run {
+            Log.w(TAG, "restoreFromBackupFile: Rejected path traversal entry $entryName")
+            return
+        }
+        target.parentFile?.mkdirs()
+        try {
+            FileOutputStream(target).use { outputStream ->
+                zipIn.copyTo(outputStream)
+            }
+            Log.i(TAG, "restoreFromBackupFile: Restored $entryName (${target.length()} bytes)")
+        } catch (e: Exception) {
+            Log.e(TAG, "restoreFromBackupFile: Failed to restore file $entryName", e)
+            throw Exception("Failed to restore file $entryName: ${e.message}")
+        }
+    }
+
+    /** 恢复工作区文件：workspaces/<wsId>/files/... 或 workspaces/<wsId>/linux/root/... */
+    private fun restoreWorkspaceEntry(zipIn: ZipInputStream, entryName: String) {
+        val relative = entryName.removePrefix("workspaces/")
+        val segments = relative.split('/')
+        if (segments.size < 3) {
+            Log.w(TAG, "restoreFromBackupFile: Invalid workspace entry $entryName")
+            return
+        }
+        val wsId = segments[0]
+        if (!wsId.matches(WORKSPACE_ID_REGEX)) {
+            Log.w(TAG, "restoreFromBackupFile: Rejected invalid workspace id in $entryName")
+            return
+        }
+        val wsRoot = File(File(context.filesDir, "workspaces"), wsId)
+        val (base, rest) = when {
+            segments[1] == "files" -> File(wsRoot, "files") to segments.drop(2).joinToString("/")
+            segments[1] == "linux" && segments.size >= 4 && segments[2] == "root" ->
+                File(File(wsRoot, "linux"), "root") to segments.drop(3).joinToString("/")
+
+            else -> {
+                Log.w(TAG, "restoreFromBackupFile: Rejected unsupported workspace entry $entryName")
+                return
+            }
+        }
+        if (rest.isBlank()) return
+        restoreSafeEntry(root = base, relative = rest, entryName = entryName, zipIn = zipIn)
+    }
+
+    /** zip slip 防护：解析后的路径必须仍位于 root 内 */
+    private fun safeResolve(root: File, relative: String): File? {
+        val rootCanonical = root.canonicalFile
+        val resolved = File(root, relative).canonicalFile
+        return if (resolved == rootCanonical || resolved.path.startsWith(rootCanonical.path + File.separator)) {
+            resolved
+        } else {
+            null
+        }
     }
 
     private fun addFileToZip(zipOut: ZipOutputStream, file: File, entryName: String) {

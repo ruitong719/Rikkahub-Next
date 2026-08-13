@@ -1,0 +1,202 @@
+# Rikkahub Next — 工作区功能合入记录
+
+日期：2026-08-13
+分支：`chore/remove-google-services`（合并目标：`master`）
+
+---
+
+## 1. 背景与基线
+
+- **基线（官方实现）**：`master` @ `576f2341`（chore: trigger build - sync 20260807-161340）
+- **开发分支（自研）**：`dev` @ `fcafc878`，在 master 之上包含 18 个提交，实现 plan.md 的 **8 个工作区功能**
+- **任务**：以 master 为基线，将 dev 的 18 个提交按功能逐个 cherry-pick 到 `chore/remove-google-services`，**每个功能先 review 修正、再编译验证通过，才进入下一个**；最后重命名应用为 Rikkahub Next 并产出已签名的 release APK
+
+> dev 上所有提交均未在本机编译过（plan.md 明确说明沙箱无 Android SDK），
+> 因此逐功能 review + 修正编译错误是本任务的核心工作。
+
+---
+
+## 2. dev 提交与功能映射（cherry-pick 顺序 = dev 历史顺序）
+
+| # | 提交 | 内容 | 对应功能 |
+|---|------|------|---------|
+| 1 | `0defd746` | docs: add dev plan for five workspace features | 计划文档（功能一~五） |
+| 2 | `c9c3e025` | fix(backup): consistent DB snapshot, safe restore, expanded scope | **功能四** 备份修复 |
+| 3 | `c520a03d` | feat(workspace): workspace_export_to_phone tool | **功能一** 导出到手机 |
+| 4 | `a91aa243` | feat(workspace): mount phone SAF directories at /mnt/<name> | **功能二** SAF 挂载 |
+| 5 | `a7b15ec7` | feat(workspace): persistent background tasks | **功能三** 后台任务 |
+| 6 | `e8139c82` | feat(workspace): workspace_create_backup tool | **功能五** backup.zip 工具 |
+| 7 | `10498cb5` | fix(workspace): compile fixes for mount/bg integration | 官方修复 |
+| 8 | `1e0f9fd1` | docs: add dev plans for subagent / todo / per-tool prompts | 计划文档（功能六~八） |
+| 9 | `2e14546e` | feat(local-tools): per-conversation todo list tools | **功能七** Todo |
+| 10 | `6b4030d1` | feat(workspace): per-tool injectable prompts | **功能八** per-tool 提示词 |
+| 11 | `efffc28a` | feat(subagent): data model + presets + storage | **功能六** Subagent（1/8） |
+| 12 | `c69ab79a` | feat(subagent): pure logic + JVM tests | 功能六（2/8） |
+| 13 | `b7437323` | feat(subagent): SubAgentRunner | 功能六（3/8） |
+| 14 | `ae1ebc17` | feat(subagent): tool registration + ChatService refactor | 功能六（4/8） |
+| 15 | `7d0e2633` | feat(subagent): extensions entry + routes + list page | 功能六（5/8） |
+| 16 | `a2994118` | feat(subagent): full edit page (create/edit) | 功能六（6/8） |
+| 17 | `2bce87cc` | feat(subagent): per-assistant opt-in | 功能六（7/8） |
+| 18 | `fcafc878` | docs: mark features 6-8 implemented | 文档收尾 |
+
+---
+
+## 3. 逐功能 review 发现并修复的问题
+
+> 括号内为修正提交。全部问题均为 **dev 从未编译过** 导致的编译错误或实现缺陷。
+
+### 功能四：备份修复（一次通过）
+无编译问题。
+
+### 功能一：导出到手机（6 处，fix commit `3b466dd0`）
+- `WorkspaceExportTools.kt`：缺 `jsonObject` import
+- `WorkspacePhoneExporter.kt`：`DocumentFile.openOutputStream(context)` — **documentfile 1.1.0 没有该方法**
+  （经 javap 验证 API 只有 fromTreeUri/createFile/findFile/listFiles 等），改为 `context.contentResolver.openOutputStream(uri)`
+- 字符串模板把函数 `relativePath()` 当属性用
+- **严重 bug**：`WorkspaceEntity.toolApprovals` 默认值被从 `"{}"` 改坏成 `"{"`（非法 JSON，
+  会破坏所有工作区的工具审批解析）→ 恢复 `"{}"`
+- `WorkspaceDetailPage.kt`：缺 `Context` import；`statusText` smart-cast 失败（`produceState` delegate 不能智能转换）
+- `WorkspacePhoneExporterTest`：`emptyList()` 在 JUnit 泛型重载下无法推断，需显式 `emptyList<String>()`
+
+### 功能二：SAF 挂载（5 处，fix commit `7e6b585a`）
+- `WorkspaceMountManager`：`child.openInputStream(context)` / `fileDoc.openOutputStream(context)`
+  均不存在 → `contentResolver` 对应 API
+- **`SyncStats` 是不可变 data class 却被 `stats.skipped++` 自增** → 新增内部可变状态类；
+  （dev 官方修复 `10498cb5` 后来把 SyncStats 改成 var 字段，冗余包装类随后移除，refactor `4c4aa66c`）
+- `WorkspaceMountTools.kt`：缺 `jsonObject` import
+- `WorkspaceRepository.executeCommand`：suspend 函数 `dynamicBindMounts()` 被调用在非 suspend 的
+  `runInterruptible{ }` 内 → 提前取值传入
+- `PreferencesStore.kt`：缺 `WorkspaceMountConfig` import
+- 顺手补上从未更新的 `dirsCreated` 统计
+
+### 功能三：后台任务（4 处，fix commit `734cb9ac`）
+- `WorkspaceBgManager.HeadlessSession.start()` 内调用 suspend 的 `mountManager.activeBindMounts()`
+  → `start(extraBindMounts)` 参数化、`ensureSession` 改为 suspend
+- 缺 `PROOT_EXEC` / `PROOT_LOADER` 常量定义（ProotShellRunner 里是 private）
+- `WorkspaceBgTools.kt`：缺 `jsonObject` import
+- `RikkaHubApp.incrementLaunchCount()` 缩进损坏（`{        get<AppScope>()...`）→ 还原格式
+
+### 功能五：backup.zip 工具（无编译问题）
+`WorkspaceBackupTool` 依赖的 `WebDavSync.prepareBackupFile(config)`、`BackupItem.entries`、
+`settingsFlow.value` 均已确认存在，一次通过。
+
+### 功能七：Todo（4 处，fix commit `b08f985b`）
+- `TodoStore.updateList`：`todos()` 返回只读 `StateFlow` 却执行 `flow.value = newList`
+  → 拆出 `todosMutable()` 私有方法，公开接口保持 StateFlow
+- `TodoSheet.kt` 图标：HugeIcons 是空 object，图标是 `stroke` 包的**扩展属性**，
+  需同时 import `me.rerere.hugeicons.HugeIcons` + `me.rerere.hugeicons.stroke.XXX`
+- `TodoStoreTest`：**JUnit4 要求测试方法返回 void**，`= runBlocking { }` 表达式体编译为泛型返回值
+  → 改为块体 `{ runBlocking { ... } }`；随后补齐 5 处大括号配对
+- `AppModule.kt`：cherry-pick 冲突时被误删的 `import android.content.Context`（TodoStore 注册需要）
+- `ChatPage.kt`：`},onUpdateAssistant = {` 缩进损坏 → 还原
+
+### 功能八：per-tool 提示词（一次通过）
+数据层（toolPrompts 可空列 + DB 25→26 AutoMigration）+ 默认表 + 注入改造 + 编辑对话框
++ 单测，全部干净。DB schema 26.json 已提交。
+
+### 功能六：Subagent（2 处，fix commit `f495b075`）
+- `ChatService.kt`：`createSubAgentTools` 的 `memories = memories` 引用了 `generateText`
+  的**命名参数**（作用域内不存在）→ 提取为局部变量 `val memories: List<AssistantMemory>?`
+  （含 `useGlobalMemory` 分支），并补 `AssistantMemory` import
+- `AssistantExtensionsPage.kt`：缺 `androidx.compose.ui.unit.dp` import
+
+---
+
+## 4. 构建与测试验证（本机 Windows）
+
+构建环境：
+- JDK 17（Eclipse Adoptium）、Gradle 9.5.0 wrapper、SDK platform 35/37、build-tools 35/36
+- 网络受限：Maven 仓库经 `D:\Code2\rikkahub-ci\init.gradle` 切换阿里云镜像，
+  jitpack 缺失制品预置于 `~/.m2`（mavenLocal 优先）
+- 构建命令（release 签名从 local.properties 读取）：
+  ```
+  ./gradlew.bat -I D:/Code2/rikkahub-ci/init.gradle --no-configuration-cache \
+    :app:assembleDebug / :app:testDebugUnitTest / :app:assembleRelease -x :web:buildWebUi
+  ```
+- `-x :web:buildWebUi`：本机无 node/pnpm，跳过前端构建（CI 中由 pnpm build 负责）
+
+| 验证项 | 结果 |
+|--------|------|
+| 功能四~八逐个 assembleDebug | ✅ 全部 BUILD SUCCESSFUL |
+| 全量单元测试（4 个新增测试类） | ✅ BUILD SUCCESSFUL |
+| dev 18 个提交按标题核对 | ✅ 全部在分支历史中 |
+| assembleRelease（R8 优化） | ✅ BUILD SUCCESSFUL in ~5min |
+
+---
+
+## 5. 应用重命名（commit `feed2b85`）
+
+| 项 | 旧值 | 新值 |
+|----|------|------|
+| applicationId | `me.rerere.rikkahub` | `me.rerere.rikkahubnext` |
+| 应用显示名（app_name） | RikkaHub | **Rikkahub Next** |
+| 测试断言 | 硬编码包名 | `BuildConfig.APPLICATION_ID` |
+
+> FileProvider / DocumentsProvider / startup 等 authority 均用 `${applicationId}` 动态生成，无需修改。
+> ⚠️ applicationId 变更后与旧版是**不同应用**（全新安装，不保留旧数据），为预期行为。
+
+---
+
+## 6. 签名信息（release）
+
+- **keystore**：`app/keystore/rikkahubnext-release.jks`（已 gitignore，**务必备份**）
+  - alias：`rikkahubnext`
+  - storePassword / keyPassword：`RikkahubNext2026!`（同时存于 `local.properties`，已 gitignore）
+  - 证书：CN=Rikkahub Next, OU=Mobile, O=Rikkahub, L=Beijing, ST=Beijing, C=CN；RSA 2048，有效期 10000 天
+  - SHA-256：`5bbf4d25701ad159e1db3fe72f288d48a4f915e8c129c1057da1a11cd884a518`
+- 验证：apksigner v2 签名通过
+- 产物（`D:\Code2\rikkahub-ci\dist\`）：
+  - `RikkahubNext-arm64-v8a-release.apk`（34,950,608 字节，arm64 手机用）
+  - `RikkahubNext-universal-release.apk`（45,048,610 字节，全 ABI）
+  - （另有 x86_64 分包在 `app/build/outputs/apk/release/`，供模拟器）
+
+---
+
+## 7. 分支最终状态
+
+- 合并后 `master` 将包含 27 个提交（基线 + 移除 google-services + 18 个 dev 提交 + 5 个修复/改名单提交）
+- 分支历史关键节点（按时间顺序尾部）：
+  ```
+  9bf1d16b  chore: remove google-services.json and Firebase dependencies（独立先行任务）
+  bbe36382  docs: add dev plan for five workspace features
+  495a5fb8  fix(backup): consistent DB snapshot...
+  80880b83  feat(workspace): workspace_export_to_phone tool...
+  3b466dd0  fix(workspace): compile fixes for export-to-phone feature
+  7eb57a64  feat(workspace): mount phone SAF directories...
+  7e6b585a  fix(workspace): compile fixes for SAF mount feature
+  8b958a27  feat(workspace): persistent background tasks...
+  734cb9ac  fix(workspace): compile fixes for background tasks feature
+  b6d3d98e  feat(workspace): workspace_create_backup tool...
+  ceab7863  fix(workspace): compile fixes for mount/bg integration
+  4c4aa66c  refactor(workspace): drop redundant MutableSyncStats wrapper
+  9e93eb76  docs: add dev plans for subagent, todo local tool, per-tool workspace prompts
+  f2317b1c  feat(local-tools): per-conversation todo list tools...
+  b08f985b  fix(local-tools): compile fixes for todo feature
+  0bbd3199  feat(workspace): per-tool injectable prompts...
+  3b5ad955  feat(workspace): per-tool injectable prompts (cherry-picked merge)
+  17cbdb0d  feat(subagent): data model...
+  600eb2b5  feat(subagent): pure logic...
+  eeb83e24  feat(subagent): SubAgentRunner...
+  3aeb4926  feat(subagent): tool registration...
+  3b5d0abc  feat(subagent): extensions entry...
+  f20087cd  feat(subagent): full edit page...
+  26e96b2c  feat(subagent): per-assistant opt-in...
+  f7e732e9  docs: mark features 6-8 implemented
+  f495b075  fix(subagent): compile fixes for subagent feature
+  feed2b85  chore: rename app to Rikkahub Next
+  ```
+
+---
+
+## 8. 已知注意事项（后续接手者）
+
+1. **keystore 与签名密码**：`app/keystore/` 已 gitignore，换机器/CI 构建 release 需手动恢复
+2. **`init.gradle` 是仓库外的临时镜像脚本**（`D:\Code2\rikkahub-ci\init.gradle`），正常网络环境不需要；
+   仓库内 settings.gradle.kts 保持官方仓库配置
+3. **web-ui 前端**：本机构建用 `-x :web:buildWebUi` 跳过；CI 需要 node/pnpm 执行 web-ui 构建
+4. **网络代理历史**：dl.google.com / jitpack.io 本机直连超时，需代理或镜像（记录见会话历史，
+   当前构建环境已留全套镜像缓存于 `~/.m2` 与 Gradle cache）
+5. **功能真机验证**：SAF 权限（导出/挂载）、headless proot 后台任务、Subagent 嵌套循环重入、
+   超时取消等运行时行为需要真机/模拟器验证（编译与单测已验证，运行时未验证）
+6. **Room DB 迁移**：v24→25（exportTargetUri）、v25→26（toolPrompts）AutoMigration 依赖
+   已提交的 schema JSON（1~26.json），运行时迁移正确性需真机确认

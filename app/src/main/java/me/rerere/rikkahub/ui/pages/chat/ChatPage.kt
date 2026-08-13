@@ -283,6 +283,7 @@ private fun ChatPageContent(
     val hazeState = rememberHazeState()
     val assistant = setting.getCurrentAssistant()
     var showFilesSheet by remember { mutableStateOf(false) }
+    val todos by vm.todos.collectAsStateWithLifecycle()
 
     val completionProviders = remember(assistant.workspaceId, conversation.workspaceCwd, workspaceRepository) {
         assistant.workspaceId?.let { workspaceId ->
@@ -405,6 +406,7 @@ private fun ChatPageContent(
                     onMoreClick = {
                         showFilesSheet = true
                     },
+                    todos = todos,
                 )
             },
             containerColor = Color.Transparent,

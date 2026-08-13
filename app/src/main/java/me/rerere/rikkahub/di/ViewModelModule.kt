@@ -15,6 +15,8 @@ import me.rerere.rikkahub.ui.pages.extensions.PromptVM
 import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesVM
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillDetailVM
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillsVM
+import me.rerere.rikkahub.ui.pages.extensions.subagents.SubAgentEditVM
+import me.rerere.rikkahub.ui.pages.extensions.subagents.SubAgentsVM
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceDetailVM
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceVM
 import me.rerere.rikkahub.ui.pages.setting.SettingVM
@@ -33,9 +35,9 @@ val viewModelModule = module {
             conversationRepo = get(),
             chatService = get(),
             updateChecker = get(),
-            analytics = get(),
             filesManager = get(),
             favoriteRepository = get(),
+            todoStore = get(),
         )
     }
     viewModelOf(::ChatDrawerVM)
@@ -63,6 +65,8 @@ val viewModelModule = module {
     viewModelOf(::BackupVM)
     viewModelOf(::ImgGenVM)
     viewModelOf(::PromptVM)
+    viewModelOf(::SubAgentsVM)
+    viewModelOf(::SubAgentEditVM)
     viewModelOf(::QuickMessagesVM)
     viewModelOf(::SkillsVM)
     viewModelOf(::SkillDetailVM)
@@ -71,6 +75,7 @@ val viewModelModule = module {
         WorkspaceDetailVM(
             id = it.get(),
             repository = get(),
+            mountManager = get(),
         )
     }
     viewModelOf(::FavoriteVM)

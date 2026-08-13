@@ -10,9 +10,12 @@ import kotlinx.coroutines.withContext
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.db.dao.WorkspaceDAO
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
+import me.rerere.rikkahub.data.files.WorkspaceBgManager
+import me.rerere.rikkahub.data.files.WorkspaceMountManager
 import me.rerere.rikkahub.utils.JsonInstant
 import me.rerere.workspace.RootfsInstallProgress
 import me.rerere.workspace.RootfsInstaller
+import me.rerere.workspace.WorkspaceBindMount
 import me.rerere.workspace.WorkspaceCommandResult
 import me.rerere.workspace.WorkspaceFileEntry
 import me.rerere.workspace.WorkspaceManager
@@ -28,6 +31,8 @@ class WorkspaceRepository(
     private val manager: WorkspaceManager,
     private val rootfsInstaller: RootfsInstaller,
     private val settingsStore: SettingsStore,
+    private val mountManager: WorkspaceMountManager,
+    private val bgManager: WorkspaceBgManager,
 ) {
     fun listFlow(): Flow<List<WorkspaceEntity>> = dao.listFlow()
 
@@ -107,6 +112,38 @@ class WorkspaceRepository(
             )
         )
         return true
+    }
+
+    /** 设置/清除导出到手机的 SAF 树目录 URI */
+    suspend fun setExportTargetUri(id: String, exportTargetUri: String?): Boolean {
+        val workspace = dao.getById(id) ?: return false
+        return dao.updateExportTargetUri(
+            id = id,
+            exportTargetUri = exportTargetUri,
+            updatedAt = System.currentTimeMillis(),
+        ) > 0
+    }
+
+    /** 覆盖某个工具的注入提示词；prompt 为空字符串等同清除覆盖（恢复默认） */
+    suspend fun setToolPrompt(id: String, toolName: String, prompt: String): Boolean {
+        val workspace = dao.getById(id) ?: return false
+        val prompts = workspace.toolPromptOverrides() + (toolName to prompt)
+        return dao.updateToolPrompts(
+            id = id,
+            toolPrompts = JsonInstant.encodeToString(prompts),
+            updatedAt = System.currentTimeMillis(),
+        ) > 0
+    }
+
+    /** 清除某个工具的提示词覆盖，恢复默认提示词 */
+    suspend fun clearToolPrompt(id: String, toolName: String): Boolean {
+        val workspace = dao.getById(id) ?: return false
+        val prompts = workspace.toolPromptOverrides() - toolName
+        return dao.updateToolPrompts(
+            id = id,
+            toolPrompts = JsonInstant.encodeToString(prompts),
+            updatedAt = System.currentTimeMillis(),
+        ) > 0
     }
 
     suspend fun installRootfs(
@@ -235,7 +272,7 @@ class WorkspaceRepository(
     ): Long = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
         manager.ensureWorkspace(workspace.root)
-        manager.rootfsFileSize(workspace.root, path)
+        manager.rootfsFileSize(workspace.root, path, dynamicBindMounts())
     }
 
     /** 按 Rootfs 内绝对路径导出文件内容, 支持 /workspace、bind mount 与 Rootfs 内部路径 */
@@ -246,7 +283,7 @@ class WorkspaceRepository(
     ) = withContext(Dispatchers.IO) {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
         manager.ensureWorkspace(workspace.root)
-        manager.exportRootfsFile(workspace.root, path, outputStream)
+        manager.exportRootfsFile(workspace.root, path, outputStream, dynamicBindMounts())
     }
 
     suspend fun deleteFile(
@@ -281,10 +318,18 @@ class WorkspaceRepository(
         stdin: ByteArray? = null,
     ): WorkspaceCommandResult {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        val mounts = dynamicBindMounts()
         // runInterruptible 让协程取消转化为线程中断，从而打断阻塞的 Process.waitFor 并杀掉进程
         return runInterruptible(Dispatchers.IO) {
             manager.ensureWorkspace(workspace.root)
-            manager.executeCommand(workspace.root, command, cwd, timeoutMillis, stdin)
+            manager.executeCommand(
+                workspace.root,
+                command,
+                cwd,
+                timeoutMillis,
+                stdin,
+                mounts,
+            )
         }
     }
 
@@ -292,11 +337,16 @@ class WorkspaceRepository(
         val workspace = dao.getById(id) ?: return false
         dao.deleteById(id)
         withContext(Dispatchers.IO) {
+            // 终止常驻 headless 会话，避免 proot 持续持有已删除的 rootfs
+            bgManager.killSession(workspace.root)
             manager.deleteWorkspace(workspace.root)
         }
         cleanupAssistantReferences(id)
         return true
     }
+
+    /** 当前生效的动态挂载点（用户配置的 /mnt/<name>），用于 shell 与 rootfs 文件解析 */
+    private suspend fun dynamicBindMounts(): List<WorkspaceBindMount> = mountManager.activeBindMounts()
 
     private suspend fun cleanupAssistantReferences(workspaceId: String) {
         settingsStore.update { settings ->

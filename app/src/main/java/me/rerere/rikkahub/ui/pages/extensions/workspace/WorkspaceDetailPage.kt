@@ -1,6 +1,8 @@
 package me.rerere.rikkahub.ui.pages.extensions.workspace
 
+import android.content.Context
 import android.content.Intent
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import androidx.activity.compose.BackHandler
@@ -43,6 +45,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -54,7 +57,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.ArrowTurnBackward
 import me.rerere.hugeicons.stroke.Bash
@@ -68,8 +73,11 @@ import me.rerere.hugeicons.stroke.Refresh01
 import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.hugeicons.stroke.Share08
 import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.data.ai.tools.DEFAULT_WORKSPACE_TOOL_PROMPTS
 import me.rerere.rikkahub.data.ai.tools.resolveWorkspaceToolApproval
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
+import me.rerere.rikkahub.data.files.SyncDirection
+import me.rerere.rikkahub.data.files.WorkspaceMountConfig
 import androidx.compose.ui.res.stringResource
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.nav.BackButton
@@ -121,6 +129,75 @@ fun WorkspaceDetailPage(id: String) {
         if (uri == null) return@rememberLauncherForActivityResult
         val outputStream = context.contentResolver.openOutputStream(uri) ?: return@rememberLauncherForActivityResult
         vm.exportFile(entry, outputStream)
+    }
+    // 导出到手机的 SAF 树目录选择器：持久化读写权限，供 workspace_export_to_phone 工具使用
+    val exportDirPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        }.onFailure { e ->
+            android.util.Log.w("WorkspaceDetailPage", "takePersistableUriPermission failed: ${e.message}")
+        }
+        vm.setExportTargetUri(uri)
+    }
+    // 手机目录挂载选择器：先输入挂载名，再从系统选择器选目录
+    var pendingMountName by remember { mutableStateOf<String?>(null) }
+    var showMountNameDialog by remember { mutableStateOf(false) }
+    val mountDirPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        val name = pendingMountName.also { pendingMountName = null } ?: return@rememberLauncherForActivityResult
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        }.onFailure { e ->
+            android.util.Log.w("WorkspaceDetailPage", "takePersistableUriPermission failed: ${e.message}")
+        }
+        vm.addMount(name, uri)
+    }
+    val mounts by vm.mounts.collectAsStateWithLifecycle()
+    val mountMessage by vm.mountMessage.collectAsStateWithLifecycle()
+
+    if (showMountNameDialog) {
+        var name by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showMountNameDialog = false },
+            title = { Text(stringResource(R.string.workspace_detail_mount_add)) },
+            text = {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.workspace_detail_mount_name_hint)) },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showMountNameDialog = false
+                        if (name.isNotBlank()) {
+                            pendingMountName = name
+                            mountDirPicker.launch(null)
+                        }
+                    }
+                ) {
+                    Text(stringResource(R.string.workspace_detail_mount_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMountNameDialog = false }) {
+                    Text(stringResource(R.string.workspace_detail_mount_cancel))
+                }
+            },
+        )
     }
 
     BackHandler(enabled = pagerState.currentPage == 1 && state.path.isNotBlank()) {
@@ -189,6 +266,15 @@ fun WorkspaceDetailPage(id: String) {
                     installProgress = installProgress,
                     onInstallRootfs = { showInstallDialog = true },
                     onToolApprovalChange = vm::setToolApproval,
+                    onToolPromptChange = vm::setToolPrompt,
+                    onResetToolPrompt = vm::clearToolPrompt,
+                    onChooseExportTarget = { exportDirPicker.launch(null) },
+                    onClearExportTarget = vm::clearExportTargetUri,
+                    mounts = mounts,
+                    mountMessage = mountMessage,
+                    onAddMount = { showMountNameDialog = true },
+                    onRemoveMount = vm::removeMount,
+                    onSyncMount = vm::syncMount,
                 )
 
                 1 -> WorkspaceFilesPage(
@@ -312,6 +398,15 @@ private fun WorkspaceBasicPage(
     installProgress: RootfsInstallProgress?,
     onInstallRootfs: () -> Unit,
     onToolApprovalChange: (String, Boolean) -> Unit,
+    onToolPromptChange: (String, String) -> Unit,
+    onResetToolPrompt: (String) -> Unit,
+    onChooseExportTarget: () -> Unit,
+    onClearExportTarget: () -> Unit,
+    mounts: List<WorkspaceMountConfig>,
+    mountMessage: String?,
+    onAddMount: () -> Unit,
+    onRemoveMount: (String) -> Unit,
+    onSyncMount: (String, SyncDirection) -> Unit,
 ) {
     val shellStatus = workspace?.shellStatus
     val installing = installProgress != null || shellStatus == WorkspaceShellStatus.INSTALLING.name
@@ -389,10 +484,212 @@ private fun WorkspaceBasicPage(
         }
 
         item {
+            WorkspaceExportTargetCard(
+                workspace = workspace,
+                onChooseTarget = onChooseExportTarget,
+                onClearTarget = onClearExportTarget,
+            )
+        }
+
+        item {
+            WorkspaceMountCard(
+                mounts = mounts,
+                message = mountMessage,
+                onAdd = onAddMount,
+                onRemove = onRemoveMount,
+                onSync = onSyncMount,
+            )
+        }
+
+        item {
             WorkspaceToolApprovalCard(
                 workspace = workspace,
                 onToolApprovalChange = onToolApprovalChange,
+                onToolPromptChange = onToolPromptChange,
+                onResetToolPrompt = onResetToolPrompt,
             )
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceExportTargetCard(
+    workspace: WorkspaceEntity?,
+    onChooseTarget: () -> Unit,
+    onClearTarget: () -> Unit,
+) {
+    val context = LocalContext.current
+    val exportUriString = workspace?.exportTargetUri
+    val configured = !exportUriString.isNullOrBlank()
+    val displayName by produceState(initialValue = null as String?, key1 = exportUriString) {
+        value = exportUriString?.takeIf { it.isNotBlank() }?.let { raw ->
+            withContext(Dispatchers.IO) {
+                runCatching { resolveTreeDisplayName(context, android.net.Uri.parse(raw)) }.getOrNull()
+            }
+        }
+    }
+    val statusText: String = when {
+        !configured -> stringResource(R.string.workspace_detail_export_not_set)
+        else -> displayName?.takeIf { it.isNotBlank() }
+            ?: stringResource(R.string.workspace_detail_export_permission_lost)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CustomColors.cardColorsOnSurfaceContainer,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = stringResource(R.string.workspace_detail_export_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.workspace_detail_export_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(onClick = onChooseTarget, enabled = workspace != null) {
+                    Icon(HugeIcons.Folder01, contentDescription = null)
+                    Text(
+                        text = stringResource(R.string.workspace_detail_export_choose),
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+                if (configured) {
+                    TextButton(onClick = onClearTarget, enabled = workspace != null) {
+                        Text(stringResource(R.string.workspace_detail_export_clear))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceMountCard(
+    mounts: List<WorkspaceMountConfig>,
+    message: String?,
+    onAdd: () -> Unit,
+    onRemove: (String) -> Unit,
+    onSync: (String, SyncDirection) -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CustomColors.cardColorsOnSurfaceContainer,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = stringResource(R.string.workspace_detail_mount_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.workspace_detail_mount_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (mounts.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.workspace_detail_mount_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            mounts.forEach { mount ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = "/mnt/${mount.name}",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = mount.lastSyncAt?.let { formatMountSyncTime(it) } ?: stringResource(
+                                R.string.workspace_detail_export_not_set
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = { onSync(mount.id, SyncDirection.PULL) }) {
+                        Text("Pull")
+                    }
+                    TextButton(onClick = { onSync(mount.id, SyncDirection.PUSH) }) {
+                        Text("Push")
+                    }
+                    TextButton(onClick = { onRemove(mount.id) }) {
+                        Text(stringResource(R.string.workspace_detail_mount_remove))
+                    }
+                }
+            }
+
+            Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) {
+                Icon(HugeIcons.Folder01, contentDescription = null)
+                Text(
+                    text = stringResource(R.string.workspace_detail_mount_add),
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+
+            message?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+private fun formatMountSyncTime(timestamp: Long): String =
+    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+        .format(java.util.Date(timestamp))
+
+/** 解析 SAF 树目录的显示名（DocumentsContract），失败返回 null（可能权限失效） */
+private fun resolveTreeDisplayName(context: Context, treeUri: android.net.Uri): String? {
+    val docId = DocumentsContract.getTreeDocumentId(treeUri)
+    val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+    return context.contentResolver.query(docUri, null, null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameIndex >= 0) cursor.getString(nameIndex) else null
+        } else {
+            null
         }
     }
 }
@@ -401,8 +698,12 @@ private fun WorkspaceBasicPage(
 private fun WorkspaceToolApprovalCard(
     workspace: WorkspaceEntity?,
     onToolApprovalChange: (String, Boolean) -> Unit,
+    onToolPromptChange: (String, String) -> Unit,
+    onResetToolPrompt: (String) -> Unit,
 ) {
     val overrides = workspace?.toolApprovalOverrides().orEmpty()
+    val promptOverrides = workspace?.toolPromptOverrides().orEmpty()
+    var editingTool by remember { mutableStateOf<String?>(null) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -424,11 +725,18 @@ private fun WorkspaceToolApprovalCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Text(
+                    text = stringResource(R.string.workspace_detail_tool_prompt_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             workspaceToolApprovalItems().forEach { (toolName, label) ->
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = workspace != null) { editingTool = toolName },
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -457,6 +765,92 @@ private fun WorkspaceToolApprovalCard(
             }
         }
     }
+
+    val editing = editingTool
+    if (editing != null) {
+        val label = workspaceToolApprovalItems()
+            .firstOrNull { it.first == editing }?.second ?: editing
+        ToolPromptEditDialog(
+            toolName = editing,
+            label = label,
+            currentPrompt = promptOverrides[editing]
+                ?: DEFAULT_WORKSPACE_TOOL_PROMPTS[editing].orEmpty(),
+            isDefault = editing !in promptOverrides,
+            onSave = { prompt ->
+                onToolPromptChange(editing, prompt)
+                editingTool = null
+            },
+            onReset = {
+                onResetToolPrompt(editing)
+                editingTool = null
+            },
+            onDismiss = { editingTool = null },
+        )
+    }
+}
+
+@Composable
+private fun ToolPromptEditDialog(
+    toolName: String,
+    label: String,
+    currentPrompt: String,
+    isDefault: Boolean,
+    onSave: (String) -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(currentPrompt) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(label, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = toolName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 4,
+                    maxLines = 10,
+                    label = { Text(stringResource(R.string.workspace_detail_tool_prompt_label)) },
+                )
+                Text(
+                    text = if (isDefault) {
+                        stringResource(R.string.workspace_detail_tool_prompt_using_default)
+                    } else {
+                        stringResource(R.string.workspace_detail_tool_prompt_customized)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(text) }) {
+                Text(stringResource(R.string.common_save))
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (!isDefault) {
+                    TextButton(onClick = onReset) {
+                        Text(stringResource(R.string.workspace_detail_tool_prompt_reset))
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -465,6 +859,15 @@ private fun workspaceToolApprovalItems() = listOf(
     "workspace_write_file" to stringResource(R.string.workspace_detail_tool_write_file),
     "workspace_edit_file" to stringResource(R.string.workspace_detail_tool_edit_file),
     "workspace_shell" to stringResource(R.string.workspace_detail_tool_shell),
+    "workspace_export_to_phone" to stringResource(R.string.workspace_detail_tool_export),
+    "workspace_mount_list" to stringResource(R.string.workspace_detail_tool_mount_list),
+    "workspace_mount_sync" to stringResource(R.string.workspace_detail_tool_mount_sync),
+    "workspace_bg_start" to stringResource(R.string.workspace_detail_tool_bg_start),
+    "workspace_bg_status" to stringResource(R.string.workspace_detail_tool_bg_status),
+    "workspace_bg_output" to stringResource(R.string.workspace_detail_tool_bg_output),
+    "workspace_bg_kill" to stringResource(R.string.workspace_detail_tool_bg_kill),
+    "workspace_bg_list" to stringResource(R.string.workspace_detail_tool_bg_list),
+    "workspace_create_backup" to stringResource(R.string.workspace_detail_tool_create_backup),
 )
 
 @Composable

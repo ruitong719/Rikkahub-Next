@@ -9,8 +9,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.google.services)
-    alias(libs.plugins.firebase.crashlytics)
     alias(libs.plugins.baselineprofile)
 }
 
@@ -19,7 +17,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "me.rerere.rikkahub"
+        applicationId = "me.rerere.rikkahubnext"
         minSdk = 26
         targetSdk = 37
         versionCode = 172
@@ -142,6 +140,7 @@ kotlin {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.documentfile)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.work.runtime.ktx)
@@ -165,11 +164,6 @@ dependencies {
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.androidx.material3.adaptive.navigation3)
-
-    // Firebase
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.analytics)
-    implementation(libs.firebase.crashlytics)
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)

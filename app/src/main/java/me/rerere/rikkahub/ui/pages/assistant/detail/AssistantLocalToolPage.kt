@@ -226,6 +226,20 @@ private fun AssistantLocalToolContent(
                     )
                 }
             )
+            item(
+                headlineContent = {
+                    Text(stringResource(R.string.assistant_page_local_tools_todo_title))
+                },
+                supportingContent = {
+                    Text(stringResource(R.string.assistant_page_local_tools_todo_desc))
+                },
+                trailingContent = {
+                    Switch(
+                        checked = assistant.localTools.contains(LocalToolOption.Todo),
+                        onCheckedChange = { toggleLocalTool(LocalToolOption.Todo, it) }
+                    )
+                }
+            )
         }
     }
 }
