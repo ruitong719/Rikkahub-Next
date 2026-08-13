@@ -37,7 +37,9 @@ class TodoStore(private val baseDir: File) {
     private val cacheLock = Any()
     private val mutex = Mutex()
 
-    fun todos(conversationId: Uuid): StateFlow<List<TodoItem>> = synchronized(cacheLock) {
+    fun todos(conversationId: Uuid): StateFlow<List<TodoItem>> = todosMutable(conversationId)
+
+    private fun todosMutable(conversationId: Uuid): MutableStateFlow<List<TodoItem>> = synchronized(cacheLock) {
         cache.getOrPut(conversationId) {
             MutableStateFlow(load(conversationId))
         }
@@ -98,7 +100,7 @@ class TodoStore(private val baseDir: File) {
         conversationId: Uuid,
         transform: (List<TodoItem>) -> List<TodoItem>,
     ) = mutex.withLock {
-        val flow = todos(conversationId)
+        val flow = todosMutable(conversationId)
         val newList = transform(flow.value)
         save(conversationId, newList)
         flow.value = newList

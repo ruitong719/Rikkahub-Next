@@ -382,7 +382,8 @@ private fun ChatPageContent(
                     },
                     onUpdateChatModel = {
                         vm.setChatModel(assistant = setting.getCurrentAssistant(), model = it)
-                    },                    onUpdateAssistant = {
+                    },
+                    onUpdateAssistant = {
                         vm.updateSettings(
                             setting.copy(
                                 assistants = setting.assistants.map { assistant ->

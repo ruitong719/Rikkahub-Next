@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.di
 
+import android.content.Context
 import kotlinx.serialization.json.Json
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools

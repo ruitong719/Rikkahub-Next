@@ -24,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.LeftToRightListBullet
 import me.rerere.hugeicons.stroke.Tick02
 import me.rerere.rikkahub.R
@@ -65,7 +66,7 @@ fun TodoStatusButton(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = LeftToRightListBullet,
+                        imageVector = HugeIcons.LeftToRightListBullet,
                         contentDescription = stringResource(R.string.todo_status_button),
                     )
                 }
@@ -146,7 +147,7 @@ private fun TodoRow(item: TodoItem, completed: Boolean = item.completed) {
         ) {
             if (completed) {
                 Icon(
-                    imageVector = Tick02,
+                    imageVector = HugeIcons.Tick02,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(10.dp),
