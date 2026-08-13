@@ -646,10 +646,10 @@ private fun WorkspaceMountCard(
                         )
                     }
                     TextButton(onClick = { onSync(mount.id, SyncDirection.PULL) }) {
-                        Text("Pull")
+                        Text(stringResource(R.string.workspace_detail_mount_pull))
                     }
                     TextButton(onClick = { onSync(mount.id, SyncDirection.PUSH) }) {
-                        Text("Push")
+                        Text(stringResource(R.string.workspace_detail_mount_push))
                     }
                     TextButton(onClick = { onRemove(mount.id) }) {
                         Text(stringResource(R.string.workspace_detail_mount_remove))

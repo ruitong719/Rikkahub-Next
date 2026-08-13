@@ -374,7 +374,6 @@
   <string name="subagents_page_duplicate">Duplicate</string>
   <string name="subagents_page_delete_title">Delete subagent</string>
   <string name="subagents_page_delete_message">Delete \"%1$s\"? This also removes it from all assistants.</string>
-  <string name="subagents_edit_placeholder">Edit page for %1$s (coming soon)</string>
   <string name="subagents_edit_title_new">New subagent</string>
   <string name="subagents_edit_title_edit">Edit subagent</string>
   <string name="subagents_edit_name">Name</string>
@@ -1250,6 +1249,8 @@
   <string name="workspace_detail_mount_desc">Mount phone folders into the workspace at /mnt/&lt;name&gt; so the AI can read and write them.</string>
   <string name="workspace_detail_mount_add">Add Mount</string>
   <string name="workspace_detail_mount_remove">Remove</string>
+  <string name="workspace_detail_mount_pull">Pull</string>
+  <string name="workspace_detail_mount_push">Push</string>
   <string name="workspace_detail_mount_sync">Sync</string>
   <string name="workspace_detail_mount_name_hint">Mount name</string>
   <string name="workspace_detail_mount_confirm">OK</string>
