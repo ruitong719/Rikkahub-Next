@@ -176,11 +176,6 @@ class WorkspacePhoneExporter(
         currentCoroutineContext().ensureActive()
     }
 
-private fun mimeTypeFor(name: String): String {
-        val ext = name.substringAfterLast('.', "").lowercase()
-        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
-    }
-
     private fun File.relativePath(): String = path.substringAfterLast('/').substringAfterLast('\\')
 
     private class ExportState {

@@ -123,10 +123,10 @@ class WorkspaceMountManager(
                     "Remove and re-add the mount."
             )
         val target = File(context.filesDir, "mnt/${config.id}").apply { mkdirs() }
-        val stats = SyncStats()
+        val stats = MutableSyncStats()
         copySafToLocal(treeDoc, target, stats)
         touchSyncTime(config)
-        stats
+        stats.toStats()
     }
 
     private suspend fun push(config: WorkspaceMountConfig): SyncStats = withContext(Dispatchers.IO) {
@@ -137,10 +137,10 @@ class WorkspaceMountManager(
             )
         val source = File(context.filesDir, "mnt/${config.id}")
         require(source.isDirectory) { "Mount cache does not exist: ${config.name}" }
-        val stats = SyncStats()
+        val stats = MutableSyncStats()
         copyLocalToSaf(source, treeDoc, stats)
         touchSyncTime(config)
-        stats
+        stats.toStats()
     }
 
     private suspend fun touchSyncTime(config: WorkspaceMountConfig) {
@@ -154,7 +154,7 @@ class WorkspaceMountManager(
     }
 
     /** SAF -> 本地缓存（增量：size+mtime 相同跳过） */
-    private suspend fun copySafToLocal(doc: DocumentFile, targetDir: File, stats: SyncStats) {
+    private suspend fun copySafToLocal(doc: DocumentFile, targetDir: File, stats: MutableSyncStats) {
         currentCoroutineContext().ensureActive()
         doc.listFiles().forEach { child ->
             val name = child.name ?: return@forEach
@@ -163,6 +163,7 @@ class WorkspaceMountManager(
                 val target = File(targetDir, name)
                 if (child.isDirectory) {
                     target.mkdirs()
+                    stats.dirsCreated++
                     copySafToLocal(child, target, stats)
                 } else {
                     val size = child.length()
@@ -170,8 +171,8 @@ class WorkspaceMountManager(
                     if (target.exists() && target.length() == size && target.lastModified() == mtime) {
                         stats.skipped++
                     } else {
-                        val input = child.openInputStream(context)
-                            ?: error("Cannot open input stream: $name")
+val input = context.contentResolver.openInputStream(child.uri)
+                        ?: error("Cannot open input stream: $name")
                         input.use { i ->
                             target.outputStream().use { o -> i.copyTo(o, bufferSize = COPY_BUFFER_BYTES) }
                         }
@@ -187,16 +188,18 @@ class WorkspaceMountManager(
     }
 
     /** 本地缓存 -> SAF（增量：size+mtime 相同跳过；v1 不删除 SAF 中多余的远端文件） */
-    private suspend fun copyLocalToSaf(sourceDir: File, parentDoc: DocumentFile, stats: SyncStats) {
+    private suspend fun copyLocalToSaf(sourceDir: File, parentDoc: DocumentFile, stats: MutableSyncStats) {
         currentCoroutineContext().ensureActive()
         sourceDir.listFiles().orEmpty().forEach { child ->
             val name = child.name
             if (name.startsWith(".l2s.")) return@forEach
             runCatching {
                 if (child.isDirectory) {
-                    val dirDoc = parentDoc.findFile(name)?.takeIf { it.isDirectory }
+                    val existingDir = parentDoc.findFile(name)?.takeIf { it.isDirectory }
+                    val dirDoc = existingDir
                         ?: parentDoc.createDirectory(name)
                         ?: error("Failed to create directory: $name")
+                    if (existingDir == null) stats.dirsCreated++
                     copyLocalToSaf(child, dirDoc, stats)
                 } else {
                     val size = child.length()
@@ -209,7 +212,7 @@ class WorkspaceMountManager(
                     val fileDoc = existing?.takeIf { it.isFile }
                         ?: parentDoc.createFile(mimeTypeFor(name), name)
                         ?: error("Failed to create file: $name")
-                    val out = fileDoc.openOutputStream(context)
+                    val out = context.contentResolver.openOutputStream(fileDoc.uri)
                     if (out != null) {
                         out.use { o ->
                             child.inputStream().use { i -> i.copyTo(o, bufferSize = COPY_BUFFER_BYTES) }
@@ -219,7 +222,7 @@ class WorkspaceMountManager(
                         fileDoc.delete()
                         val recreated = parentDoc.createFile(mimeTypeFor(name), name)
                             ?: error("Failed to recreate file: $name")
-                        recreated.openOutputStream(context)?.use { o ->
+                        context.contentResolver.openOutputStream(recreated.uri)?.use { o ->
                             child.inputStream().use { i -> i.copyTo(o, bufferSize = COPY_BUFFER_BYTES) }
                         } ?: error("Failed to open output stream: $name")
                     }
@@ -235,5 +238,22 @@ class WorkspaceMountManager(
     companion object {
         private val MOUNT_NAME_REGEX = Regex("[a-zA-Z0-9._-]+")
         private const val COPY_BUFFER_BYTES = 64 * 1024
+    }
+
+    /** 同步过程中的可变统计状态，结束后转成不可变的 [SyncStats] */
+    private class MutableSyncStats {
+        var filesSynced: Int = 0
+        var dirsCreated: Int = 0
+        var totalBytes: Long = 0L
+        var skipped: Int = 0
+        val errors = mutableListOf<String>()
+
+        fun toStats() = SyncStats(
+            filesSynced = filesSynced,
+            dirsCreated = dirsCreated,
+            totalBytes = totalBytes,
+            skipped = skipped,
+            errors = errors,
+        )
     }
 }

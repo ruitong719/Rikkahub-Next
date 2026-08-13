@@ -294,6 +294,7 @@ class WorkspaceRepository(
         stdin: ByteArray? = null,
     ): WorkspaceCommandResult {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        val mounts = dynamicBindMounts()
         // runInterruptible 让协程取消转化为线程中断，从而打断阻塞的 Process.waitFor 并杀掉进程
         return runInterruptible(Dispatchers.IO) {
             manager.ensureWorkspace(workspace.root)
@@ -303,7 +304,7 @@ class WorkspaceRepository(
                 cwd,
                 timeoutMillis,
                 stdin,
-                dynamicBindMounts(),
+                mounts,
             )
         }
     }
