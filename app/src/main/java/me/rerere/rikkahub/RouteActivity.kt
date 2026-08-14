@@ -89,7 +89,6 @@ import me.rerere.rikkahub.ui.pages.backup.BackupPage
 import me.rerere.rikkahub.ui.pages.chat.ChatPage
 import me.rerere.rikkahub.ui.pages.debug.DebugPage
 import me.rerere.rikkahub.ui.pages.extensions.ExtensionsPage
-import me.rerere.rikkahub.ui.pages.extensions.PromptPage
 import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesPage
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillDetailPage
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillsPage
@@ -488,10 +487,6 @@ class RouteActivity : ComponentActivity() {
                                 QuickMessagesPage()
                             }
 
-                            entry<Screen.Prompts> {
-                                PromptPage()
-                            }
-
                             entry<Screen.Skills> {
                                 SkillsPage()
                             }
@@ -707,9 +702,6 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data object QuickMessages : Screen
-
-    @Serializable
-    data object Prompts : Screen
 
     @Serializable
     data object Skills : Screen
