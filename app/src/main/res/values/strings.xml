@@ -966,6 +966,9 @@
   <string name="setting_page_web_server_start">Start</string>
   <string name="setting_page_web_server_stop">Stop</string>
   <string name="setting_provider_page_abilities">Abilities</string>
+  <string name="provider_type_openai">OpenAI</string>
+  <string name="provider_type_google">Google Gemini</string>
+  <string name="provider_type_claude">Claude</string>
   <string name="setting_provider_page_add">Add</string>
   <string name="setting_provider_page_add_model">Add Model</string>
   <string name="setting_provider_page_add_models_hint">Click the button below to add models</string>

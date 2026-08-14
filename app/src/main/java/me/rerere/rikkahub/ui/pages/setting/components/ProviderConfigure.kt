@@ -63,7 +63,8 @@ fun ProviderConfigure(
                             index = index,
                             count = ProviderSetting.Types.size
                         ),
-                        label = { Text(type.simpleName ?: "") },
+                        // 显示本地化类型名而非内部类名（simpleName 是 Kotlin 类名，无本地化）
+                        label = { Text(providerTypeLabel(type)) },
                         selected = provider::class == type,
                         onClick = { onEdit(provider.convertTo(type)) }
                     )
@@ -77,6 +78,15 @@ fun ProviderConfigure(
             is ProviderSetting.Claude -> ProviderConfigureClaude(provider, onEdit)
         }
     }
+}
+
+/** 提供商类型本地化显示名（替代内部类名 simpleName） */
+@Composable
+private fun providerTypeLabel(type: KClass<out ProviderSetting>): String = when (type) {
+    ProviderSetting.OpenAI::class -> stringResource(R.string.provider_type_openai)
+    ProviderSetting.Google::class -> stringResource(R.string.provider_type_google)
+    ProviderSetting.Claude::class -> stringResource(R.string.provider_type_claude)
+    else -> type.simpleName ?: ""
 }
 
 fun ProviderSetting.convertTo(type: KClass<out ProviderSetting>): ProviderSetting {
