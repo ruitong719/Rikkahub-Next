@@ -93,6 +93,7 @@ import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
 import me.rerere.rikkahub.data.ai.tools.local.TodoItem
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
@@ -100,6 +101,7 @@ import me.rerere.rikkahub.data.datastore.getQuickMessagesOfAssistant
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.QuickMessage
+import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionContext
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionItem
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionList
@@ -109,6 +111,7 @@ import me.rerere.rikkahub.ui.components.ui.permission.PermissionManager
 import me.rerere.rikkahub.ui.components.ui.permission.PermissionRecordAudio
 import me.rerere.rikkahub.ui.components.ui.permission.rememberPermissionState
 import me.rerere.rikkahub.ui.context.LocalASRState
+import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.hooks.ChatInputState
@@ -135,6 +138,7 @@ fun ChatInput(
     onLongSendClick: () -> Unit,
     todos: List<TodoItem> = emptyList(),
     onClearTodos: () -> Unit = {},
+    messages: List<UIMessage> = emptyList(),
 ) {
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
@@ -321,6 +325,32 @@ fun ChatInput(
                                 TodoStatusButton(
                                     activeCount = todos.count { !it.completed },
                                     onClick = { showTodoSheet = true },
+                                )
+                            }
+
+                            // Subagent 监看：当前助手启用了 subagent 且偏好设置未关闭时显示
+                            if (settings.displaySetting.showSubAgentButton &&
+                                assistant.subagentIds.isNotEmpty()
+                            ) {
+                                var showSubAgentMonitor by remember { mutableStateOf(false) }
+                                val enabledSubAgents = settings.subagents.filter {
+                                    it.id in assistant.subagentIds
+                                }
+                                if (showSubAgentMonitor) {
+                                    val navController = LocalNavController.current
+                                    SubAgentMonitorSheet(
+                                        subAgents = enabledSubAgents,
+                                        messages = messages,
+                                        onDismiss = { showSubAgentMonitor = false },
+                                        onManage = { id ->
+                                            showSubAgentMonitor = false
+                                            navController.navigate(Screen.SubAgentEdit(id))
+                                        },
+                                    )
+                                }
+                                SubAgentMonitorButton(
+                                    enabledCount = enabledSubAgents.size,
+                                    onClick = { showSubAgentMonitor = true },
                                 )
                             }
 

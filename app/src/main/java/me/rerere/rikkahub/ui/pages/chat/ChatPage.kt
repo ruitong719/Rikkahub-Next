@@ -408,6 +408,7 @@ private fun ChatPageContent(
                     },
                     todos = todos,
                     onClearTodos = vm::clearTodos,
+                    messages = conversation.messageNodes.flatMap { it.messages },
                 )
             },
             containerColor = Color.Transparent,

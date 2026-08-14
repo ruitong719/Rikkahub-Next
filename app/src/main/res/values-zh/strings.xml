@@ -1373,6 +1373,16 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="todo_sheet_clear_confirm_text">将删除当前对话的全部待办（进行中与已完成），此操作不可恢复。</string>
   <string name="todo_sheet_clear_confirm_confirm">清空</string>
   <string name="todo_sheet_clear_confirm_cancel">取消</string>
+  <string name="subagent_monitor_button">子智能体监看</string>
+  <string name="subagent_monitor_sheet_title">子智能体（已启用 %1$d 个）</string>
+  <string name="subagent_monitor_empty">当前助手未启用子智能体</string>
+  <string name="subagent_monitor_manage">管理子智能体</string>
+  <string name="subagent_monitor_status_never">本对话尚未调用</string>
+  <string name="subagent_monitor_status_running">执行中…</string>
+  <string name="subagent_monitor_status_success">上次执行：成功</string>
+  <string name="subagent_monitor_status_error">上次执行：失败</string>
+  <string name="subagent_monitor_status_timeout">上次执行：超时</string>
+  <string name="subagent_monitor_status_done">上次执行：完成</string>
   <string name="todo_sheet_empty">暂无待办，可以让 AI 帮你记一条</string>
   <string name="todo_sheet_title">待办（%1$d 进行中 / 共 %2$d）</string>
   <string name="todo_status_button">待办列表</string>

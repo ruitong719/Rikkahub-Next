@@ -1360,6 +1360,16 @@
   <string name="todo_sheet_clear_confirm_text">This will delete all todos (done and pending) of the current conversation. This cannot be undone.</string>
   <string name="todo_sheet_clear_confirm_confirm">Clear</string>
   <string name="todo_sheet_clear_confirm_cancel">Cancel</string>
+  <string name="subagent_monitor_button">Subagent monitor</string>
+  <string name="subagent_monitor_sheet_title">Subagents (%1$d enabled)</string>
+  <string name="subagent_monitor_empty">No subagents enabled for this assistant</string>
+  <string name="subagent_monitor_manage">Manage subagent</string>
+  <string name="subagent_monitor_status_never">Not invoked in this conversation</string>
+  <string name="subagent_monitor_status_running">Running…</string>
+  <string name="subagent_monitor_status_success">Last run: success</string>
+  <string name="subagent_monitor_status_error">Last run: failed</string>
+  <string name="subagent_monitor_status_timeout">Last run: timed out</string>
+  <string name="subagent_monitor_status_done">Last run: finished</string>
   <string name="chat_message_tool_calendar_query">Query calendar events</string>
   <string name="chat_message_tool_calendar_create">Create event: %1$s</string>
   <string name="chat_page_move_to_folder">Move to Folder</string>
