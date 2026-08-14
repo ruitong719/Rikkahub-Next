@@ -64,11 +64,11 @@ class WorkspaceMountManager(
     suspend fun cacheDir(config: WorkspaceMountConfig): File =
         File(context.filesDir, "mnt/${config.id}")
 
-    /** 当前生效的 bind mounts（仅缓存目录已存在的挂载点） */
+    /** 当前生效的 bind mounts（缓存目录缺失时先创建，保证 /mnt/<name> 挂载点恒定存在） */
     fun activeBindMounts(): List<WorkspaceBindMount> =
         listMounts().mapNotNull { config ->
             val dir = File(context.filesDir, "mnt/${config.id}")
-            if (dir.isDirectory) {
+            if (dir.isDirectory || dir.mkdirs()) {
                 WorkspaceBindMount(source = dir, target = "/mnt/${config.name}")
             } else {
                 null

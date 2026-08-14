@@ -74,6 +74,24 @@ class RootfsPathResolutionTest {
     }
 
     @Test
+    fun dynamicMountAtMntResolvesToExtraBindMountSource() {
+        manager = createManager()
+        val phoneDir = tempFolder.newFolder("phone-photos")
+        File(phoneDir, "photo.jpg").writeText("jpeg-data")
+
+        // 模拟用户配置的手机目录挂载点 /mnt/photos（由 WorkspaceMountManager.activeBindMounts 生成）
+        val mount = WorkspaceBindMount(source = phoneDir, target = "/mnt/photos")
+        val location = manager.resolveRootfsPath(root, "/mnt/photos/photo.jpg", extraBindMounts = listOf(mount))
+
+        assertEquals(phoneDir, location.rootDir)
+        assertEquals("photo.jpg", location.relativePath)
+
+        val buffer = ByteArrayOutputStream()
+        manager.exportRootfsFile(root, "/mnt/photos/photo.jpg", buffer, extraBindMounts = listOf(mount))
+        assertEquals("jpeg-data", buffer.toString(Charsets.UTF_8.name()))
+    }
+
+    @Test
     fun unknownAbsolutePathFallsBackToRootfsInterior() {
         manager = createManager()
         File(manager.linuxDir(root), "etc").mkdirs()
