@@ -157,10 +157,13 @@ class WebDavSync(
                 val snapshot = databaseBackupManager.createSnapshot(
                     File(context.cacheDir, "rikka_hub_snapshot.db")
                 )
-                addFileToZip(zipOut, snapshot, "rikka_hub_snapshot.db")
+                // zip 条目固定为 rikka_hub.db：外部工具（如 rikkahub-to-csv skill 的
+                // step1_extract.py）硬编码查找 zip 根下的 rikka_hub.db；restore 侧同时
+                // 兼容 rikka_hub.db（新名）与 rikka_hub_snapshot.db（旧名）两种条目
+                addFileToZip(zipOut, snapshot, "rikka_hub.db")
                 val snapshotWal = File(snapshot.parentFile, "${snapshot.name}-wal")
                 if (snapshotWal.exists() && snapshotWal.length() > 0) {
-                    addFileToZip(zipOut, snapshotWal, "rikka_hub_snapshot-wal")
+                    addFileToZip(zipOut, snapshotWal, "rikka_hub-wal")
                 }
                 snapshotWal.delete()
                 snapshot.delete()
