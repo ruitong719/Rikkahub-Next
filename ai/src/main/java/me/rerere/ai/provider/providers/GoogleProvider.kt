@@ -38,6 +38,7 @@ import me.rerere.ai.provider.Provider
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
 import me.rerere.ai.provider.providers.vertex.ServiceAccountTokenProvider
+import me.rerere.ai.reasoning.ReasoningEffortMappings
 import me.rerere.ai.registry.ModelRegistry
 import me.rerere.ai.ui.GoogleThoughtMetadata
 import me.rerere.ai.ui.MessageChunk
@@ -399,11 +400,8 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
 
                         else -> {
                             if (ModelRegistry.GEMINI_3_SERIES.match(modelId = params.model.modelId)) {
-                                when (params.reasoningLevel) {
-                                    ReasoningLevel.LOW -> put("thinkingLevel", "low")
-                                    ReasoningLevel.MEDIUM -> put("thinkingLevel", "medium")
-                                    else -> put("thinkingLevel", "high") // HIGH, XHIGH
-                                }
+                                // Gemini 3 的 thinkingLevel 只接受 low/medium/high，经映射表收敛（HIGH/XHIGH -> high）
+                                put("thinkingLevel", ReasoningEffortMappings.resolveEffort("gemini3", params.model.modelId, params.reasoningLevel))
                             } else {
                                 put("thinkingBudget", params.reasoningLevel.budgetTokens)
                             }

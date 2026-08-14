@@ -36,6 +36,7 @@ import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
 import me.rerere.ai.provider.providers.PartGroup
 import me.rerere.ai.provider.providers.groupPartsByToolBoundary
+import me.rerere.ai.reasoning.ReasoningEffortMappings
 import me.rerere.ai.registry.ModelRegistry
 import me.rerere.ai.ui.MessageChunk
 import me.rerere.ai.ui.UIMessage
@@ -394,30 +395,20 @@ class ChatCompletionsAPI(
                             put("type", if (!level.isEnabled) "disabled" else "enabled")
                         })
                         if (level.isEnabled && level != ReasoningLevel.AUTO) {
-                            put("reasoning_effort", level.effort)
+                            put("reasoning_effort", ReasoningEffortMappings.resolveEffort("deepseek", params.model.modelId, level))
                         }
                     }
 
                     "integrate.api.nvidia.com" -> {
-                        if ("deepseek-v4" in params.model.modelId.lowercase()) {
-                            if (level != ReasoningLevel.AUTO) {
-                                val effort = when (level) {
-                                    ReasoningLevel.XHIGH -> "max"
-                                    ReasoningLevel.OFF -> "none"
-                                    else -> "high"
-                                }
-                                put("reasoning_effort", effort)
-                            }
-                        } else {
-                            if (level != ReasoningLevel.AUTO) {
-                                put("reasoning_effort", if (level.effort == "none") "low" else level.effort)
-                            }
+                        // deepseek-v4 系列走模型定向覆盖（XHIGH -> max），其余模型与 OpenAI 一致（OFF -> low）
+                        if (level != ReasoningLevel.AUTO) {
+                            put("reasoning_effort", ReasoningEffortMappings.resolveEffort("nvidia", params.model.modelId, level))
                         }
                     }
 
                     "opencode.ai" -> {
                         if (level != ReasoningLevel.AUTO) {
-                            put("reasoning_effort", level.effort)
+                            put("reasoning_effort", ReasoningEffortMappings.resolveEffort("opencode", params.model.modelId, level))
                         }
                     }
 
@@ -425,7 +416,7 @@ class ChatCompletionsAPI(
                         // OpenAI 官方
                         // 文档中，completions API 只支持 "low", "medium", "high"
                         if (level != ReasoningLevel.AUTO) {
-                            put("reasoning_effort", if (level.effort == "none") "low" else level.effort)
+                            put("reasoning_effort", ReasoningEffortMappings.resolveEffort("openai_chat", params.model.modelId, level))
                         }
                     }
                 }

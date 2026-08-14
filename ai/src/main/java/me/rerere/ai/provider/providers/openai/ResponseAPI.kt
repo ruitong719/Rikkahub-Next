@@ -32,6 +32,7 @@ import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
 import me.rerere.ai.provider.providers.PartGroup
 import me.rerere.ai.provider.providers.groupPartsByToolBoundary
+import me.rerere.ai.reasoning.ReasoningEffortMappings
 import me.rerere.ai.registry.ModelRegistry
 import me.rerere.ai.ui.MessageChunk
 import me.rerere.ai.ui.OpenAIReasoningMetadata
@@ -229,7 +230,7 @@ class ResponseAPI(
                         put("summary", "auto")
                     }
                     if (level != ReasoningLevel.AUTO) {
-                        put("effort", level.effort)
+                        put("effort", ReasoningEffortMappings.resolveEffort("openai_responses", params.model.modelId, level))
                     }
                 })
                 if (capabilities.supportEncryptedContent) {

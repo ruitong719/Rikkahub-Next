@@ -35,6 +35,7 @@ import me.rerere.ai.provider.ModelAbility
 import me.rerere.ai.provider.Provider
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
+import me.rerere.ai.reasoning.ReasoningEffortMappings
 import me.rerere.ai.ui.ImageGenerationItem
 import me.rerere.ai.ui.MessageChunk
 import me.rerere.ai.ui.UIMessage
@@ -333,7 +334,7 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
                             put("display", "summarized")
                         })
                         put("output_config", buildJsonObject {
-                            put("effort", params.reasoningLevel.effort)
+                            put("effort", ReasoningEffortMappings.resolveEffort("claude", params.model.modelId, params.reasoningLevel))
                         })
                     }
                 }
