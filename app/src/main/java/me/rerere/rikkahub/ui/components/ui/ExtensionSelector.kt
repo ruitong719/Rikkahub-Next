@@ -3,11 +3,16 @@ package me.rerere.rikkahub.ui.components.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.SecondaryScrollableTabRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
@@ -46,6 +52,7 @@ fun ExtensionSelector(
     onNavigateToQuickMessages: () -> Unit = {},
     onNavigateToPrompts: () -> Unit = {},
     onNavigateToSkills: () -> Unit = {},
+    onNavigateToSubAgents: () -> Unit = {},
 ) {
     val skillManager: SkillManager = koinInject()
     var skills by remember { mutableStateOf<List<SkillMetadata>>(emptyList()) }
@@ -69,7 +76,7 @@ fun ExtensionSelector(
         assistant.lorebookIds
     }
 
-    val pagerState = rememberPagerState { 4 }
+    val pagerState = rememberPagerState { 5 }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -108,6 +115,13 @@ fun ExtensionSelector(
                     scope.launch { pagerState.animateScrollToPage(3) }
                 },
                 text = { Text(stringResource(R.string.extension_selector_tab_skills)) }
+            )
+            Tab(
+                selected = pagerState.currentPage == 4,
+                onClick = {
+                    scope.launch { pagerState.animateScrollToPage(4) }
+                },
+                text = { Text(stringResource(R.string.extension_selector_tab_subagents)) }
             )
         }
 
@@ -219,6 +233,59 @@ fun ExtensionSelector(
                             buttonText = stringResource(R.string.extension_selector_go_to_skills),
                             onAction = onNavigateToSkills,
                         )
+                    }
+                }
+
+                4 -> {
+                    if (settings.subagents.isEmpty()) {
+                        ExtensionEmptyState(
+                            message = stringResource(R.string.extension_selector_subagents_empty),
+                            buttonText = stringResource(R.string.extension_selector_go_to_subagents),
+                            onAction = onNavigateToSubAgents,
+                        )
+                    } else {
+                        Column {
+                            LazyColumn(
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                items(settings.subagents, key = { it.id.toString() }) { subAgent ->
+                                    ListItem(
+                                        headlineContent = {
+                                            Text(subAgent.name.ifBlank { subAgent.id.toString() })
+                                        },
+                                        supportingContent = if (subAgent.description.isNotBlank()) {
+                                            {
+                                                Text(
+                                                    text = subAgent.description,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
+                                        } else null,
+                                        trailingContent = {
+                                            Switch(
+                                                checked = subAgent.id in assistant.subagentIds,
+                                                onCheckedChange = { checked ->
+                                                    val newIds = if (checked) {
+                                                        assistant.subagentIds + subAgent.id
+                                                    } else {
+                                                        assistant.subagentIds - subAgent.id
+                                                    }
+                                                    onUpdate(assistant.copy(subagentIds = newIds))
+                                                },
+                                            )
+                                        },
+                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                    )
+                                }
+                            }
+                            TextButton(
+                                onClick = onNavigateToSubAgents,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(stringResource(R.string.extension_selector_go_to_subagents))
+                            }
+                        }
                     }
                 }
             }

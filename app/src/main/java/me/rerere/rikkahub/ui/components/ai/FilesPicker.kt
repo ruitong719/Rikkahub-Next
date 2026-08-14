@@ -426,6 +426,10 @@ private fun InjectionQuickConfigSheet(
                 onNavigateToSkills = {
                     onDismissAll()
                     navController.navigate(Screen.Skills)
+                },
+                onNavigateToSubAgents = {
+                    onDismissAll()
+                    navController.navigate(Screen.SubAgents)
                 })
 
             Spacer(modifier = Modifier.height(16.dp))
