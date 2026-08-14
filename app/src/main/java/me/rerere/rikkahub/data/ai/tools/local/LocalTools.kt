@@ -59,6 +59,7 @@ class LocalTools(
             tools.add(buildTodoCreateTool(todoStore, conversationId))
             tools.add(buildTodoUpdateTool(todoStore, conversationId))
             tools.add(buildTodoCompleteTool(todoStore, conversationId))
+            tools.add(buildTodoClearTool(todoStore, conversationId))
         }
         return tools
     }

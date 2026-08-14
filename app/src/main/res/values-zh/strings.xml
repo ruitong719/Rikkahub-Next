@@ -1368,6 +1368,11 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="subagents_page_title">Subagent</string>
   <string name="subagents_page_unnamed">未命名的 Subagent</string>
   <string name="todo_sheet_completed">已完成</string>
+  <string name="todo_sheet_clear">清空列表</string>
+  <string name="todo_sheet_clear_confirm_title">清空待办列表？</string>
+  <string name="todo_sheet_clear_confirm_text">将删除当前对话的全部待办（进行中与已完成），此操作不可恢复。</string>
+  <string name="todo_sheet_clear_confirm_confirm">清空</string>
+  <string name="todo_sheet_clear_confirm_cancel">取消</string>
   <string name="todo_sheet_empty">暂无待办，可以让 AI 帮你记一条</string>
   <string name="todo_sheet_title">待办（%1$d 进行中 / 共 %2$d）</string>
   <string name="todo_status_button">待办列表</string>

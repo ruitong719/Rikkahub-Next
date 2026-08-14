@@ -134,6 +134,7 @@ fun ChatInput(
     onSendClick: () -> Unit,
     onLongSendClick: () -> Unit,
     todos: List<TodoItem> = emptyList(),
+    onClearTodos: () -> Unit = {},
 ) {
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
@@ -314,6 +315,7 @@ fun ChatInput(
                                     TodoSheet(
                                         todos = todos,
                                         onDismiss = { showTodoSheet = false },
+                                        onClearTodos = onClearTodos,
                                     )
                                 }
                                 TodoStatusButton(

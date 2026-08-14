@@ -264,6 +264,13 @@ class ChatVM(
         }
     }
 
+    /** 清空当前对话的 todo 列表（底栏 todo 面板删除按钮） */
+    fun clearTodos() {
+        viewModelScope.launch {
+            todoStore.clear(_conversationId)
+        }
+    }
+
     fun deleteConversation(conversation: Conversation): Job =
         viewModelScope.launch {
             conversationRepo.deleteConversation(conversation)

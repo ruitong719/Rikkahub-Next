@@ -96,6 +96,11 @@ class TodoStore(private val baseDir: File) {
         return updated
     }
 
+    /** 清空当前对话的整个 todo 列表（删除当前 todolist） */
+    suspend fun clear(conversationId: Uuid) {
+        updateList(conversationId) { emptyList() }
+    }
+
     private suspend fun updateList(
         conversationId: Uuid,
         transform: (List<TodoItem>) -> List<TodoItem>,

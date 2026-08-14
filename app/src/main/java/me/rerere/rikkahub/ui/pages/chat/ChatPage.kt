@@ -407,6 +407,7 @@ private fun ChatPageContent(
                         showFilesSheet = true
                     },
                     todos = todos,
+                    onClearTodos = vm::clearTodos,
                 )
             },
             containerColor = Color.Transparent,

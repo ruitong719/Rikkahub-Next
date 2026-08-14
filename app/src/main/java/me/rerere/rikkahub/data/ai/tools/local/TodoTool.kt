@@ -139,3 +139,25 @@ internal fun buildTodoCompleteTool(store: TodoStore, conversationId: Uuid): Tool
         }
     },
 )
+
+internal fun buildTodoClearTool(store: TodoStore, conversationId: Uuid): Tool = Tool(
+    name = "todo_clear",
+    description = """
+        Delete the entire todo list of the current conversation (all items, done and pending).
+        Use sparingly - this is irreversible. Returns the number of items removed.
+    """.trimIndent().replace("\n", " "),
+    parameters = { InputSchema.Obj(properties = buildJsonObject {}, required = emptyList()) },
+    execute = {
+        val removed = store.todos(conversationId).value.size
+        store.clear(conversationId)
+        listOf(
+            UIMessagePart.Text(
+                buildJsonObject {
+                    put("status", "ok")
+                    put("action", "clear")
+                    put("removed", removed)
+                }.toString()
+            )
+        )
+    },
+)

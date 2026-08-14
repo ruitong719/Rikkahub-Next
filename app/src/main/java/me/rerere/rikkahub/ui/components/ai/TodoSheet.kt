@@ -9,14 +9,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +32,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.Delete02
 import me.rerere.hugeicons.stroke.LeftToRightListBullet
 import me.rerere.hugeicons.stroke.Tick02
 import me.rerere.rikkahub.R
@@ -75,15 +83,17 @@ fun TodoStatusButton(
     }
 }
 
-/** 对话内 todo 列表面板：纯只读展示，无任何可点交互。 */
+/** 对话内 todo 列表面板：展示列表，支持清空整个当前 todolist。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodoSheet(
     todos: List<TodoItem>,
     onDismiss: () -> Unit,
+    onClearTodos: () -> Unit = {},
 ) {
     val active = todos.filter { !it.completed }
     val done = todos.filter { it.completed }
+    var showClearConfirm by remember { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -93,11 +103,26 @@ fun TodoSheet(
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                text = stringResource(R.string.todo_sheet_title, active.size, todos.size),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = stringResource(R.string.todo_sheet_title, active.size, todos.size),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                if (todos.isNotEmpty()) {
+                    IconButton(onClick = { showClearConfirm = true }) {
+                        Icon(
+                            imageVector = HugeIcons.Delete02,
+                            contentDescription = stringResource(R.string.todo_sheet_clear),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
 
             if (todos.isEmpty()) {
                 Text(
@@ -118,6 +143,32 @@ fun TodoSheet(
                 }
             }
         }
+    }
+
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text(stringResource(R.string.todo_sheet_clear_confirm_title)) },
+            text = { Text(stringResource(R.string.todo_sheet_clear_confirm_text)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearConfirm = false
+                        onClearTodos()
+                    }
+                ) {
+                    Text(
+                        text = stringResource(R.string.todo_sheet_clear_confirm_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) {
+                    Text(stringResource(R.string.todo_sheet_clear_confirm_cancel))
+                }
+            },
+        )
     }
 }
 

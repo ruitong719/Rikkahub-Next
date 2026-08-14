@@ -1355,6 +1355,11 @@
   <string name="todo_sheet_title">Todo (%1$d active / %2$d total)</string>
   <string name="todo_sheet_empty">No todos yet. Ask the AI to note something down for you.</string>
   <string name="todo_sheet_completed">Completed</string>
+  <string name="todo_sheet_clear">Clear list</string>
+  <string name="todo_sheet_clear_confirm_title">Clear todo list?</string>
+  <string name="todo_sheet_clear_confirm_text">This will delete all todos (done and pending) of the current conversation. This cannot be undone.</string>
+  <string name="todo_sheet_clear_confirm_confirm">Clear</string>
+  <string name="todo_sheet_clear_confirm_cancel">Cancel</string>
   <string name="chat_message_tool_calendar_query">Query calendar events</string>
   <string name="chat_message_tool_calendar_create">Create event: %1$s</string>
   <string name="chat_page_move_to_folder">Move to Folder</string>
