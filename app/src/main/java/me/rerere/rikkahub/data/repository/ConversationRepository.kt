@@ -293,37 +293,6 @@ class ConversationRepository(
         messageFtsManager.indexConversation(conversation)
     }
 
-    /**
-     * 级联清理：从所有会话的注入绑定列表（modeInjectionIds/lorebookIds）中
-     * 移除已删除的注入项 ID，避免聊天页注入选择器里残留悬挂引用。
-     */
-    suspend fun removeInjectionIdsFromAllConversations(
-        removedModeInjectionIds: Set<Uuid> = emptySet(),
-        removedLorebookIds: Set<Uuid> = emptySet(),
-    ) {
-        if (removedModeInjectionIds.isEmpty() && removedLorebookIds.isEmpty()) return
-        database.withTransaction {
-            conversationDAO.getAllOnce().forEach { entity ->
-                val modeIds = runCatching {
-                    JsonInstant.decodeFromString<Set<Uuid>>(entity.modeInjectionIds)
-                }.getOrDefault(emptySet())
-                val lorebookIds = runCatching {
-                    JsonInstant.decodeFromString<Set<Uuid>>(entity.lorebookIds)
-                }.getOrDefault(emptySet())
-                val newModeIds = modeIds - removedModeInjectionIds
-                val newLorebookIds = lorebookIds - removedLorebookIds
-                if (newModeIds != modeIds || newLorebookIds != lorebookIds) {
-                    conversationDAO.update(
-                        entity.copy(
-                            modeInjectionIds = JsonInstant.encodeToString(newModeIds),
-                            lorebookIds = JsonInstant.encodeToString(newLorebookIds),
-                        )
-                    )
-                }
-            }
-        }
-    }
-
     suspend fun updateConversation(conversation: Conversation) {
         database.withTransaction {
             conversationDAO.update(
@@ -389,8 +358,6 @@ class ConversationRepository(
             chatSuggestions = JsonInstant.encodeToString(conversation.chatSuggestions),
             isPinned = conversation.isPinned,
             customSystemPrompt = conversation.customSystemPrompt ?: "",
-            modeInjectionIds = JsonInstant.encodeToString(conversation.modeInjectionIds),
-            lorebookIds = JsonInstant.encodeToString(conversation.lorebookIds),
             workspaceCwd = conversation.workspaceCwd ?: "",
             folderId = conversation.folderId?.toString() ?: "",
         )
@@ -410,8 +377,6 @@ class ConversationRepository(
             chatSuggestions = JsonInstant.decodeFromString(conversationEntity.chatSuggestions),
             isPinned = conversationEntity.isPinned,
             customSystemPrompt = conversationEntity.customSystemPrompt.ifEmpty { null },
-            modeInjectionIds = JsonInstant.decodeFromString(conversationEntity.modeInjectionIds),
-            lorebookIds = JsonInstant.decodeFromString(conversationEntity.lorebookIds),
             workspaceCwd = conversationEntity.workspaceCwd.ifEmpty { null },
             folderId = conversationEntity.folderId.ifEmpty { null }?.let { Uuid.parse(it) },
         )
