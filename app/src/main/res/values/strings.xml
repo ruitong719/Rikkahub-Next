@@ -1302,6 +1302,7 @@
   <string name="workspace_no_binding">No binding</string>
   <string name="workspace_manage">Manage Workspaces</string>
   <string name="workspace_detail">Workspace Details</string>
+  <string name="workspace_detail_files">Workspace Files</string>
   <string name="workspace_terminal">Workspace Terminal</string>
   <string name="workspace_cwd_select_directory">Select Working Directory</string>
   <string name="workspace_cwd_select_desc">Set the working directory for the current session</string>

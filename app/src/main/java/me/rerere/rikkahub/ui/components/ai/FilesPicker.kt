@@ -149,6 +149,10 @@ internal fun FilesPicker(
                     onDismiss()
                     navController.navigate(Screen.WorkspaceDetail(id))
                 },
+                onNavigateToFiles = { id ->
+                    onDismiss()
+                    navController.navigate(Screen.WorkspaceDetail(id))
+                },
                 onNavigateToTerminal = { id ->
                     onDismiss()
                     navController.navigate(Screen.WorkspaceTerminal(id))
@@ -307,6 +311,7 @@ private fun WorkspacePickerListItem(
     onUpdateAssistant: (Assistant) -> Unit,
     onUpdateConversation: (Conversation) -> Unit,
     onNavigateToDetail: (String) -> Unit,
+    onNavigateToFiles: (String) -> Unit,
     onNavigateToTerminal: (String) -> Unit,
     onNavigateToManage: () -> Unit,
 ) {
@@ -350,6 +355,13 @@ private fun WorkspacePickerListItem(
                                 contentDescription = stringResource(R.string.workspace_terminal),
                             )
                         }
+                    }
+                    // 文件夹图标：直达工作区文件管理（详情/文件浏览页）
+                    IconButton(onClick = { onNavigateToFiles(boundWorkspace.id) }) {
+                        Icon(
+                            imageVector = HugeIcons.Folder01,
+                            contentDescription = stringResource(R.string.workspace_detail_files),
+                        )
                     }
                 }
             }

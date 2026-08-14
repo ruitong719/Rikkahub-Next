@@ -1262,6 +1262,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="workspace_no_binding">未绑定</string>
   <string name="workspace_manage">管理工作区</string>
   <string name="workspace_detail">工作空间详情</string>
+  <string name="workspace_detail_files">工作区文件管理</string>
   <string name="workspace_terminal">工作空间终端</string>
   <string name="workspace_cwd_select_directory">选择工作目录</string>
   <string name="workspace_cwd_select_desc">为当前会话设置工作目录</string>
