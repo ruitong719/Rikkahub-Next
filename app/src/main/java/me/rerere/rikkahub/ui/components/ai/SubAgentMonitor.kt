@@ -122,7 +122,8 @@ fun SubAgentMonitorSheet(
             } else {
                 subAgents.forEach { subAgent ->
                     val toolName = toolNames[subAgent.id]
-                    val (status, preview) = toolName?.let { lastInvocation(it, messages) } ?: (null to "")
+                    val (status, preview) = toolName?.let { lastInvocation(it, messages) }
+                        ?: (SubAgentRunStatus.NEVER to "")
                     ListItem(
                         headlineContent = {
                             Text(

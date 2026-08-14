@@ -33,8 +33,8 @@ class DatabaseBackupManager(
         // 把 wal 合并进主库并截断 wal（TRUNCATE 后 wal 文件长度为 0）
         // 注意：requery 的 execSQL 只允许执行 DML/DDL，PRAGMA 是查询类语句，
         // 用 execSQL 会抛 "Queries can be performed using SQLiteDatabase query or rawQuery methods only"，
-        // 必须走 rawQuery（同时满足 requery 与原生 SQLite 实现）。
-        db.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null).use { cursor ->
+        // 必须走 query/rawQuery 类 API（androidx.sqlite 2.6 中 rawQuery 已移除，统一用 query）。
+        db.query("PRAGMA wal_checkpoint(TRUNCATE)", null).use { cursor ->
             cursor.moveToFirst()
         }
 
