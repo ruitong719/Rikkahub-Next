@@ -1,17 +1,23 @@
 package me.rerere.rikkahub.ui.pages.setting
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,10 +39,12 @@ import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 import org.koin.androidx.compose.koinViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     var displaySetting by remember(settings) { mutableStateOf(settings.displaySetting) }
+    var showAgentMdEditor by remember { mutableStateOf(false) }
 
     fun updateDisplaySetting(setting: DisplaySetting) {
         displaySetting = setting
@@ -297,6 +305,74 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                             )
                         },
                     )
+                }
+            }
+
+            item {
+                CardGroup(
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    title = { Text(stringResource(R.string.setting_page_agent_md)) },
+                ) {
+                    item(
+                        onClick = { showAgentMdEditor = true },
+                        headlineContent = { Text(stringResource(R.string.setting_page_agent_md_title)) },
+                        supportingContent = {
+                            Text(
+                                if (settings.globalAgentMd.isNotBlank()) {
+                                    stringResource(R.string.setting_page_agent_md_set)
+                                } else {
+                                    stringResource(R.string.setting_page_agent_md_not_set)
+                                }
+                            )
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    if (showAgentMdEditor) {
+        ModalBottomSheet(onDismissRequest = { showAgentMdEditor = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.setting_page_agent_md_title),
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Text(
+                    text = stringResource(R.string.setting_page_agent_md_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = settings.globalAgentMd,
+                    onValueChange = {
+                        vm.updateSettings(settings.copy(globalAgentMd = it))
+                    },
+                    minLines = 8,
+                    maxLines = 15,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    if (settings.globalAgentMd.isNotBlank()) {
+                        TextButton(onClick = { vm.updateSettings(settings.copy(globalAgentMd = "")) }) {
+                            Text(
+                                text = stringResource(R.string.setting_page_agent_md_clear),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                    TextButton(onClick = { showAgentMdEditor = false }) {
+                        Text(stringResource(R.string.confirm))
+                    }
                 }
             }
         }

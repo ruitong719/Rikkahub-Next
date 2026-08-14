@@ -55,6 +55,7 @@ import me.rerere.rikkahub.data.ai.tools.createSubAgentTools
 import me.rerere.rikkahub.data.ai.tools.createWorkspaceTools
 import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
+import me.rerere.rikkahub.data.ai.transformers.AgentMdTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.OcrTransformer
 import me.rerere.rikkahub.data.ai.transformers.PlaceholderTransformer
@@ -155,6 +156,9 @@ class ChatService(
 ) {
     // workspace 系统提示注入 (依赖 workspaceRepository, 故在类内构造)
     private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository)
+
+    // AGENTS.md 注入：工作区 /workspace/agent.md 优先，否则用设置里的全局文本
+    private val agentMdTransformer = AgentMdTransformer(workspaceRepository)
 
     // subagent 嵌套执行核心（复用 GenerationHandler，无需 Koin 注册）
     private val subAgentRunner = SubAgentRunner(generationHandler)
@@ -533,6 +537,7 @@ class ChatService(
                     addAll(inputTransformers)
                     add(templateTransformer)
                     add(workspaceReminderTransformer)
+                    add(agentMdTransformer)
                     add(backgroundTaskReminder(conversationId))
                 },
                 outputTransformers = outputTransformers,

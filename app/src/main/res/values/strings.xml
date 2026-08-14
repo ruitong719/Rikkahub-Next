@@ -828,6 +828,12 @@
   <string name="setting_page_preferences_notification_desc">Update alerts, message generation notifications</string>
   <string name="setting_page_preferences_general">General</string>
   <string name="setting_page_preferences_general_desc">Interaction behavior, scrolling, input settings</string>
+  <string name="setting_page_agent_md">Agent Instructions (AGENTS.md)</string>
+  <string name="setting_page_agent_md_title">Global agent.md</string>
+  <string name="setting_page_agent_md_desc">Injected into the system prompt. When the assistant has a workspace and /workspace/agent.md exists, the file takes precedence over this text.</string>
+  <string name="setting_page_agent_md_set">Set — tap to edit</string>
+  <string name="setting_page_agent_md_not_set">Not set — tap to edit</string>
+  <string name="setting_page_agent_md_clear">Clear</string>
   <string name="setting_page_preferences_ui">UI Preferences</string>
   <string name="setting_page_preferences_ui_desc">Message display, fonts, code blocks</string>
   <string name="setting_page_documentation">Documentation</string>

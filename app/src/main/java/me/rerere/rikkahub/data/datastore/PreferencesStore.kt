@@ -130,6 +130,9 @@ class SettingsStore(
         // 更新检查地址（为空时回退到 DEFAULT_UPDATE_URL）
         val UPDATE_URL = stringPreferencesKey("update_url")
 
+        // 全局 AGENTS.md 指令文本（工作区存在 /workspace/agent.md 时以文件为准）
+        val GLOBAL_AGENT_MD = stringPreferencesKey("global_agent_md")
+
         // TTS
         val TTS_PROVIDERS = stringPreferencesKey("tts_providers")
         val SELECTED_TTS_PROVIDER = stringPreferencesKey("selected_tts_provider")
@@ -246,6 +249,7 @@ class SettingsStore(
                 webServerAccessPassword = preferences[WEB_SERVER_ACCESS_PASSWORD] ?: "",
                 webServerLocalhostOnly = preferences[WEB_SERVER_LOCALHOST_ONLY] == true,
                 updateUrl = preferences[UPDATE_URL] ?: "",
+                globalAgentMd = preferences[GLOBAL_AGENT_MD] ?: "",
                 backupReminderConfig = preferences[BACKUP_REMINDER_CONFIG]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: BackupReminderConfig(),
@@ -405,6 +409,7 @@ class SettingsStore(
             preferences[WEB_SERVER_ACCESS_PASSWORD] = settings.webServerAccessPassword
             preferences[WEB_SERVER_LOCALHOST_ONLY] = settings.webServerLocalhostOnly
             preferences[UPDATE_URL] = settings.updateUrl
+            preferences[GLOBAL_AGENT_MD] = settings.globalAgentMd
             preferences[BACKUP_REMINDER_CONFIG] = JsonInstant.encodeToString(settings.backupReminderConfig)
             preferences[LAUNCH_COUNT] = settings.launchCount
             preferences[SPONSOR_ALERT_DISMISSED_AT] = settings.sponsorAlertDismissedAt
@@ -546,6 +551,7 @@ data class Settings(
     val webServerAccessPassword: String = "",
     val webServerLocalhostOnly: Boolean = false,
     val updateUrl: String = "",
+    val globalAgentMd: String = "",
     val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
     val launchCount: Int = 0,
     val sponsorAlertDismissedAt: Int = 0,
