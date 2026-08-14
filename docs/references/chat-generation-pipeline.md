@@ -97,19 +97,11 @@ onSuccess
 | 顺序 | 变换器                            | 说明                                       |
 |----|--------------------------------|------------------------------------------|
 | 1  | `TimeReminderTransformer`      | 在系统消息中注入当前时间/日期                          |
-| 2  | `PromptInjectionTransformer`   | 注入 ModeInjection 和 Lorebook 触发的提示词       |
-| 3  | `PlaceholderTransformer`       | 替换消息中的 `{{placeholder}}` 占位符             |
-| 4  | `DocumentAsPromptTransformer`  | 将文档附件转换为文本内容注入消息                         |
-| 5  | `OcrTransformer`               | 对图片 Part 执行 OCR，将识别结果附加为文本               |
-| 6  | `TemplateTransformer`          | 用 Pebble 模板引擎渲染消息（可访问 time/date/role 变量） |
-| 7  | `WorkspaceReminderTransformer` | 若对话关联 Workspace，注入工作区路径提示                |
-
-`PromptInjectionTransformer` 支持四种注入位置：
-
-- `BEFORE_SYSTEM_PROMPT` / `AFTER_SYSTEM_PROMPT` — 插入到系统消息前后
-- `TOP_OF_CHAT` — 插入到第一条用户消息前
-- `BOTTOM_OF_CHAT` — 插入到最后一条消息前
-- `AT_DEPTH` — 从最新消息往前数第 N 条处插入
+| 2  | `PlaceholderTransformer`       | 替换消息中的 `{{placeholder}}` 占位符             |
+| 3  | `DocumentAsPromptTransformer`  | 将文档附件转换为文本内容注入消息                         |
+| 4  | `OcrTransformer`               | 对图片 Part 执行 OCR，将识别结果附加为文本               |
+| 5  | `TemplateTransformer`          | 用 Pebble 模板引擎渲染消息（可访问 time/date/role 变量） |
+| 6  | `WorkspaceReminderTransformer` | 若对话关联 Workspace，注入工作区路径提示                |
 
 ---
 

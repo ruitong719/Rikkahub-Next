@@ -18,8 +18,6 @@ internal fun ConversationDto.singleNodeDiffOrNull(current: ConversationDto): Nod
         chatSuggestions != current.chatSuggestions ||
         isPinned != current.isPinned ||
         customSystemPrompt != current.customSystemPrompt ||
-        modeInjectionIds != current.modeInjectionIds ||
-        lorebookIds != current.lorebookIds ||
         workspaceCwd != current.workspaceCwd ||
         folderId != current.folderId
     ) {

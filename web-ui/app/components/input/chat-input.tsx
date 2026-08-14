@@ -706,11 +706,7 @@ function ChatInputInner({
               <SearchPickerButton disabled={!canSwitchModel} />
               <ReasoningPickerButton disabled={!canSwitchModel} />
               <McpPickerButton disabled={!canSwitchModel} />
-              <ExtensionPickerButton
-                conversation={conversation}
-                draftKey={draftKey}
-                disabled={!canSwitchModel}
-              />
+              <ExtensionPickerButton disabled={!canSwitchModel} />
               <QuickMessageButton
                 quickMessages={quickMessages}
                 disabled={!canUseQuickMessage}

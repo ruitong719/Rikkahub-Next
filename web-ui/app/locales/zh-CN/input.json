@@ -9,17 +9,10 @@
   },
   "injection": {
     "title": "扩展",
-    "description": "为当前助手启用快捷消息、模式注入和 Lorebook",
+    "description": "为当前助手启用快捷消息",
     "update_failed": "更新扩展设置失败",
     "tab_quickmessages": "快捷消息",
-    "tab_mode": "模式注入",
-    "tab_lorebook": "Lorebook",
-    "unnamed_mode": "未命名模式注入",
-    "unnamed_lorebook": "未命名 Lorebook",
     "unnamed_quickmessage": "未命名快捷消息",
-    "disabled": "已禁用",
-    "empty_mode": "暂无模式注入",
-    "empty_lorebook": "暂无 Lorebook",
     "empty_quickmessages": "暂无快捷消息"
   },
   "reasoning": {
