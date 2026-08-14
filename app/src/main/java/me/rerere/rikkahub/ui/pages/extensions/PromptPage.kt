@@ -152,12 +152,14 @@ fun PromptPage(vm: PromptVM = koinViewModel()) {
             when (page) {
                 0 -> ModeInjectionTab(
                     modeInjections = settings.modeInjections,
-                    onUpdate = { vm.updateSettings(settings.copy(modeInjections = it)) }
+                    onUpdate = { vm.updateSettings(settings.copy(modeInjections = it)) },
+                    onDeleteInjection = { vm.deleteModeInjection(it) }
                 )
 
                 1 -> LorebookTab(
                     lorebooks = settings.lorebooks,
-                    onUpdate = { vm.updateSettings(settings.copy(lorebooks = it)) }
+                    onUpdate = { vm.updateSettings(settings.copy(lorebooks = it)) },
+                    onDeleteLorebook = { vm.deleteLorebook(it) }
                 )
             }
         }
@@ -167,7 +169,8 @@ fun PromptPage(vm: PromptVM = koinViewModel()) {
 @Composable
 private fun ModeInjectionTab(
     modeInjections: List<PromptInjection.ModeInjection>,
-    onUpdate: (List<PromptInjection.ModeInjection>) -> Unit
+    onUpdate: (List<PromptInjection.ModeInjection>) -> Unit,
+    onDeleteInjection: (kotlin.uuid.Uuid) -> Unit,
 ) {
     var expanded by rememberSaveable { mutableStateOf(true) }
     val lazyListState = rememberLazyListState()
@@ -249,7 +252,7 @@ private fun ModeInjectionTab(
                                     }
                                 },
                             onEdit = { editState.open(injection) },
-                            onDelete = { onUpdate(modeInjections - injection) }
+                            onDelete = { onDeleteInjection(injection.id) }
                         )
                     }
                 }
@@ -579,7 +582,8 @@ private fun getRoleLabel(role: MessageRole): String = when (role) {
 @Composable
 private fun LorebookTab(
     lorebooks: List<Lorebook>,
-    onUpdate: (List<Lorebook>) -> Unit
+    onUpdate: (List<Lorebook>) -> Unit,
+    onDeleteLorebook: (kotlin.uuid.Uuid) -> Unit,
 ) {
     var expanded by rememberSaveable { mutableStateOf(true) }
     val lazyListState = rememberLazyListState()
@@ -661,7 +665,7 @@ private fun LorebookTab(
                                     }
                                 },
                             onEdit = { editState.open(book) },
-                            onDelete = { onUpdate(lorebooks - book) }
+                            onDelete = { onDeleteLorebook(book.id) }
                         )
                     }
                 }
