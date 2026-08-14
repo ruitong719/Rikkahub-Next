@@ -385,12 +385,16 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
 
                     val isGeminiPro =
                         params.model.modelId.contains(Regex("2\\.5.*pro", RegexOption.IGNORE_CASE))
+                    val userMapping = params.model.reasoningEffortMap
+                    val isGemini3 = ModelRegistry.GEMINI_3_SERIES.match(modelId = params.model.modelId)
 
                     when (params.reasoningLevel) {
-                        ReasoningLevel.AUTO -> {} // 自动模式，不设置参数
+                        // AUTO：不设置参数（由供应商自行决定）；OFF：结构性关闭。
+                        // 这两档在模型页置灰，不支持用户自定义。
+                        ReasoningLevel.AUTO -> {}
 
                         ReasoningLevel.OFF -> {
-                            if (ModelRegistry.GEMINI_3_SERIES.match(modelId = params.model.modelId)) {
+                            if (isGemini3) {
                                 put("thinkingLevel", "minimal")
                             } else if (!isGeminiPro) {
                                 put("thinkingBudget", 0)
@@ -399,9 +403,9 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
                         }
 
                         else -> {
-                            if (ModelRegistry.GEMINI_3_SERIES.match(modelId = params.model.modelId)) {
+                            if (isGemini3) {
                                 // Gemini 3 的 thinkingLevel 只接受 low/medium/high，经映射表收敛（HIGH/XHIGH -> high）
-                                put("thinkingLevel", ReasoningEffortMappings.resolveEffort("gemini3", params.model.modelId, params.reasoningLevel))
+                                put("thinkingLevel", ReasoningEffortMappings.resolveEffort("gemini3", params.model.modelId, params.reasoningLevel, userMapping))
                             } else {
                                 put("thinkingBudget", params.reasoningLevel.budgetTokens)
                             }

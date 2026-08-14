@@ -99,8 +99,10 @@ import me.rerere.ai.provider.ModelType
 import me.rerere.ai.provider.ProviderManager
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.ai.provider.TextGenerationParams
+import me.rerere.ai.reasoning.ReasoningEffortMappings
 import me.rerere.ai.registry.ModelRegistry
 import me.rerere.ai.ui.UIMessage
+import me.rerere.ai.core.ReasoningLevel
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.ai.ModelAbilityTag
 import me.rerere.rikkahub.ui.components.ai.ModelModalityTag
@@ -500,7 +502,7 @@ private fun ModelSettingsForm(
     isEdit: Boolean,
     parentProvider: ProviderSetting? = null
 ) {
-    val pagerState = rememberPagerState { 3 }
+    val pagerState = rememberPagerState { 4 }
     val scope = rememberCoroutineScope()
 
     fun setModelId(id: String) {
@@ -549,6 +551,15 @@ private fun ModelSettingsForm(
                     }
                 },
                 text = { Text(stringResource(R.string.setting_page_built_in_tools)) }
+            )
+            Tab(
+                selected = pagerState.currentPage == 3,
+                onClick = {
+                    scope.launch {
+                        pagerState.animateScrollToPage(3)
+                    }
+                },
+                text = { Text(stringResource(R.string.setting_provider_page_reasoning_mapping)) }
             )
         }
 
@@ -669,9 +680,109 @@ private fun ModelSettingsForm(
                         }
                     )
                 }
+
+                3 -> {
+                    // 思考深度映射页面
+                    // OFF 只在以 effort 值表达关闭的接入点（OpenAI 系）上可自定义；
+                    // Claude/Google 用结构字段关闭（disabled/minimal），置灰不可改
+                    val offEditable = parentProvider is ProviderSetting.OpenAI
+                    val offDefaultHint = when {
+                        parentProvider is ProviderSetting.Google -> "minimal"
+                        parentProvider is ProviderSetting.Claude -> "disabled"
+                        else -> ReasoningEffortMappings.DEFAULT.getValue(ReasoningLevel.OFF)
+                    }
+                    ReasoningMappingSettings(
+                        mapping = model.reasoningEffortMap,
+                        onUpdateMapping = { mapping ->
+                            onModelChange(model.copy(reasoningEffortMap = mapping))
+                        },
+                        offEditable = offEditable,
+                        offDefaultHint = offDefaultHint,
+                    )
+                }
             }
         }
     }
+}
+
+/**
+ * 思考深度映射设置：六个等级（关闭/自动/低/中/高/超高）对应发送给供应商的思考等级。
+ * 未填写的等级使用内置映射表（ReasoningEffortMappings），填写的等级以用户值为准。
+ *
+ * 「关闭思考」只在以 effort 值表达关闭的接入点（OpenAI 系/OpenRouter/NVIDIA 等）上可自定义；
+ * Claude/Google 用结构字段关闭思考（disabled/minimal），该档置灰不可改。
+ */
+@Composable
+private fun ReasoningMappingSettings(
+    mapping: Map<ReasoningLevel, String>,
+    onUpdateMapping: (Map<ReasoningLevel, String>) -> Unit,
+    offEditable: Boolean,
+    offDefaultHint: String,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.setting_provider_page_reasoning_mapping_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        ReasoningLevel.entries.forEach { level ->
+            val isOff = level == ReasoningLevel.OFF
+            val editable = !isOff || offEditable
+            val value = mapping[level].orEmpty()
+            OutlinedTextField(
+                value = value,
+                onValueChange = { newValue ->
+                    val next = mapping.toMutableMap()
+                    if (newValue.isBlank()) {
+                        next.remove(level)
+                    } else {
+                        next[level] = newValue.trim()
+                    }
+                    onUpdateMapping(next)
+                },
+                label = { Text(stringResource(reasoningLevelLabelRes(level))) },
+                placeholder = {
+                    Text(
+                        stringResource(
+                            R.string.setting_provider_page_reasoning_mapping_default,
+                            if (isOff && !offEditable) offDefaultHint else ReasoningEffortMappings.DEFAULT.getValue(level)
+                        )
+                    )
+                },
+                supportingText = if (isOff && !offEditable) {
+                    { Text(stringResource(R.string.setting_provider_page_reasoning_mapping_off_disabled)) }
+                } else null,
+                enabled = editable,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        TextButton(
+            onClick = { onUpdateMapping(emptyMap()) },
+            enabled = mapping.isNotEmpty(),
+            modifier = Modifier.align(Alignment.End),
+        ) {
+            Text(stringResource(R.string.setting_provider_page_reasoning_mapping_reset))
+        }
+    }
+}
+
+@Composable
+private fun reasoningLevelLabelRes(level: ReasoningLevel): Int = when (level) {
+    ReasoningLevel.OFF -> R.string.reasoning_off
+    ReasoningLevel.AUTO -> R.string.reasoning_auto
+    ReasoningLevel.LOW -> R.string.reasoning_light
+    ReasoningLevel.MEDIUM -> R.string.reasoning_medium
+    ReasoningLevel.HIGH -> R.string.reasoning_heavy
+    ReasoningLevel.XHIGH -> R.string.reasoning_xhigh
 }
 
 @Composable

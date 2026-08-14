@@ -2,6 +2,7 @@ package me.rerere.ai.provider
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import me.rerere.ai.core.ReasoningLevel
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -17,6 +18,9 @@ data class Model(
     val abilities: List<ModelAbility> = emptyList(),
     val tools: Set<BuiltInTools> = emptySet(),
     val providerOverwrite: ProviderSetting? = null,
+    // 用户自定义思考深度映射：level -> 发给供应商的 effort 值。
+    // 为空（未配置）时使用 ReasoningEffortMappings 内置映射表。
+    val reasoningEffortMap: Map<ReasoningLevel, String> = emptyMap(),
 )
 
 @Serializable

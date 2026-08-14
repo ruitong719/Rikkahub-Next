@@ -316,7 +316,11 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
             // Anthropic 新 API: adaptive 模式 + output_config.effort 控制强度
             // 旧的 type=enabled + budget_tokens 在 Opus 4.7+ 上已不支持
             if (params.model.abilities.contains(ModelAbility.REASONING)) {
-                when (params.reasoningLevel) {
+                val level = params.reasoningLevel
+                val userMapping = params.model.reasoningEffortMap
+                when (level) {
+                    // OFF/AUTO 在 Claude 上是结构语义（disabled / adaptive），
+                    // 不支持用户自定义（模型页对这两档置灰），始终用内置行为
                     ReasoningLevel.OFF -> {
                         put("thinking", buildJsonObject { put("type", "disabled") })
                     }
@@ -334,7 +338,7 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
                             put("display", "summarized")
                         })
                         put("output_config", buildJsonObject {
-                            put("effort", ReasoningEffortMappings.resolveEffort("claude", params.model.modelId, params.reasoningLevel))
+                            put("effort", ReasoningEffortMappings.resolveEffort("claude", params.model.modelId, level, userMapping))
                         })
                     }
                 }

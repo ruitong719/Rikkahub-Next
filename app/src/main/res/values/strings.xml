@@ -787,6 +787,11 @@
   <string name="setting_page_assistant">Assistant</string>
   <string name="setting_page_assistant_desc">Set up personalized assistants (agents)</string>
   <string name="setting_page_built_in_tools">Built-in Tools</string>
+  <string name="setting_provider_page_reasoning_mapping">Reasoning Mapping</string>
+  <string name="setting_provider_page_reasoning_mapping_desc">Map each thinking depth to the value sent to the provider. Leave a level empty to use the built-in mapping (shown as placeholder); custom values take priority.</string>
+  <string name="setting_provider_page_reasoning_mapping_default">Default: %1$s</string>
+  <string name="setting_provider_page_reasoning_mapping_reset">Reset to built-in mapping</string>
+  <string name="setting_provider_page_reasoning_mapping_off_disabled">This provider turns thinking off with a structural field; custom value not supported here.</string>
   <string name="setting_page_built_in_tools_desc">Select built-in tools supported by the model. These tools are directly provided by the API without requiring app support. Currently, this feature is only supported by the official Gemini API.</string>
   <string name="setting_page_built_in_tools_image_generation">Image Generation</string>
   <string name="setting_page_built_in_tools_image_generation_desc">Enable image generation capability</string>

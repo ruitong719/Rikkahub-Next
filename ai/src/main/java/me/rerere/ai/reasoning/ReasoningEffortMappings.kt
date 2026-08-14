@@ -64,12 +64,23 @@ object ReasoningEffortMappings {
     /**
      * 解析某个思考深度应发送的 effort 值。
      *
+     * 优先级：用户自定义映射 [userMapping]（Model.reasoningEffortMap，仅配置了的等级生效）
+     * > 模型 id 定向覆盖 > 供应商作用域默认 > [DEFAULT] 托底。
+     *
      * @param scope 供应商作用域（openai_chat / openai_responses / nvidia / claude / gemini3 / ...），
      *              为 null 或未登记时直接用 [DEFAULT]
      * @param modelId 当前模型 id，命中 [MODEL_OVERRIDES] 时优先于作用域默认
      * @param level 思考深度
+     * @param userMapping 用户在模型页配置的等级 -> 发送值映射；配置了的等级以用户值为准
      */
-    fun resolveEffort(scope: String?, modelId: String, level: ReasoningLevel): String {
+    fun resolveEffort(
+        scope: String?,
+        modelId: String,
+        level: ReasoningLevel,
+        userMapping: Map<ReasoningLevel, String> = emptyMap(),
+    ): String {
+        userMapping[level]?.let { return it }
+
         MODEL_OVERRIDES.firstOrNull { (pattern, _) ->
             modelId.contains(pattern, ignoreCase = true)
         }?.second?.get(level)?.let { return it }

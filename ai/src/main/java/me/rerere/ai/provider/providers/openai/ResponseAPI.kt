@@ -225,12 +225,13 @@ class ResponseAPI(
             // reasoning
             if (params.model.abilities.contains(ModelAbility.REASONING)) {
                 val level = params.reasoningLevel
+                val userMapping = params.model.reasoningEffortMap
                 put("reasoning", buildJsonObject {
                     if (capabilities.supportsReasoningSummary) {
                         put("summary", "auto")
                     }
-                    if (level != ReasoningLevel.AUTO) {
-                        put("effort", ReasoningEffortMappings.resolveEffort("openai_responses", params.model.modelId, level))
+                    if (level != ReasoningLevel.AUTO || userMapping.containsKey(ReasoningLevel.AUTO)) {
+                        put("effort", ReasoningEffortMappings.resolveEffort("openai_responses", params.model.modelId, level, userMapping))
                     }
                 })
                 if (capabilities.supportEncryptedContent) {

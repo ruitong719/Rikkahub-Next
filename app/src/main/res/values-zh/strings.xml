@@ -743,6 +743,11 @@
   <string name="setting_page_assistant">助手</string>
   <string name="setting_page_assistant_desc">设置个性化助手 (智能体)</string>
   <string name="setting_page_built_in_tools">内置工具</string>
+  <string name="setting_provider_page_reasoning_mapping">思考深度映射</string>
+  <string name="setting_provider_page_reasoning_mapping_desc">设置六个思考深度等级对应发送给供应商的思考等级。留空的等级使用内置映射表（占位符即默认值），填写后以自定义值为准。</string>
+  <string name="setting_provider_page_reasoning_mapping_default">默认：%1$s</string>
+  <string name="setting_provider_page_reasoning_mapping_reset">恢复内置映射</string>
+  <string name="setting_provider_page_reasoning_mapping_off_disabled">该供应商通过结构字段关闭思考（disabled/minimal），此处不支持自定义。</string>
   <string name="setting_page_built_in_tools_desc">选择模型支持的内置工具, 这些工具直接由API内置，无需APP提供，当前这个功能仅支持Gemini官方API。</string>
   <string name="setting_page_built_in_tools_image_generation">图像生成</string>
   <string name="setting_page_built_in_tools_image_generation_desc">启用图像生成功能</string>

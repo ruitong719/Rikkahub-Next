@@ -298,14 +298,22 @@ class ChatCompletionsAPI(
 
             if (params.model.abilities.contains(ModelAbility.REASONING)) {
                 val level = params.reasoningLevel
+                // 用户在模型页配置的思考深度映射（Model.reasoningEffortMap），配置了的等级以用户值为准
+                val userMapping = params.model.reasoningEffortMap
                 when (host) {
                     "openrouter.ai" -> {
                         // https://openrouter.ai/docs/use-cases/reasoning-tokens
                         put("reasoning", buildJsonObject {
                             when (level) {
-                                ReasoningLevel.OFF -> put("effort", "none")
-                                ReasoningLevel.AUTO -> put("enabled", true)
-                                else -> put("effort", level.effort)
+                                ReasoningLevel.OFF -> put("effort", ReasoningEffortMappings.resolveEffort("openrouter", params.model.modelId, level, userMapping))
+                                ReasoningLevel.AUTO ->
+                                    if (userMapping.containsKey(ReasoningLevel.AUTO)) {
+                                        put("effort", userMapping.getValue(ReasoningLevel.AUTO))
+                                    } else {
+                                        put("enabled", true)
+                                    }
+
+                                else -> put("effort", ReasoningEffortMappings.resolveEffort("openrouter", params.model.modelId, level, userMapping))
                             }
                         })
                     }
@@ -394,29 +402,29 @@ class ChatCompletionsAPI(
                         put("thinking", buildJsonObject {
                             put("type", if (!level.isEnabled) "disabled" else "enabled")
                         })
-                        if (level.isEnabled && level != ReasoningLevel.AUTO) {
-                            put("reasoning_effort", ReasoningEffortMappings.resolveEffort("deepseek", params.model.modelId, level))
+                        if (level.isEnabled && (level != ReasoningLevel.AUTO || userMapping.containsKey(ReasoningLevel.AUTO))) {
+                            put("reasoning_effort", ReasoningEffortMappings.resolveEffort("deepseek", params.model.modelId, level, userMapping))
                         }
                     }
 
                     "integrate.api.nvidia.com" -> {
                         // deepseek-v4 系列走模型定向覆盖（XHIGH -> max），其余模型与 OpenAI 一致（OFF -> low）
-                        if (level != ReasoningLevel.AUTO) {
-                            put("reasoning_effort", ReasoningEffortMappings.resolveEffort("nvidia", params.model.modelId, level))
+                        if (level != ReasoningLevel.AUTO || userMapping.containsKey(ReasoningLevel.AUTO)) {
+                            put("reasoning_effort", ReasoningEffortMappings.resolveEffort("nvidia", params.model.modelId, level, userMapping))
                         }
                     }
 
                     "opencode.ai" -> {
-                        if (level != ReasoningLevel.AUTO) {
-                            put("reasoning_effort", ReasoningEffortMappings.resolveEffort("opencode", params.model.modelId, level))
+                        if (level != ReasoningLevel.AUTO || userMapping.containsKey(ReasoningLevel.AUTO)) {
+                            put("reasoning_effort", ReasoningEffortMappings.resolveEffort("opencode", params.model.modelId, level, userMapping))
                         }
                     }
 
                     else -> {
                         // OpenAI 官方
                         // 文档中，completions API 只支持 "low", "medium", "high"
-                        if (level != ReasoningLevel.AUTO) {
-                            put("reasoning_effort", ReasoningEffortMappings.resolveEffort("openai_chat", params.model.modelId, level))
+                        if (level != ReasoningLevel.AUTO || userMapping.containsKey(ReasoningLevel.AUTO)) {
+                            put("reasoning_effort", ReasoningEffortMappings.resolveEffort("openai_chat", params.model.modelId, level, userMapping))
                         }
                     }
                 }

@@ -72,4 +72,28 @@ class ReasoningEffortMappingsTest {
         assertEquals("high", ReasoningEffortMappings.resolveEffort("some-new-provider", "any-model", ReasoningLevel.HIGH))
         assertEquals("xhigh", ReasoningEffortMappings.resolveEffort("some-new-provider", "any-model", ReasoningLevel.XHIGH))
     }
+
+    @Test
+    fun userMappingTakesPriorityOverEverything() {
+        // 用户配置优先于模型定向覆盖
+        val userMap = mapOf(ReasoningLevel.XHIGH to "maxxed")
+        assertEquals(
+            "maxxed",
+            ReasoningEffortMappings.resolveEffort("nvidia", "deepseek-v4", ReasoningLevel.XHIGH, userMap)
+        )
+        // 用户配置优先于作用域默认
+        val userOff = mapOf(ReasoningLevel.OFF to "off-custom")
+        assertEquals("off-custom", ReasoningEffortMappings.resolveEffort("openai_chat", "gpt-5", ReasoningLevel.OFF, userOff))
+        // 用户配置优先于全局默认
+        val userLow = mapOf(ReasoningLevel.LOW to "low-custom")
+        assertEquals("low-custom", ReasoningEffortMappings.resolveEffort(null, "unknown-model", ReasoningLevel.LOW, userLow))
+    }
+
+    @Test
+    fun userMappingOnlyOverridesConfiguredLevels() {
+        // 未配置的等级仍走内置逻辑
+        val userMap = mapOf(ReasoningLevel.XHIGH to "max")
+        assertEquals("low", ReasoningEffortMappings.resolveEffort("openai_chat", "gpt-5", ReasoningLevel.OFF, userMap))
+        assertEquals("high", ReasoningEffortMappings.resolveEffort("openai_chat", "gpt-5", ReasoningLevel.HIGH, userMap))
+    }
 }
