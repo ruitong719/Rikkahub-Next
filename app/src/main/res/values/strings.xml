@@ -853,6 +853,15 @@
   <string name="setting_page_chat_storage">Chat Storage</string>
   <string name="setting_page_chat_storage_desc">%1$d files, %2$.2f MB</string>
   <string name="setting_page_code_display_settings">Code Display</string>
+  <string name="setting_page_bottom_bar_icons">Bottom Bar Icons</string>
+  <string name="setting_display_page_show_web_search_button_title">Web Search Icon</string>
+  <string name="setting_display_page_show_web_search_button_desc">Show the web search toggle in the input bar</string>
+  <string name="setting_display_page_show_reasoning_button_title">Reasoning Level Icon</string>
+  <string name="setting_display_page_show_reasoning_button_desc">Show the reasoning level picker in the input bar</string>
+  <string name="setting_display_page_show_todo_button_title">Todo List Icon</string>
+  <string name="setting_display_page_show_todo_button_desc">Show the todo list button in the input bar</string>
+  <string name="setting_display_page_show_subagent_button_title">Subagent Icon</string>
+  <string name="setting_display_page_show_subagent_button_desc">Show the subagent monitor button in the input bar</string>
   <string name="setting_page_color_mode">Color Mode</string>
   <string name="setting_page_color_mode_dark">Dark</string>
   <string name="setting_page_color_mode_light">Light</string>

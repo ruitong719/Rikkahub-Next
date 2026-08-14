@@ -366,6 +366,62 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
             item {
                 CardGroup(
                     modifier = Modifier.padding(horizontal = 8.dp),
+                    title = { Text(stringResource(R.string.setting_page_bottom_bar_icons)) },
+                ) {
+                    item(
+                        headlineContent = { Text(stringResource(R.string.setting_display_page_show_web_search_button_title)) },
+                        supportingContent = { Text(stringResource(R.string.setting_display_page_show_web_search_button_desc)) },
+                        trailingContent = {
+                            Switch(
+                                checked = displaySetting.showWebSearchButton,
+                                onCheckedChange = {
+                                    updateDisplaySetting(displaySetting.copy(showWebSearchButton = it))
+                                }
+                            )
+                        },
+                    )
+                    item(
+                        headlineContent = { Text(stringResource(R.string.setting_display_page_show_reasoning_button_title)) },
+                        supportingContent = { Text(stringResource(R.string.setting_display_page_show_reasoning_button_desc)) },
+                        trailingContent = {
+                            Switch(
+                                checked = displaySetting.showReasoningButton,
+                                onCheckedChange = {
+                                    updateDisplaySetting(displaySetting.copy(showReasoningButton = it))
+                                }
+                            )
+                        },
+                    )
+                    item(
+                        headlineContent = { Text(stringResource(R.string.setting_display_page_show_todo_button_title)) },
+                        supportingContent = { Text(stringResource(R.string.setting_display_page_show_todo_button_desc)) },
+                        trailingContent = {
+                            Switch(
+                                checked = displaySetting.showTodoButton,
+                                onCheckedChange = {
+                                    updateDisplaySetting(displaySetting.copy(showTodoButton = it))
+                                }
+                            )
+                        },
+                    )
+                    item(
+                        headlineContent = { Text(stringResource(R.string.setting_display_page_show_subagent_button_title)) },
+                        supportingContent = { Text(stringResource(R.string.setting_display_page_show_subagent_button_desc)) },
+                        trailingContent = {
+                            Switch(
+                                checked = displaySetting.showSubAgentButton,
+                                onCheckedChange = {
+                                    updateDisplaySetting(displaySetting.copy(showSubAgentButton = it))
+                                }
+                            )
+                        },
+                    )
+                }
+            }
+
+            item {
+                CardGroup(
+                    modifier = Modifier.padding(horizontal = 8.dp),
                     title = { Text(stringResource(R.string.setting_page_code_display_settings)) },
                 ) {
                     item(

@@ -809,6 +809,15 @@
   <string name="setting_page_chat_storage">聊天记录存储</string>
   <string name="setting_page_chat_storage_desc">%1$d 个文件，%2$.2f MB</string>
   <string name="setting_page_code_display_settings">代码显示</string>
+  <string name="setting_page_bottom_bar_icons">底栏图标</string>
+  <string name="setting_display_page_show_web_search_button_title">网络搜索图标</string>
+  <string name="setting_display_page_show_web_search_button_desc">在输入栏显示网络搜索开关</string>
+  <string name="setting_display_page_show_reasoning_button_title">推理强度图标</string>
+  <string name="setting_display_page_show_reasoning_button_desc">在输入栏显示推理强度选择器</string>
+  <string name="setting_display_page_show_todo_button_title">待办清单图标</string>
+  <string name="setting_display_page_show_todo_button_desc">在输入栏显示待办清单按钮</string>
+  <string name="setting_display_page_show_subagent_button_title">子智能体图标</string>
+  <string name="setting_display_page_show_subagent_button_desc">在输入栏显示子智能体监看按钮</string>
   <string name="setting_page_color_mode">颜色模式</string>
   <string name="setting_page_color_mode_dark">深色</string>
   <string name="setting_page_color_mode_light">浅色</string>

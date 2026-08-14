@@ -634,6 +634,11 @@ data class DisplaySetting(
     val chatCustomFontName: String = "",
     val enableVolumeKeyScroll: Boolean = false,
     val volumeKeyScrollRatio: Float = 1.0f,
+    // 聊天输入栏底栏图标显隐（默认全部显示）
+    val showWebSearchButton: Boolean = true,
+    val showReasoningButton: Boolean = true,
+    val showTodoButton: Boolean = true,
+    val showSubAgentButton: Boolean = true,
 )
 
 @Serializable

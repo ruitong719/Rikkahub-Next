@@ -270,28 +270,32 @@ fun ChatInput(
                             val enableSearchMsg = stringResource(R.string.web_search_enabled)
                             val disableSearchMsg = stringResource(R.string.web_search_disabled)
                             val chatModel = settings.getCurrentChatModel()
-                            SearchPickerButton(
-                                enableSearch = enableSearch,
-                                settings = settings,
-                                onToggleSearch = { enabled ->
-                                    onToggleSearch(enabled)
-                                    toaster.show(
-                                        message = if (enabled) enableSearchMsg else disableSearchMsg,
-                                        duration = 1.seconds,
-                                        type = if (enabled) {
-                                            ToastType.Success
-                                        } else {
-                                            ToastType.Normal
-                                        }
-                                    )
-                                },
-                                onUpdateSearchService = onUpdateSearchService,
-                                model = chatModel,
-                            )
+                            if (settings.displaySetting.showWebSearchButton) {
+                                SearchPickerButton(
+                                    enableSearch = enableSearch,
+                                    settings = settings,
+                                    onToggleSearch = { enabled ->
+                                        onToggleSearch(enabled)
+                                        toaster.show(
+                                            message = if (enabled) enableSearchMsg else disableSearchMsg,
+                                            duration = 1.seconds,
+                                            type = if (enabled) {
+                                                ToastType.Success
+                                            } else {
+                                                ToastType.Normal
+                                            }
+                                        )
+                                    },
+                                    onUpdateSearchService = onUpdateSearchService,
+                                    model = chatModel,
+                                )
+                            }
 
                             // Reasoning
                             val model = settings.getCurrentChatModel()
-                            if (model?.abilities?.contains(ModelAbility.REASONING) == true) {
+                            if (settings.displaySetting.showReasoningButton &&
+                                model?.abilities?.contains(ModelAbility.REASONING) == true
+                            ) {
                                 ReasoningButton(
                                     reasoningLevel = assistant.reasoningLevel,
                                     onUpdateReasoningLevel = {
@@ -301,8 +305,10 @@ fun ChatInput(
                                 )
                             }
 
-                            // Todo（思考深度之后）：仅当助手启用了 Todo 本地工具时显示
-                            if (assistant.localTools.contains(LocalToolOption.Todo)) {
+                            // Todo（思考深度之后）：仅当助手启用了 Todo 本地工具且偏好设置未关闭时显示
+                            if (settings.displaySetting.showTodoButton &&
+                                assistant.localTools.contains(LocalToolOption.Todo)
+                            ) {
                                 var showTodoSheet by remember { mutableStateOf(false) }
                                 if (showTodoSheet) {
                                     TodoSheet(
