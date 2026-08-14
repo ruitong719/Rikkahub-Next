@@ -210,3 +210,62 @@
    超时取消等运行时行为需要真机/模拟器验证（编译与单测已验证，运行时未验证）
 6. **Room DB 迁移**：v24→25（exportTargetUri）、v25→26（toolPrompts）AutoMigration 依赖
    已提交的 schema JSON（1~26.json），运行时迁移正确性需真机确认
+---
+
+# 2026-08-14 迭代记录（master 直接提交）
+
+日期：2026-08-14
+分支：`master`（基于 `fc22cfb1` 之后的本地提交，共 26 个新提交）
+
+## A. 聊天与工作区体验（10 项）
+
+1. **backup 导出修复**（`d81cbcd3` 等 3 个提交）
+   - requery SQLite 的 `execSQL` 不允许 PRAGMA，`wal_checkpoint(TRUNCATE)` 改走
+     `SupportSQLiteDatabase.query`（androidx.sqlite 2.6 已移除 rawQuery，bindArgs 非空用 emptyArray）
+   - zip 内数据库条目改为 `rikka_hub.db`（+`rikka_hub-wal`），对齐 rikkahub-to-csv skill
+     step1 的硬编码查找；restore 新旧条目名均兼容
+2. **手机目录挂载**：启动时自动 PULL 一次（`pullAllAtStartup` + RikkaHubApp 接线）；
+   `activeBindMounts` 目录缺失时先创建，保证 shell/headless 会话恒定可访问 `/mnt/<name>`
+3. **偏好设置**：UI 页新增「底栏图标」4 个开关（websearch/推理强度/todo/subagent），
+   `DisplaySetting` 新增对应布尔字段（默认 true，旧数据容错）
+4. **聊天 + 弹窗**：扩展管理新增「子智能体」tab；工作区项在设置/终端图标后新增
+   文件夹图标直达文件管理页
+5. **todo**：底栏面板新增清空当前 todolist（二次确认）+ `todo_clear` 工具
+6. **subagent 监看**：底栏新增监看图标（启用时显示+角标），面板展示最近一次执行状态
+   （未调用/执行中/成功/失败/超时），点击跳编辑页
+7. **提供商类型标签**：添加提供商时改用本地化显示名（OpenAI/Google Gemini/Claude）
+8. **删除模式注入/世界书**（详见下文 C）
+
+## B. 新增功能（4 项）
+
+1. **更新地址配置化**（`40aee835`）：`Settings.updateUrl` 配置项，`UpdateChecker` 从
+   SettingsStore 读取，空串回退 `https://updates.rikka-ai.com/`；设置→关于可编辑
+2. **AGENTS.md 双源注入**（`55a418fd`）：`AgentMdTransformer` 注入首条 system 消息；
+   助手绑定工作区且存在 `/workspace/agent.md` 时以文件为准（优先级更高），
+   否则用设置里的全局文本（设置→偏好→常规可编辑）；subagent 不经过该转换器
+3. **思考深度映射表**（`9c879313`、`481a15a9`）：
+   - `ReasoningEffortMappings` 集中映射：用户配置 > 模型 id 定向覆盖（deepseek-v4:
+     XHIGH→max）> 供应商作用域默认（openai_chat/nvidia: OFF→low；gemini3: HIGH/XHIGH→high）
+     > 全局托底（none/auto/low/medium/high/xhigh）
+   - 模型编辑页新增第 4 个 tab「思考深度映射」：六等级可填自定义发送值（`Model.reasoningEffortMap`），
+     留空用内置表；「关闭思考」仅在 effort 语义接入点（OpenAI 系/OpenRouter/NVIDIA）可自定义，
+     Claude/Gemini 用结构字段关闭（disabled/minimal）故置灰，布尔开关类平台忽略用户值
+4. **构建验证**：`:app:assembleRelease -x :web:buildWebUi` 通过（JDK17 + 仓库外 init.gradle），
+   新增单测全绿（RootfsPathResolution / ReasoningEffortMappings）
+
+## C. 删除模式注入/世界书（功能整体下线）
+
+- 数据模型：`PromptInjection`/`ModeInjection`/`RegexInjection`/`Lorebook`/`InjectionPosition`、
+  Assistant/Conversation 相关字段、`LearningMode.kt`、`PromptInjectionTransformer` 及其测试
+- 逻辑层：Transformer 上下文、GenerationHandler/ChatService 链路、`ModeInjectionSerializer`/
+  `LorebookSerializer`（含 SillyTavern 导入）、PreferencesStore key/字段/sanitizer
+- UI：`PromptPage`/`PromptVM` 整页删除，扩展管理/聊天弹窗/助手扩展页收敛为三 tab
+- web：`POST /{id}/injections` 路由、DTO 字段、web-ui extension-picker 只留快捷消息；
+  6 个 locale 清理 50+ 字符串键
+- DB：`Migration_26_27`（@DeleteColumn ×2，version 27），schema 27.json 已提交
+
+## D. 已知注意事项（更新）
+
+- Room DB 当前版本 27；删除模式注入/世界书后旧库升级会丢弃
+  `mode_injection_ids`/`lorebook_ids` 两列（AutoMigration 自动完成）
+- web-ui 本机构建仍以 `-x :web:buildWebUi` 跳过（无 node/pnpm 环境）
