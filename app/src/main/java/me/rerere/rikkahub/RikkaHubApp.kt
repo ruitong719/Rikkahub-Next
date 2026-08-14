@@ -30,6 +30,7 @@ import me.rerere.rikkahub.di.repositoryModule
 import me.rerere.rikkahub.di.viewModelModule
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.files.WorkspaceBgManager
+import me.rerere.rikkahub.data.files.WorkspaceMountManager
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.service.WebServerService
 import me.rerere.rikkahub.utils.CrashHandler
@@ -80,6 +81,9 @@ class RikkaHubApp : Application() {
         // mark orphan background tasks (killed with the previous process) as failed
         cleanupOrphanBgTasks()
 
+        // materialize phone SAF mount caches so /mnt/<name> works right after launch
+        refreshMountedPhoneDirs()
+
         // check workspace integrity (mark workspaces with missing files as broken after backup restore)
         checkWorkspaceIntegrity()
 
@@ -124,6 +128,17 @@ class RikkaHubApp : Application() {
                 get<WorkspaceBgManager>().cleanupOrphanTasks()
             }.onFailure {
                 Log.w(TAG, "cleanupOrphanBgTasks failed", it)
+            }
+        }
+    }
+
+    /** 启动时对每个已配置的手机目录挂载点 PULL 一次，物化缓存目录供 shell/文件工具使用 */
+    private fun refreshMountedPhoneDirs() {
+        get<AppScope>().launch(Dispatchers.IO) {
+            runCatching {
+                get<WorkspaceMountManager>().pullAllAtStartup()
+            }.onFailure {
+                Log.e(TAG, "refreshMountedPhoneDirs failed", it)
             }
         }
     }

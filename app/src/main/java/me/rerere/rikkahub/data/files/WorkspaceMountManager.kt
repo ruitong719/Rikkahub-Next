@@ -2,6 +2,7 @@ package me.rerere.rikkahub.data.files
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -113,6 +114,21 @@ class WorkspaceMountManager(
         return when (direction) {
             SyncDirection.PULL -> pull(config)
             SyncDirection.PUSH -> push(config)
+        }
+    }
+
+    /**
+     * App 启动时自动物化所有挂载点。
+     *
+     * 挂载缓存目录（filesDir/mnt/<id>）随进程存活，重启后为空/不存在时
+     * [activeBindMounts] 不会生成 /mnt/<name>，shell 与文件工具都访问不到。
+     * 这里对每个配置 PULL 一次；单个失败（如 SAF 权限被撤销）仅记日志，不影响其他挂载点。
+     */
+    suspend fun pullAllAtStartup() {
+        listMounts().forEach { config ->
+            runCatching { pull(config) }.onFailure { e ->
+                Log.w(TAG, "pullAllAtStartup: failed for mount ${config.name}: ${e.message}")
+            }
         }
     }
 
@@ -238,5 +254,6 @@ val input = context.contentResolver.openInputStream(child.uri)
     companion object {
         private val MOUNT_NAME_REGEX = Regex("[a-zA-Z0-9._-]+")
         private const val COPY_BUFFER_BYTES = 64 * 1024
+        private const val TAG = "WorkspaceMountManager"
     }
 }
