@@ -205,7 +205,6 @@ app/src/main/java/me/rerere/rikkahub/
     ├── GenerationHandler.kt        # 核心生成逻辑
     ├── transformers/
     │   ├── Transformer.kt          # 接口定义与扩展函数
-    │   ├── PromptInjectionTransformer.kt
     │   ├── TemplateTransformer.kt
     │   ├── TimeReminderTransformer.kt
     │   ├── ThinkTagTransformer.kt
