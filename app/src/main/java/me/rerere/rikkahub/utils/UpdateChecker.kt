@@ -14,12 +14,17 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import me.rerere.common.http.await
 import me.rerere.rikkahub.BuildConfig
+import me.rerere.rikkahub.data.datastore.SettingsStore
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-private const val API_URL = "https://updates.rikka-ai.com/"
+/** 默认更新检查地址（设置项 updateUrl 为空时使用） */
+const val DEFAULT_UPDATE_URL = "https://updates.rikka-ai.com/"
 
-class UpdateChecker(private val client: OkHttpClient) {
+class UpdateChecker(
+    private val client: OkHttpClient,
+    private val settingsStore: SettingsStore,
+) {
     private val json = Json { ignoreUnknownKeys = true }
 
     fun checkUpdate(): Flow<UiState<UpdateInfo>> = flow {
@@ -27,9 +32,13 @@ class UpdateChecker(private val client: OkHttpClient) {
         emit(
             UiState.Success(
                 data = try {
+                    // 更新地址作为配置项：设置里可修改，为空时回退默认地址
+                    val updateUrl = settingsStore.settingsFlow.value.updateUrl
+                        .trim()
+                        .ifBlank { DEFAULT_UPDATE_URL }
                     val response = client.newCall(
                         Request.Builder()
-                            .url(API_URL)
+                            .url(updateUrl)
                             .get()
                             .addHeader(
                                 "User-Agent",

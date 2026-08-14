@@ -5,6 +5,7 @@ import me.rerere.hugeicons.stroke.Code
 import me.rerere.hugeicons.stroke.Earth
 import me.rerere.hugeicons.stroke.File02
 import me.rerere.hugeicons.stroke.Github
+import me.rerere.hugeicons.stroke.Link01
 import me.rerere.hugeicons.stroke.SmartPhone01
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -17,11 +18,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,6 +42,7 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import me.rerere.rikkahub.BuildConfig
 import me.rerere.rikkahub.R
@@ -47,14 +52,19 @@ import me.rerere.rikkahub.ui.components.easteregg.EmojiBurstHost
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.theme.CustomColors
+import me.rerere.rikkahub.utils.DEFAULT_UPDATE_URL
 import me.rerere.rikkahub.utils.openUrl
 import me.rerere.rikkahub.utils.plus
+import org.koin.androidx.compose.koinViewModel
 
 @Composable
-fun SettingAboutPage() {
+fun SettingAboutPage(vm: SettingVM = koinViewModel()) {
+    val settings by vm.settings.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val context = LocalContext.current
     val navController = LocalNavController.current
+    var showUpdateUrlDialog by remember { mutableStateOf(false) }
+    var updateUrlDraft by remember { mutableStateOf("") }
     val emojiOptions = remember {
         listOf(
             "🎉", "✨", "🌟", "💫", "🎊", "🥳", "🎈", "🎆", "🎇", "🧨",
@@ -149,6 +159,17 @@ fun SettingAboutPage() {
                             },
                             headlineContent = { Text(stringResource(R.string.about_page_system)) },
                         )
+                        item(
+                            onClick = {
+                                updateUrlDraft = settings.updateUrl
+                                showUpdateUrlDialog = true
+                            },
+                            leadingContent = { Icon(HugeIcons.Link01, null) },
+                            supportingContent = {
+                                Text(settings.updateUrl.ifBlank { DEFAULT_UPDATE_URL })
+                            },
+                            headlineContent = { Text(stringResource(R.string.about_page_update_url)) },
+                        )
                     }
                 }
 
@@ -178,5 +199,38 @@ fun SettingAboutPage() {
                 }
             }
         }
+    }
+
+    if (showUpdateUrlDialog) {
+        AlertDialog(
+            onDismissRequest = { showUpdateUrlDialog = false },
+            title = { Text(stringResource(R.string.about_page_update_url)) },
+            text = {
+                OutlinedTextField(
+                    value = updateUrlDraft,
+                    onValueChange = { updateUrlDraft = it },
+                    label = { Text(stringResource(R.string.about_page_update_url_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vm.updateSettings(
+                            settings.copy(updateUrl = updateUrlDraft.trim())
+                        )
+                        showUpdateUrlDialog = false
+                    }
+                ) {
+                    Text(stringResource(R.string.confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUpdateUrlDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 }
