@@ -33,8 +33,6 @@ import me.rerere.rikkahub.R
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.ui.components.ai.ExtensionEmptyState
-import me.rerere.rikkahub.ui.components.ai.LorebooksContent
-import me.rerere.rikkahub.ui.components.ai.ModeInjectionsContent
 import me.rerere.rikkahub.ui.components.ai.QuickMessagesContent
 import me.rerere.rikkahub.ui.components.ai.SkillsContent
 import me.rerere.rikkahub.ui.components.nav.BackButton
@@ -52,7 +50,7 @@ fun AssistantExtensionsPage(id: String) {
     val navController = LocalNavController.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState { 5 }
+    val pagerState = rememberPagerState { 3 }
 
     Scaffold(
         topBar = {
@@ -83,21 +81,11 @@ fun AssistantExtensionsPage(id: String) {
                 Tab(
                     selected = pagerState.currentPage == 1,
                     onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
-                    text = { Text(stringResource(R.string.assistant_extensions_page_tab_mode_injections)) }
+                    text = { Text(stringResource(R.string.assistant_extensions_page_tab_skills)) }
                 )
                 Tab(
                     selected = pagerState.currentPage == 2,
                     onClick = { scope.launch { pagerState.animateScrollToPage(2) } },
-                    text = { Text(stringResource(R.string.assistant_extensions_page_tab_lorebooks)) }
-                )
-                Tab(
-                    selected = pagerState.currentPage == 3,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(3) } },
-                    text = { Text(stringResource(R.string.assistant_extensions_page_tab_skills)) }
-                )
-                Tab(
-                    selected = pagerState.currentPage == 4,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(4) } },
                     text = { Text(stringResource(R.string.assistant_extensions_page_tab_subagents)) }
                 )
             }
@@ -139,64 +127,6 @@ fun AssistantExtensionsPage(id: String) {
                     }
 
                     1 -> {
-                        if (settings.modeInjections.isEmpty()) {
-                            ExtensionEmptyState(
-                                message = stringResource(R.string.assistant_extensions_page_empty_mode_injections),
-                                buttonText = stringResource(R.string.assistant_extensions_page_goto_prompts),
-                                onAction = { navController.navigate(Screen.Prompts) },
-                            )
-                        } else {
-                            Column {
-                                ModeInjectionsContent(
-                                    modifier = Modifier.weight(1f),
-                                    modeInjections = settings.modeInjections,
-                                    selectedIds = assistant.modeInjectionIds,
-                                    onToggle = { injId, checked ->
-                                        val newIds = if (checked) assistant.modeInjectionIds + injId
-                                        else assistant.modeInjectionIds - injId
-                                        vm.update(assistant.copy(modeInjectionIds = newIds))
-                                    },
-                                )
-                                TextButton(
-                                    onClick = { navController.navigate(Screen.Prompts) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Text(stringResource(R.string.assistant_extensions_page_goto_prompts))
-                                }
-                            }
-                        }
-                    }
-
-                    2 -> {
-                        if (settings.lorebooks.isEmpty()) {
-                            ExtensionEmptyState(
-                                message = stringResource(R.string.assistant_extensions_page_empty_lorebooks),
-                                buttonText = stringResource(R.string.assistant_extensions_page_goto_prompts),
-                                onAction = { navController.navigate(Screen.Prompts) },
-                            )
-                        } else {
-                            Column {
-                                LorebooksContent(
-                                    modifier = Modifier.weight(1f),
-                                    lorebooks = settings.lorebooks,
-                                    selectedIds = assistant.lorebookIds,
-                                    onToggle = { injId, checked ->
-                                        val newIds = if (checked) assistant.lorebookIds + injId
-                                        else assistant.lorebookIds - injId
-                                        vm.update(assistant.copy(lorebookIds = newIds))
-                                    },
-                                )
-                                TextButton(
-                                    onClick = { navController.navigate(Screen.Prompts) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Text(stringResource(R.string.assistant_extensions_page_goto_prompts))
-                                }
-                            }
-                        }
-                    }
-
-                    3 -> {
                         if (skills.isEmpty()) {
                             ExtensionEmptyState(
                                 message = stringResource(R.string.assistant_extensions_page_empty_skills),
@@ -225,7 +155,7 @@ fun AssistantExtensionsPage(id: String) {
                         }
                     }
 
-                    4 -> {
+                    2 -> {
                         if (settings.subagents.isEmpty()) {
                             ExtensionEmptyState(
                                 message = stringResource(R.string.assistant_extensions_page_empty_subagents),

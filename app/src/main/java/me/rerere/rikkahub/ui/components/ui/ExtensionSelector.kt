@@ -33,10 +33,7 @@ import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.files.SkillMetadata
 import me.rerere.rikkahub.data.model.Assistant
-import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.ui.components.ai.ExtensionEmptyState
-import me.rerere.rikkahub.ui.components.ai.LorebooksContent
-import me.rerere.rikkahub.ui.components.ai.ModeInjectionsContent
 import me.rerere.rikkahub.ui.components.ai.QuickMessagesContent
 import me.rerere.rikkahub.ui.components.ai.SkillsContent
 import org.koin.compose.koinInject
@@ -48,10 +45,7 @@ fun ExtensionSelector(
     assistant: Assistant,
     settings: Settings,
     onUpdate: (Assistant) -> Unit,
-    conversation: Conversation? = null,
-    onUpdateConversation: ((Conversation) -> Unit)? = null,
     onNavigateToQuickMessages: () -> Unit = {},
-    onNavigateToPrompts: () -> Unit = {},
     onNavigateToSkills: () -> Unit = {},
     onNavigateToSubAgents: () -> Unit = {},
 ) {
@@ -64,20 +58,7 @@ fun ExtensionSelector(
         skills = skillManager.pruneOrphanedEnabledSkills()
     }
 
-    val useConversationInjections =
-        assistant.allowConversationPromptInjection && conversation != null && onUpdateConversation != null
-    val selectedModeInjectionIds = if (useConversationInjections) {
-        conversation.modeInjectionIds
-    } else {
-        assistant.modeInjectionIds
-    }
-    val selectedLorebookIds = if (useConversationInjections) {
-        conversation.lorebookIds
-    } else {
-        assistant.lorebookIds
-    }
-
-    val pagerState = rememberPagerState { 5 }
+    val pagerState = rememberPagerState { 3 }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -101,26 +82,12 @@ fun ExtensionSelector(
                 onClick = {
                     scope.launch { pagerState.animateScrollToPage(1) }
                 },
-                text = { Text(stringResource(R.string.extension_selector_tab_mode_injections)) }
+                text = { Text(stringResource(R.string.extension_selector_tab_skills)) }
             )
             Tab(
                 selected = pagerState.currentPage == 2,
                 onClick = {
                     scope.launch { pagerState.animateScrollToPage(2) }
-                },
-                text = { Text(stringResource(R.string.extension_selector_tab_lorebooks)) }
-            )
-            Tab(
-                selected = pagerState.currentPage == 3,
-                onClick = {
-                    scope.launch { pagerState.animateScrollToPage(3) }
-                },
-                text = { Text(stringResource(R.string.extension_selector_tab_skills)) }
-            )
-            Tab(
-                selected = pagerState.currentPage == 4,
-                onClick = {
-                    scope.launch { pagerState.animateScrollToPage(4) }
                 },
                 text = { Text(stringResource(R.string.extension_selector_tab_subagents)) }
             )
@@ -158,62 +125,6 @@ fun ExtensionSelector(
                 }
 
                 1 -> {
-                    if (settings.modeInjections.isNotEmpty()) {
-                        ModeInjectionsContent(
-                            modeInjections = settings.modeInjections,
-                            selectedIds = selectedModeInjectionIds,
-                            onToggle = { id, checked ->
-                                val newIds = if (checked) {
-                                    selectedModeInjectionIds + id
-                                } else {
-                                    selectedModeInjectionIds - id
-                                }
-                                if (useConversationInjections) {
-                                    onUpdateConversation(conversation.copy(modeInjectionIds = newIds))
-                                } else {
-                                    onUpdate(assistant.copy(modeInjectionIds = newIds))
-                                }
-                            },
-                            onManage = onNavigateToPrompts,
-                        )
-                    } else {
-                        ExtensionEmptyState(
-                            message = stringResource(R.string.extension_selector_mode_injections_empty),
-                            buttonText = stringResource(R.string.extension_selector_go_to_extensions),
-                            onAction = onNavigateToPrompts,
-                        )
-                    }
-                }
-
-                2 -> {
-                    if (settings.lorebooks.isNotEmpty()) {
-                        LorebooksContent(
-                            lorebooks = settings.lorebooks,
-                            selectedIds = selectedLorebookIds,
-                            onToggle = { id, checked ->
-                                val newIds = if (checked) {
-                                    selectedLorebookIds + id
-                                } else {
-                                    selectedLorebookIds - id
-                                }
-                                if (useConversationInjections) {
-                                    onUpdateConversation(conversation.copy(lorebookIds = newIds))
-                                } else {
-                                    onUpdate(assistant.copy(lorebookIds = newIds))
-                                }
-                            },
-                            onManage = onNavigateToPrompts,
-                        )
-                    } else {
-                        ExtensionEmptyState(
-                            message = stringResource(R.string.extension_selector_lorebooks_empty),
-                            buttonText = stringResource(R.string.extension_selector_go_to_extensions),
-                            onAction = onNavigateToPrompts,
-                        )
-                    }
-                }
-
-                3 -> {
                     if (skills.isNotEmpty()) {
                         SkillsContent(
                             skills = skills,
@@ -237,7 +148,7 @@ fun ExtensionSelector(
                     }
                 }
 
-                4 -> {
+                2 -> {
                     if (settings.subagents.isEmpty()) {
                         ExtensionEmptyState(
                             message = stringResource(R.string.extension_selector_subagents_empty),
