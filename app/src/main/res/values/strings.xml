@@ -758,6 +758,8 @@
   <string name="setting_model_page_chat_model">Chat Model</string>
   <string name="setting_model_page_chat_model_desc">Global default chat model</string>
   <string name="setting_model_page_compress_model">Compress Model</string>
+  <string name="setting_model_page_vision_model">Vision Model</string>
+  <string name="setting_model_page_vision_model_desc">Used to describe images as text when the chat model does not support image input. When not set, images are sent to the chat model directly.</string>
   <string name="setting_model_page_fast_model">Fast Model</string>
   <string name="setting_model_page_fast_model_desc">Model for fast or background tasks, also used as fallback for title and suggestion models when not set</string>
   <string name="setting_model_page_compress_model_desc">Model for compressing conversation history</string>
@@ -830,7 +832,7 @@
   <string name="setting_page_preferences_general_desc">Interaction behavior, scrolling, input settings</string>
   <string name="setting_page_agent_md">Agent Instructions (AGENTS.md)</string>
   <string name="setting_page_agent_md_title">Global agent.md</string>
-  <string name="setting_page_agent_md_desc">Injected into the system prompt. When the assistant has a workspace and /workspace/agent.md exists, the file takes precedence over this text.</string>
+  <string name="setting_page_agent_md_desc">Injected into the system prompt after the assistant prompt. When the /agent directory contains .md files (agent.md first, then others sorted), they take precedence over this text.</string>
   <string name="setting_page_agent_md_set">Set — tap to edit</string>
   <string name="setting_page_agent_md_not_set">Not set — tap to edit</string>
   <string name="setting_page_agent_md_clear">Clear</string>
@@ -1300,6 +1302,14 @@
   <string name="todo_sheet_clear_confirm_confirm">Clear</string>
   <string name="todo_sheet_clear_confirm_cancel">Cancel</string>
   <string name="subagent_monitor_button">Subagent monitor</string>
+  <string name="bg_task_button">Background tasks</string>
+  <string name="bg_task_sheet_title">Background tasks (%1$d)</string>
+  <string name="bg_task_sheet_empty">No background tasks</string>
+  <string name="bg_task_status_running">Running</string>
+  <string name="bg_task_status_done">Done</string>
+  <string name="bg_task_status_failed">Failed</string>
+  <string name="bg_task_kill">Kill</string>
+  <string name="bg_task_refresh">Refresh</string>
   <string name="subagent_monitor_sheet_title">Subagents (%1$d enabled)</string>
   <string name="subagent_monitor_empty">No subagents enabled for this assistant</string>
   <string name="subagent_monitor_manage">Manage subagent</string>

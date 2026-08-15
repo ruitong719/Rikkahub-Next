@@ -363,14 +363,16 @@ class WorkspaceBgManager(
     }
 
     private fun builtinBindMounts(): List<WorkspaceBindMount> {
-        // 内置挂载与 RepositoryModule 保持一致（skills/upload/tool_outputs）
+        // 内置挂载与 RepositoryModule 保持一致（skills/upload/tool_outputs/agent）
         val f = File(context.filesDir, "skills").apply { mkdirs() }
         val u = File(context.filesDir, "upload").apply { mkdirs() }
         val t = File(context.filesDir, "tool_outputs").apply { mkdirs() }
+        val a = File(context.filesDir, "agent").apply { mkdirs() }
         return listOf(
             WorkspaceBindMount(source = f, target = "/skills"),
             WorkspaceBindMount(source = u, target = "/upload"),
             WorkspaceBindMount(source = t, target = "/tool_outputs"),
+            WorkspaceBindMount(source = a, target = "/agent"),
         )
     }
 

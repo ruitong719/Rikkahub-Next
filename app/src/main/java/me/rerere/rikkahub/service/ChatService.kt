@@ -163,8 +163,11 @@ class ChatService(
     // workspace 系统提示注入 (依赖 workspaceRepository, 故在类内构造)
     private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository)
 
-    // AGENTS.md 注入：工作区 /workspace/agent.md 优先，否则用设置里的全局文本
-    private val agentMdTransformer = AgentMdTransformer(workspaceRepository)
+    // AGENTS.md 注入：/agent 目录下全部 *.md（agent.md 优先），否则用设置里的全局文本
+    private val agentMdTransformer = AgentMdTransformer()
+
+    // 视觉模型降级：主模型不支持图片时，用视觉模型把图片转成文字描述
+    private val visionImageToTextTransformer = VisionImageToTextTransformer(providerManager)
 
     // subagent 嵌套执行核心（复用 GenerationHandler，无需 Koin 注册）
     private val subAgentRunner = SubAgentRunner(generationHandler)
@@ -545,6 +548,7 @@ class ChatService(
                     add(templateTransformer)
                     add(workspaceReminderTransformer)
                     add(agentMdTransformer)
+                    add(visionImageToTextTransformer)
                     add(backgroundTaskReminder(conversationId))
                 },
                 outputTransformers = outputTransformers,

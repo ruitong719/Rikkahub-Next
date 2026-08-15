@@ -196,6 +196,19 @@ class WebDavSync(
                     Log.w(TAG, "prepareBackupFile: Skills folder does not exist or is not a directory")
                 }
 
+                val agentFolder = File(context.filesDir, FileFolders.AGENT)
+                if (agentFolder.exists() && agentFolder.isDirectory) {
+                    Log.i(TAG, "prepareBackupFile: Backing up agent from ${agentFolder.absolutePath}")
+                    addDirectoryToZip(
+                        zipOut = zipOut,
+                        rootDir = agentFolder,
+                        currentDir = agentFolder,
+                        entryPrefix = "${FileFolders.AGENT}/"
+                    )
+                } else {
+                    Log.w(TAG, "prepareBackupFile: Agent folder does not exist or is not a directory")
+                }
+
                 val fontsFolder = File(context.filesDir, FileFolders.FONTS)
                 if (fontsFolder.exists() && fontsFolder.isDirectory) {
                     Log.i(TAG, "prepareBackupFile: Backing up fonts from ${fontsFolder.absolutePath}")

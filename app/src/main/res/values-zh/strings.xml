@@ -716,6 +716,8 @@
   <string name="setting_model_page_chat_model">聊天模型</string>
   <string name="setting_model_page_chat_model_desc">全局默认的聊天模型</string>
   <string name="setting_model_page_compress_model">压缩模型</string>
+  <string name="setting_model_page_vision_model">视觉模型</string>
+  <string name="setting_model_page_vision_model_desc">当聊天模型不支持图片输入时，用视觉模型把图片转成文字描述再发送。不设置时图片直接发送给聊天模型。</string>
   <string name="setting_model_page_compress_model_desc">用于压缩对话历史的模型</string>
   <string name="setting_model_page_compress_prompt_vars">变量：{content}、{target_tokens}、{additional_context}</string>
   <string name="setting_model_page_ocr_model">OCR 模型</string>
@@ -1081,7 +1083,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_page_preferences_general_desc">交互行为、滚动、输入设置</string>
   <string name="setting_page_agent_md">Agent 指令（AGENTS.md）</string>
   <string name="setting_page_agent_md_title">全局 agent.md</string>
-  <string name="setting_page_agent_md_desc">注入到系统提示词中。当助手绑定了工作区且存在 /workspace/agent.md 时，以工作区文件为准（优先于此处文本）。</string>
+  <string name="setting_page_agent_md_desc">注入到系统提示词中（助手提示词之后）。当 /agent 目录下存在 .md 文件（agent.md 优先，其余按文件名排序）时，以文件内容为准（优先于此处文本）。</string>
   <string name="setting_page_agent_md_set">已设置——点击编辑</string>
   <string name="setting_page_agent_md_not_set">未设置——点击编辑</string>
   <string name="setting_page_agent_md_clear">清空</string>
@@ -1312,6 +1314,14 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="todo_sheet_clear_confirm_confirm">清空</string>
   <string name="todo_sheet_clear_confirm_cancel">取消</string>
   <string name="subagent_monitor_button">子智能体监看</string>
+  <string name="bg_task_button">后台任务</string>
+  <string name="bg_task_sheet_title">后台任务（%1$d）</string>
+  <string name="bg_task_sheet_empty">暂无后台任务</string>
+  <string name="bg_task_status_running">运行中</string>
+  <string name="bg_task_status_done">已完成</string>
+  <string name="bg_task_status_failed">失败</string>
+  <string name="bg_task_kill">终止</string>
+  <string name="bg_task_refresh">刷新</string>
   <string name="subagent_monitor_sheet_title">子智能体（已启用 %1$d 个）</string>
   <string name="subagent_monitor_empty">当前助手未启用子智能体</string>
   <string name="subagent_monitor_manage">管理子智能体</string>

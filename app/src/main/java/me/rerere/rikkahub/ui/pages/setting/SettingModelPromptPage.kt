@@ -91,6 +91,17 @@ internal fun PromptSettingsPage(settings: Settings, vm: SettingVM, contentPaddin
                 onResetPrompt = { vm.updateSettings(settings.copy(compressPrompt = DEFAULT_COMPRESS_PROMPT)) },
             )
         }
+        item {
+            // AGENT 指令：/agent 目录下的 .md 文件优先，此处为全局兜底文本
+            PromptSettingItem(
+                title = stringResource(R.string.setting_page_agent_md),
+                promptDescription = stringResource(R.string.setting_page_agent_md_desc),
+                promptValue = settings.globalAgentMd,
+                onPromptChange = { vm.updateSettings(settings.copy(globalAgentMd = it)) },
+                onResetPrompt = { vm.updateSettings(settings.copy(globalAgentMd = "")) },
+                resetLabel = stringResource(R.string.setting_page_agent_md_clear),
+            )
+        }
     }
 }
 
@@ -101,6 +112,7 @@ private fun PromptSettingItem(
     promptValue: String,
     onPromptChange: (String) -> Unit,
     onResetPrompt: () -> Unit,
+    resetLabel: String? = null,
     reasoningLevel: ReasoningLevel? = null,
     onUpdateReasoningLevel: ((ReasoningLevel) -> Unit)? = null,
 ) {
@@ -158,7 +170,7 @@ private fun PromptSettingItem(
                     maxLines = 15,
                 )
                 TextButton(onClick = onResetPrompt) {
-                    Text(stringResource(R.string.setting_model_page_reset_to_default))
+                    Text(resetLabel ?: stringResource(R.string.setting_model_page_reset_to_default))
                 }
             }
         }

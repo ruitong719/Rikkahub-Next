@@ -64,7 +64,7 @@ fun SubAgentMonitorButton(
                 },
             ) {
                 Box(
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(20.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(

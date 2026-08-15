@@ -55,6 +55,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -80,6 +81,7 @@ import dev.chrisbanes.haze.blur.HazeBlurStyle
 import dev.chrisbanes.haze.blur.hazeBlur
 import dev.chrisbanes.haze.blur.material3.Material3
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelAbility
@@ -99,7 +101,11 @@ import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.datastore.getQuickMessagesOfAssistant
+import me.rerere.rikkahub.data.files.BgTaskStatus
 import me.rerere.rikkahub.data.files.FilesManager
+import me.rerere.rikkahub.data.files.WorkspaceBgManager
+import me.rerere.rikkahub.data.files.WorkspaceBgTaskInfo
+import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.ai.ui.UIMessage
@@ -353,6 +359,54 @@ fun ChatInput(
                                     enabledCount = enabledSubAgents.size,
                                     onClick = { showSubAgentMonitor = true },
                                 )
+                            }
+
+                            // 后台任务监看：仅当助手绑定工作区且存在后台任务时显示（4s 轮询）
+                            val assistantWorkspaceId = assistant.workspaceId?.toString()
+                            if (assistantWorkspaceId != null) {
+                                val workspaceBgManager = koinInject<WorkspaceBgManager>()
+                                val workspaceRepository = koinInject<WorkspaceRepository>()
+                                var bgTaskRoot by remember(assistantWorkspaceId) {
+                                    mutableStateOf(assistantWorkspaceId)
+                                }
+                                var bgTasks by remember(assistantWorkspaceId) {
+                                    mutableStateOf<List<WorkspaceBgTaskInfo>>(emptyList())
+                                }
+                                var bgTaskRefreshTick by remember(assistantWorkspaceId) { mutableStateOf(0) }
+                                var showBgTaskSheet by remember { mutableStateOf(false) }
+                                val bgTaskScope = rememberCoroutineScope()
+
+                                LaunchedEffect(assistantWorkspaceId, bgTaskRefreshTick) {
+                                    while (true) {
+                                        runCatching {
+                                            val root = workspaceRepository.getById(assistantWorkspaceId)
+                                                ?.root ?: assistantWorkspaceId
+                                            bgTaskRoot = root
+                                            bgTasks = workspaceBgManager.listTasks(root)
+                                        }
+                                        delay(4_000)
+                                    }
+                                }
+
+                                if (bgTasks.isNotEmpty()) {
+                                    if (showBgTaskSheet) {
+                                        BackgroundTaskSheet(
+                                            tasks = bgTasks,
+                                            onKill = { taskId ->
+                                                bgTaskScope.launch {
+                                                    runCatching { workspaceBgManager.killTask(bgTaskRoot, taskId) }
+                                                }
+                                            },
+                                            onRefresh = { bgTaskRefreshTick++ },
+                                            onDismiss = { showBgTaskSheet = false },
+                                        )
+                                    }
+                                    BackgroundTaskButton(
+                                        runningCount = bgTasks.count { it.status == BgTaskStatus.RUNNING },
+                                        totalCount = bgTasks.size,
+                                        onClick = { showBgTaskSheet = true },
+                                    )
+                                }
                             }
 
                         }
