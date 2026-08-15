@@ -1,33 +1,66 @@
 <div align="center">
-  <img src="docs/icon.png" alt="App Icon" width="100" />
-  <h1>RikkaHub</h1>
+  <img src="docs/icon.png" alt="应用图标" width="100" />
+  <h1>Rikkahub Next</h1>
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rikkahub/rikkahub)
-[![Ask DeepWiki](https://img.shields.io/badge/zread.ai-blue?style=flat&logo=readthedocs)](https://zread.ai/rikkahub/rikkahub)
+原生 Android LLM 聊天客户端，支持在多个 AI 提供商之间自由切换 🤖💬
 
-A native Android LLM chat client that supports switching between different providers for
-conversations 🤖💬
-
-Click to join our Discord server 👉 [【RikkaHub】](https://discord.gg/9weBqxe5c4)
-
-[简体中文](README_ZH_CN.md) | [繁體中文](README_ZH_TW.md) | English
+[简体中文](README.md)（默认）
 </div>
 
 <div align="center">
-  <img src="docs/img/chat.png" alt="Chat Interface" width="150" />
-  <img src="docs/img/desktop.png" alt="Models Picker" width="450" />
+  <img src="docs/img/chat.png" alt="聊天界面" width="150" />
+  <img src="docs/img/desktop.png" alt="模型选择" width="450" />
 </div>
 
-## 🚀 Download
+## 🔗 与上游的关系
 
-🔗 [Download from Website](https://rikka-ai.com/download) (Recommended)
+本项目是 [RikkaHub](https://github.com/rikkahub/rikkahub)（[AGPL-3.0](LICENSE) 协议）的**中文定制分支（fork）**：
 
-🔗 [Download from Google Play](https://play.google.com/store/apps/details?id=me.rerere.rikkahub)
+- **基线**：上游 `master` 2.4.9（`0c52b62b`），并持续跟踪上游更新
+- **方向**：在保留上游全部功能的基础上，面向中文用户做定制与增强
+
+### 本分支与上游的差异
+
+- 🗑️ **移除**：
+  - Firebase / google-services（构建**不再需要** `google-services.json`）
+  - 模式注入 / 世界书（数据库迁移 26 → 27）
+- ➕ **新增**：
+  - Workspace 增强：后台任务、SAF 目录挂载、导出到手机、`backup.zip` 备份工具
+  - Subagent（子代理）：数据模型、预置模板、运行器与完整编辑页
+  - Todo 工具、per-tool 可注入提示词、思考深度映射
+  - 应用图标与品牌更名为 Rikkahub Next
+- 📄 逐功能合入、review 修复与编译验证的完整记录见 [CHANGES.md](CHANGES.md)
 
 > [!WARNING]
-> There are many forked versions of RikkaHub. Issues with forks are unrelated to RikkaHub, so please use forks with caution to avoid privacy leaks or excessive permission requests.
+> 上游 RikkaHub 官方提醒：社区中存在大量 fork 版本，fork 产生的问题与官方无关，使用时请警惕隐私泄露与过度索取权限。本分支由社区维护，使用前请自行评估风险。
 
-## 💖 Sponsors
+## 📦 下载
+
+暂无公开发布版本，请从源码自行构建（见下方「贡献」），或联系维护者获取已签名的 Release APK。
+
+## ✨ 功能特性
+
+- 🎨 Material You 设计与 🌙 深色模式
+- 📦 Workspace：基于 proot 的 Linux agent 沙箱环境
+- 🔄 多 AI 提供商支持：自定义 API / URL / 模型（兼容所有 OpenAI、Google、Anthropic API）
+- 🖼️ 多模态输入（图片、文本文档、PDF、Docx）
+- 🖥️ Web 端访问，多平台使用
+- 🛠️ MCP 支持
+- 📝 Markdown 渲染（代码高亮、LaTeX 公式、表格、Mermaid）
+- 🪾 消息分支
+- 🔍 搜索能力（Exa、Tavily、Zhipu、LinkUp、Brave、Perplexity 等）
+- 🧩 提示词变量（模型名、时间等）
+- 🤳 提供商二维码导出与导入
+- 🤖 Agent 自定义
+- 🧠 类 ChatGPT 记忆功能
+- 📝 AI 翻译
+- 🌐 自定义 HTTP 请求头与请求体
+- 💌 Silly Tavern 角色卡导入
+- ⏳ Workspace 后台任务（关闭应用后继续执行）
+- 📂 SAF 目录挂载 / 文件导出到手机
+- 🧩 Subagent 子代理与 Todo 工具
+
+## 💖 赞助商
 
 |                                         Sponsor                                         | Description                                                                                                                                                                                                                                         |
 |:---------------------------------------------------------------------------------------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -35,70 +68,31 @@ Click to join our Discord server 👉 [【RikkaHub】](https://discord.gg/9weBqx
 | <img src="docs/sponsors/suixiang.jpg" alt="随想AI中转" width="50" /><br /><b><a href="https://sui-xiang.com">随想AI中转</a></b> | 感谢<a href="https://sui-xiang.com">随想AI中转</a>对本项目的赞助！随想AI中转 是一家可靠高效的 API 中继服务提供商，提供 Claude、Codex、Gemini 等的中继服务。注重隐私的中转站·无数据倒卖·无模型掺水，隐私，透明，极速售后。新账户注册每日签到就送 0.5 元测试额度，充值额度 1:1，无需订阅，按量付费。多线路冗余、跨区域容灾、自动故障切换，长链路 SSE 不中断。99.9% 可用性，关键调用从不掉队。 |
 | <img src="docs/sponsors/ztest.png" alt="真测 ztest.ai" width="50" /><br /><b><a href="https://ztest.ai">真测 ztest.ai</a></b> | 感谢<a href="https://ztest.ai">真测 ztest.ai</a>对本项目的赞助！真测 ztest.ai 是一个 AI 中转站模型检测平台，检测结果数据全公开，23 项探针覆盖协议、身份、能力、内容完整性、安全性、性能六大维度，交叉印证识别伪造与降级。作为独立第三方验证平台，实时监测 AI 中转站的模型真实性、响应质量与服务可用性。 |
 
-## ✨ Features
+## 🤝 贡献
 
-- 🎨 Material You Design and 🌙 Dark mode
-- 📦 Workspace: a proot-based Linux agent environment
-- 🔄 Multiple AI Provider Support: custom API / URL / models (all OpenAI, Google, Anthropic compatible api)
-- 🖼️ Multimodal input support (Image, Text Documentation, PDF, Docx)
-- 🖥️ Web access for multi-platform use
-- 🛠️ MCP support
-- 📝 Markdown Rendering (with code highlighting, Latex formulas, tables, Mermaid)
-- 🪾 Message Branching
-- 🔍 Search capabilities (Exa, Tavily, Zhipu, LinkUp, Brave, Perplexity, etc.)
-- 🧩 Prompt variables (model name, time, etc.)
-- 🤳 QR code export and import for providers
-- 🤖 Agent customization
-- 🧠 ChatGPT-like memory feature
-- 📝 AI Translation
-- 🌐 Custom HTTP request headers and request bodies
-- 💌 Silly Tavern character card import
+本项目使用 [Android Studio](https://developer.android.com/studio) 开发，欢迎提交 PR。
 
-## ✨ Contributing
+技术栈：
 
-This project is developed using [Android Studio](https://developer.android.com/studio). PRs are
-welcome!
-
-Technology stack documentation:
-
-- [Kotlin](https://kotlinlang.org/) (Development language)
-- [Koin](https://insert-koin.io/) (Dependency Injection)
-- [Jetpack Compose](https://developer.android.com/jetpack/compose) (UI framework)
-- [DataStore](https://developer.android.com/topic/libraries/architecture/datastore) (Preference data
-  storage)
-- [Room](https://developer.android.com/training/data-storage/room) (Database)
-- [Coil](https://coil-kt.github.io/coil/) (Image loading)
-- [Material You](https://m3.material.io/) (UI design)
-- [Navigation 3](https://developer.android.com/guide/navigation/navigation-3) (Navigation)
-- [Okhttp](https://square.github.io/okhttp/) (HTTP client)
-- [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization) (JSON serialization)
+- [Kotlin](https://kotlinlang.org/)（开发语言）
+- [Koin](https://insert-koin.io/)（依赖注入）
+- [Jetpack Compose](https://developer.android.com/jetpack/compose)（UI 框架）
+- [DataStore](https://developer.android.com/topic/libraries/architecture/datastore)（偏好数据存储）
+- [Room](https://developer.android.com/training/data-storage/room)（数据库）
+- [Coil](https://coil-kt.github.io/coil/)（图片加载）
+- [Material You](https://m3.material.io/)（UI 设计）
+- [Navigation 3](https://developer.android.com/guide/navigation/navigation-3)（导航）
+- [Okhttp](https://square.github.io/okhttp/)（HTTP 客户端）
+- [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization)（JSON 序列化）
 
 > [!TIP]
-> You need a `google-services.json` file at `app` folder to build the app.
+> 本分支已移除 Firebase，构建**无需** `google-services.json` 文件，可直接编译。
 
-> [!IMPORTANT]  
-> The following PRs will be rejected:
-> 1. Translation related changes, such as adding new languages or updating existing translations
-> 2. Adding new features, this project is opinionated and will not accept pull requests for new features
-> 3. Large-scale refactoring and changes generated by AI
-
-## 💰 Donate
+## 💰 捐赠
 
 * [Patreon](https://patreon.com/rikkahub)
 * [爱发电](https://afdian.com/a/reovo)
 
-## ⭐ Star History
+## 📄 许可证
 
-If you like this project, please give it a star ⭐
-
-<a href="https://www.star-history.com/?type=date&repos=re-ovo%2Frikkahub">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=re-ovo/rikkahub&type=date&theme=dark&legend=top-left&sealed_token=qSytWeq7LkzQQViTjK0MYlvvA_qkfuwjOxOqgbRpLUZZwok5rO6LXhpVL7Mq-q3o89BfKpzE7g66BCy18H6eiqTsD8czD0J-HejLqmHy-npcvCTHu11wZw" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=re-ovo/rikkahub&type=date&legend=top-left&sealed_token=qSytWeq7LkzQQViTjK0MYlvvA_qkfuwjOxOqgbRpLUZZwok5rO6LXhpVL7Mq-q3o89BfKpzE7g66BCy18H6eiqTsD8czD0J-HejLqmHy-npcvCTHu11wZw" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=re-ovo/rikkahub&type=date&legend=top-left&sealed_token=qSytWeq7LkzQQViTjK0MYlvvA_qkfuwjOxOqgbRpLUZZwok5rO6LXhpVL7Mq-q3o89BfKpzE7g66BCy18H6eiqTsD8czD0J-HejLqmHy-npcvCTHu11wZw" />
- </picture>
-</a>
-
-## 📄 License
-
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
+本项目基于 [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0）授权。
