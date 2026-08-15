@@ -344,6 +344,10 @@ fun ChatInput(
                                 val enabledSubAgents = settings.subagents.filter {
                                     it.id in assistant.subagentIds
                                 }
+                                // 角标 = 正在被调用的 subagent 数量（有调用才显示）
+                                val runningSubAgents = remember(enabledSubAgents, messages) {
+                                    countRunningSubAgents(enabledSubAgents, messages)
+                                }
                                 if (showSubAgentMonitor) {
                                     val navController = LocalNavController.current
                                     SubAgentMonitorSheet(
@@ -361,7 +365,7 @@ fun ChatInput(
                                     )
                                 }
                                 SubAgentMonitorButton(
-                                    enabledCount = enabledSubAgents.size,
+                                    runningCount = runningSubAgents,
                                     onClick = { showSubAgentMonitor = true },
                                 )
                             }
@@ -403,6 +407,8 @@ fun ChatInput(
                                                 }
                                             },
                                             onDelete = { taskId ->
+                                                // 立即从本地列表移除（删除是异步的，避免等轮询才有反应）
+                                                bgTasks = bgTasks.filterNot { it.taskId == taskId }
                                                 bgTaskScope.launch {
                                                     runCatching { workspaceBgManager.deleteTask(bgTaskRoot, taskId) }
                                                 }

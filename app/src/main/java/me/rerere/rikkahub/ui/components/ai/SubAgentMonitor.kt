@@ -40,16 +40,16 @@ import kotlin.uuid.Uuid
 
 /**
  * 输入框工具条上的 subagent 监看入口：当前助手启用了 subagent 时显示，
- * 角标 = 启用的 subagent 数量。样式对齐 TodoStatusButton（ToggleSurface）。
+ * 角标 = 正在被调用的 subagent 数量（有调用才显示数字）。样式对齐 TodoStatusButton（ToggleSurface）。
  */
 @Composable
 fun SubAgentMonitorButton(
-    enabledCount: Int,
+    runningCount: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     ToggleSurface(
-        checked = enabledCount > 0,
+        checked = runningCount > 0,
         onClick = onClick,
         modifier = modifier,
     ) {
@@ -59,8 +59,8 @@ fun SubAgentMonitorButton(
         ) {
             BadgedBox(
                 badge = {
-                    if (enabledCount > 0) {
-                        Badge { Text(enabledCount.coerceAtMost(99).toString()) }
+                    if (runningCount > 0) {
+                        Badge { Text(runningCount.coerceAtMost(99).toString()) }
                     }
                 },
             ) {
@@ -75,6 +75,15 @@ fun SubAgentMonitorButton(
                 }
             }
         }
+    }
+}
+
+/** 统计当前正在被调用的 subagent 数量（工具调用已发起、结果尚未回填 = 执行中） */
+fun countRunningSubAgents(subAgents: List<SubAgent>, messages: List<UIMessage>): Int {
+    val toolNames = computeSubAgentToolNames(subAgents)
+    return subAgents.count { subAgent ->
+        val toolName = toolNames[subAgent.id] ?: return@count false
+        lastInvocation(toolName, messages)?.first == SubAgentRunStatus.RUNNING
     }
 }
 
