@@ -193,11 +193,15 @@ fun SubAgentEditPage(id: String) {
                         value = selectedModelLabel,
                         onValueChange = {},
                         readOnly = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { modelListState.open() },
+                        modifier = Modifier.fillMaxWidth(),
                         label = { Text(stringResource(R.string.subagents_edit_model)) },
                         singleLine = true,
+                    )
+                    // 点击遮罩：readOnly TextField 会消费指针事件，外挂 clickable 不可靠
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { modelListState.open() },
                     )
                     ModelListSheet(
                         state = modelListState,

@@ -1324,6 +1324,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="todo_sheet_clear_confirm_confirm">清空</string>
   <string name="todo_sheet_clear_confirm_cancel">取消</string>
   <string name="subagent_monitor_button">子智能体监看</string>
+  <string name="subagent_monitor_running_badge">执行中</string>
   <string name="bg_task_button">后台任务</string>
   <string name="bg_task_sheet_title">后台任务（%1$d）</string>
   <string name="bg_task_sheet_empty">暂无后台任务</string>

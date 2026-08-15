@@ -29,6 +29,7 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.AiBrain01
+import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.hugeicons.stroke.Settings02
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.slugify
@@ -87,13 +88,14 @@ private enum class SubAgentRunStatus {
     DONE,       // 有输出但无法解析状态
 }
 
-/** subagent 监看面板：列出当前助手启用的 subagent 及其最近调用状态。 */
+/** subagent 监看面板：列出当前助手启用的 subagent 及其最近调用状态，点击条目查看执行轨迹。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SubAgentMonitorSheet(
     subAgents: List<SubAgent>,
     messages: List<UIMessage>,
     onDismiss: () -> Unit,
+    onOpenTrace: (String) -> Unit,
     onManage: (String) -> Unit,
 ) {
     // 与 SubAgentTools.createSubAgentTools 相同的工具名生成规则，用于在消息里匹配调用
@@ -125,12 +127,28 @@ fun SubAgentMonitorSheet(
                     val (status, preview) = toolName?.let { lastInvocation(it, messages) }
                         ?: (SubAgentRunStatus.NEVER to "")
                     ListItem(
-                        headlineContent = {
-                            Text(
-                                text = subAgent.name.ifBlank { subAgent.id.toString() },
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                        onClick = { onOpenTrace(subAgent.id.toString()) },
+                        content = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    text = subAgent.name.ifBlank { subAgent.id.toString() },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                // 运行中标记
+                                if (status == SubAgentRunStatus.RUNNING) {
+                                    Text(
+                                        text = stringResource(R.string.subagent_monitor_running_badge),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(start = 8.dp),
+                                    )
+                                }
+                            }
                         },
                         supportingContent = {
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -166,10 +184,17 @@ fun SubAgentMonitorSheet(
                             }
                         },
                         trailingContent = {
-                            IconButton(onClick = { onManage(subAgent.id.toString()) }) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { onManage(subAgent.id.toString()) }) {
+                                    Icon(
+                                        imageVector = HugeIcons.Settings02,
+                                        contentDescription = stringResource(R.string.subagent_monitor_manage),
+                                    )
+                                }
                                 Icon(
-                                    imageVector = HugeIcons.Settings02,
-                                    contentDescription = stringResource(R.string.subagent_monitor_manage),
+                                    imageVector = HugeIcons.ArrowRight01,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
                                 )
                             }
                         },

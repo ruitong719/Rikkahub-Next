@@ -350,6 +350,10 @@ fun ChatInput(
                                         subAgents = enabledSubAgents,
                                         messages = messages,
                                         onDismiss = { showSubAgentMonitor = false },
+                                        onOpenTrace = { id ->
+                                            showSubAgentMonitor = false
+                                            navController.navigate(Screen.SubAgentTrace(id))
+                                        },
                                         onManage = { id ->
                                             showSubAgentMonitor = false
                                             navController.navigate(Screen.SubAgentEdit(id))

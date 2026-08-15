@@ -1312,6 +1312,7 @@
   <string name="todo_sheet_clear_confirm_confirm">Clear</string>
   <string name="todo_sheet_clear_confirm_cancel">Cancel</string>
   <string name="subagent_monitor_button">Subagent monitor</string>
+  <string name="subagent_monitor_running_badge">Running</string>
   <string name="bg_task_button">Background tasks</string>
   <string name="bg_task_sheet_title">Background tasks (%1$d)</string>
   <string name="bg_task_sheet_empty">No background tasks</string>
