@@ -81,7 +81,8 @@ val appModule = module {
             skillManager = get(),
             workspaceRepository = get(),
             folderRepository = get(),
-            workspaceBgManager = get()
+            workspaceBgManager = get(),
+            subAgentRunMonitor = get()
         )
     }
 

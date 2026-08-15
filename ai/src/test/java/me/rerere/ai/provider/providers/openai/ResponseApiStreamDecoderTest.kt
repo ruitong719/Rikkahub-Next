@@ -178,7 +178,7 @@ class ResponseApiStreamDecoderTest {
                 put("summary_index", 0)
                 put("delta", "summary")
             }))
-            addAll(decoder.decode(reasoningItemEvent("response.output_item.done", "encrypted")))
+            addAll(decoder.decode(reasoningItemEvent("response.output_item.done")))
         }
 
         val handler = StreamChunkHandler(Model(modelId = "test-model"))
@@ -191,6 +191,7 @@ class ResponseApiStreamDecoderTest {
         assertEquals("raw", reasoningParts.single { it.reasoningType == ReasoningType.REASONING_TEXT }.reasoning)
         assertEquals("summary", reasoningParts.single { it.reasoningType == ReasoningType.SUMMARY_TEXT }.reasoning)
 
+        // 无 encrypted_content 时明文 raw reasoning 随 content 回传
         val reasoningItem = api.buildMessages(messages).last().jsonObject
         assertEquals(
             "summary",

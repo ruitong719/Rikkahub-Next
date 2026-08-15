@@ -269,3 +269,76 @@
 - Room DB 当前版本 27；删除模式注入/世界书后旧库升级会丢弃
   `mode_injection_ids`/`lorebook_ids` 两列（AutoMigration 自动完成）
 - web-ui 本机构建仍以 `-x :web:buildWebUi` 跳过（无 node/pnpm 环境）
+
+---
+
+# Rikkahub Next v1.00 — 2026-08-15 变更记录
+
+## A. 合并上游 2.4.9
+
+- `git merge upstream/master`（22 commits，bump 2.4.9/176）：保留 fork 全部功能
+  （workspace 八工具/后台任务/subagent/思考深度映射/移除 Firebase），采用上游修复与新功能
+- 冲突解决：provider 导入并集、deepseek/nvidia 保留映射表逻辑、搜索按钮保留显示开关、
+  strings 并集；`ReasoningEffortMappings` 补充上游新增 `ReasoningLevel.MAX`（DEFAULT 与
+  deepseek-v4 覆盖均加 MAX→max）
+
+## B. 版本与品牌
+
+- 版本号 `1.00`（versionCode 177，取上游 176 + 1）
+- 图标：按 CI 工作流"还原旧版图标"步骤直接应用进仓库（ci-assets → mipmap 全套
+  ic_launcher/background/foreground/monochrome + assets/icons/rikkahub.svg），不再依赖 CI 替换
+- 删除兔子加载动画（RabbitLoading.kt / rabbit.xml），一律用默认 ContainedLoadingIndicator；
+  移除"使用APP图标风格加载指示器"开关（保留 Settings 字段兼容旧数据）
+
+## C. 文案与页面收敛
+
+- 提供商类型三段选择器：`Google Gemini` → `Gemini`（en/zh）
+- 模型编辑页「思考深度映射」→「思考映射」（zh；en 已是 Reasoning Mapping）
+- 删除设置页「使用文档 / 赞助 / 分享」三个入口、赞助弹窗、`SettingDonate` 页/路由及相关
+  字符串（**保留** ShareHandler 接收外部分享与提供商配置分享能力）
+- 删除 ➕ 菜单中两个「导入酒馆角色卡」（AssistantImporter.kt 整体删除、相关字符串、
+  `ImageUtils.getTavernCharacterMeta`）
+
+## D. AGENT 指令 / /agent 目录 / 视觉模型
+
+- 「AGENT 指令（AGENTS.md）」设置上移至 设置→默认模型和提示词→提示词 tab（从偏好-常规页移出）
+- 新增 `/agent` 目录（挂载自 `filesDir/agent`，对齐 /upload 模式）：RepositoryModule 与
+  WorkspaceBgManager 内置挂载同步；Workspace 提示词新增 /agent 说明；WebDavSync FILES 备份覆盖
+- `AgentMdTransformer` 重写：读取 `/agent` 下全部 `*.md`（agent.md 优先、其余按文件名排序）
+  拼接注入首条 system 消息；目录为空时回退设置里的全局文本
+- 新增「视觉模型」设置（`Settings.visionModelId`，模型页可清空）与
+  `VisionImageToTextTransformer`（image-router 式降级）：主模型 inputModalities 不含 IMAGE 且
+  消息含图片时，用视觉模型逐张生成描述替换为文本（url 缓存防重复调用；历史消息一并修复，
+  避免纯文本模型解析图片报错）；视觉模型缺失/失败时透传
+
+## E. 聊天底栏
+
+- 智能体监看按钮图标 24→20dp
+- 新增「后台任务」按钮（智能体按钮之后）：仅当助手绑定工作区且存在后台任务时显示
+  （4s 轮询 WorkspaceBgManager.listTasks）；点击弹出任务列表面板（命令/状态/时间/输出预览，
+  运行中可 Kill、可刷新）
+
+## F. Subagent
+
+- 模型选择改为聊天底栏同款 `ModelListSheet`（sheet 顶部「跟随主聊天模型」项），
+  `modelId=null` 默认跟随主模型
+- 新增 `SubAgentRunMonitor`（Koin single，内存态轨迹注册表）+ `SubAgentRunner` 实时上报
+  （start / 工具调用步骤 / finish）
+- 智能体页：运行中的智能体显示「执行中」标记，点击进入新页面 `Screen.SubAgentTrace`
+  （状态/任务/工具调用步骤/最终结果，实时刷新）；已完成的可用轨迹图标查看最近一次运行
+
+## G. workspace_backup 工具
+
+- 只导出 `rikka_hub.db` 一致性快照：`items = [DATABASE]`，`prepareBackupFile` 新增
+  `includeSettings=false`（zip 不再含 settings.json）；工具描述同步更新
+
+## H. 备份/上传确认（无代码改动）
+
+- 备份已覆盖 `/skills` 整目录递归 + `workspaces/<ws>/linux/root`（= 沙箱 /root，含 .bashrc）
+- 上传接口图片与文件同流程（multipart + MIME 透传，无图片专用分支）
+
+## I. web-ui 构建
+
+- 本机缺失 node/pnpm（此前一直以 `-x :web:buildWebUi` 跳过）：
+  安装 Node.js v22 LTS + pnpm 后执行 `pnpm install && pnpm build`（react-router build +
+  copy.ts → web/src/main/resources/static）

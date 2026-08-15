@@ -783,6 +783,7 @@ private fun reasoningLevelLabelRes(level: ReasoningLevel): Int = when (level) {
     ReasoningLevel.MEDIUM -> R.string.reasoning_medium
     ReasoningLevel.HIGH -> R.string.reasoning_heavy
     ReasoningLevel.XHIGH -> R.string.reasoning_xhigh
+    ReasoningLevel.MAX -> R.string.reasoning_max
 }
 
 @Composable

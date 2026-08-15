@@ -152,7 +152,7 @@ class SubAgentRunner(
             ?.joinToString("\n") { it.text }
             ?.trim()
 
-        if (lastAssistantText.isNullOrBlank()) {
+        return if (lastAssistantText.isNullOrBlank()) {
             buildSubAgentResultJson(
                 status = "error",
                 result = "Reached max steps (${subAgent.maxSteps}) without a final answer",

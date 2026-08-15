@@ -28,6 +28,7 @@ import me.rerere.rikkahub.data.ai.SubAgentRunStatus
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.theme.CustomColors
+import me.rerere.rikkahub.utils.plus
 import org.koin.compose.koinInject
 import kotlin.uuid.Uuid
 
