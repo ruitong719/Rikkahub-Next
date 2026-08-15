@@ -337,8 +337,28 @@
 - 备份已覆盖 `/skills` 整目录递归 + `workspaces/<ws>/linux/root`（= 沙箱 /root，含 .bashrc）
 - 上传接口图片与文件同流程（multipart + MIME 透传，无图片专用分支）
 
-## I. web-ui 构建
+## I. web-ui 构建（pnpm 修复完成）
 
-- 本机缺失 node/pnpm（此前一直以 `-x :web:buildWebUi` 跳过）：
-  安装 Node.js v22 LTS + pnpm 后执行 `pnpm install && pnpm build`（react-router build +
-  copy.ts → web/src/main/resources/static）
+- 根因：本机从未安装 node/pnpm（此前一直以 `-x :web:buildWebUi` 跳过，static 目录为空）
+- 修复：安装 Node.js v22.12.0（C:\Development\nodejs）+ pnpm 10.34.5（npm 全局），
+  `pnpm install`（15s，lockfile 正常）→ `pnpm build`（react-router build + copy.ts →
+  web/src/main/resources/static，13MB 产物）
+- 验证：去掉 `-x :web:buildWebUi` 后 `assembleRelease` 全流水线（gradle → cmd → pnpm → static → APK）通过
+
+## J. 上游测试修复（#1719）
+
+- `ResponseApiStreamDecoderTest.raw reasoning and summary with the same index should remain distinct`
+  在上游 master 上本身为红（干净 worktree 复现确认）：#1719 实现出于安全考虑
+  （encrypted_content 存在时不回放明文 raw reasoning），测试却传了 encrypted 还断言
+  content 存在，二者矛盾
+- 修复：该测试的 done 事件不再携带 encrypted_content（明文场景下 content 正常回传），
+  distinctness 断言保持不变；encrypted 场景由另一条测试覆盖
+
+## K. 构建验证结论
+
+- `:ai:testDebugUnitTest`：177 个测试全绿（含 ReasoningEffortMappings / 修复后的
+  ResponseApiStreamDecoder）
+- `:app:assembleRelease`（含 :web:buildWebUi）：BUILD SUCCESSFUL
+  - app-arm64-v8a-release.apk（38.7MB）/ app-x86_64-release.apk（39.4MB）/
+    app-universal-release.apk（48.8MB，含 web-ui）
+- 版本号 1.00 / versionCode 177（`app/build.gradle.kts`）
