@@ -25,6 +25,7 @@ object ReasoningEffortMappings {
         ReasoningLevel.MEDIUM to "medium",
         ReasoningLevel.HIGH to "high",
         ReasoningLevel.XHIGH to "xhigh",
+        ReasoningLevel.MAX to "max",
     )
 
     /** 按供应商作用域的默认修正（对 [DEFAULT] 的覆盖） */
@@ -56,6 +57,7 @@ object ReasoningEffortMappings {
             ReasoningLevel.MEDIUM to "high",
             ReasoningLevel.HIGH to "high",
             ReasoningLevel.XHIGH to "max",
+            ReasoningLevel.MAX to "max",
         ),
         // 需要为具体模型单独指定映射时在此追加，例如：
         // "kimi-k3" to mapOf(ReasoningLevel.XHIGH to "max"),
