@@ -353,6 +353,16 @@
   <string name="subagents_page_empty">No subagents yet</string>
   <string name="subagents_page_empty_desc">Create one to let the AI delegate focused tasks</string>
   <string name="subagents_page_unnamed">Unnamed subagent</string>
+  <string name="subagents_page_running">Running</string>
+  <string name="subagents_trace_title">Execution Trace</string>
+  <string name="subagents_trace_empty">This subagent has not run yet</string>
+  <string name="subagents_trace_status_running">Running…</string>
+  <string name="subagents_trace_status_success">Succeeded</string>
+  <string name="subagents_trace_status_error">Failed</string>
+  <string name="subagents_trace_status_timeout">Timed out</string>
+  <string name="subagents_trace_task">Task</string>
+  <string name="subagents_trace_steps">Tool calls (%1$d steps)</string>
+  <string name="subagents_trace_result">Final result</string>
   <string name="subagents_page_meta">%1$d tools · %2$d skills</string>
   <string name="subagents_page_duplicate">Duplicate</string>
   <string name="subagents_page_delete_title">Delete subagent</string>

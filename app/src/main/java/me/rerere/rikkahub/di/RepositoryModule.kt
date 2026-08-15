@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.di
 
 import android.content.Context
+import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.files.SkillManager
@@ -85,6 +86,11 @@ val repositoryModule = module {
 
     single {
         FilesManager(get(), get(), get())
+    }
+
+    // subagent 执行轨迹注册表（进程内共享，供 SubAgentsPage / 轨迹页观察）
+    single {
+        SubAgentRunMonitor()
     }
 
     single {

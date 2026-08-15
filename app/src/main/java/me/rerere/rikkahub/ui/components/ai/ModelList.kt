@@ -245,6 +245,7 @@ fun ModelSelector(
 fun ModelListSheet(
     state: ModelListState,
     onSelect: (Model) -> Unit,
+    header: (@Composable () -> Unit)? = null,
 ) {
     if (!state.visible) return
 
@@ -274,6 +275,7 @@ fun ModelListSheet(
                 .imePadding(),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            header?.invoke()
             ModelList(
                 currentModel = state.modelId,
                 providers = state.filteredProviders,

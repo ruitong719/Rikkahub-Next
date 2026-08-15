@@ -10,11 +10,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -37,8 +37,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.ai.provider.ModelType
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.UserMultiple02
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.model.SubAgent
+import me.rerere.rikkahub.ui.components.ai.ModelListSheet
+import me.rerere.rikkahub.ui.components.ai.rememberModelListState
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalToaster
@@ -67,7 +71,6 @@ fun SubAgentEditPage(id: String) {
     var maxSteps by remember(initial) { mutableStateOf(initial.maxSteps.toString()) }
     var timeoutSec by remember(initial) { mutableStateOf((initial.timeoutMs / 1000).toString()) }
     var requiresApproval by remember(initial) { mutableStateOf(initial.requiresApproval) }
-    var showModelMenu by remember { mutableStateOf(false) }
 
     val toaster = LocalToaster.current
     val context = LocalContext.current
@@ -179,6 +182,12 @@ fun SubAgentEditPage(id: String) {
                 )
             }
             item {
+                // 模型选择：复用聊天底栏的模型选择弹窗（ModelListSheet），第一项为"跟随主聊天模型"
+                val modelListState = rememberModelListState(
+                    modelId = modelId.ifBlank { null }?.let { runCatching { Uuid.parse(it) }.getOrNull() },
+                    providers = settings.providers,
+                    type = ModelType.CHAT,
+                )
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = selectedModelLabel,
@@ -186,31 +195,42 @@ fun SubAgentEditPage(id: String) {
                         readOnly = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { showModelMenu = true },
+                            .clickable { modelListState.open() },
                         label = { Text(stringResource(R.string.subagents_edit_model)) },
                         singleLine = true,
                     )
-                    DropdownMenu(
-                        expanded = showModelMenu,
-                        onDismissRequest = { showModelMenu = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.subagents_edit_model_follow_main)) },
-                            onClick = {
-                                modelId = ""
-                                showModelMenu = false
-                            },
-                        )
-                        chatModels.forEach { (provider, model) ->
-                            DropdownMenuItem(
-                                text = { Text("${model.displayName} (${provider.name})") },
-                                onClick = {
-                                    modelId = model.id.toString()
-                                    showModelMenu = false
-                                },
-                            )
-                        }
-                    }
+                    ModelListSheet(
+                        state = modelListState,
+                        onSelect = { model ->
+                            modelId = model.id.toString()
+                        },
+                        header = {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        modelId = ""
+                                        modelListState.close()
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = HugeIcons.UserMultiple02,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.subagents_edit_model_follow_main),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                    )
+                                }
+                            }
+                        },
+                    )
                 }
             }
             item {

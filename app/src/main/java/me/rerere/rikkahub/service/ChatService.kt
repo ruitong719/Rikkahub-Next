@@ -47,6 +47,7 @@ import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.GenerationChunk
 import me.rerere.rikkahub.data.ai.GenerationHandler
+import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.ai.SubAgentRunner
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.createConversationTools
@@ -159,6 +160,7 @@ class ChatService(
     private val workspaceRepository: WorkspaceRepository,
     private val folderRepository: FolderRepository,
     private val workspaceBgManager: WorkspaceBgManager,
+    private val subAgentRunMonitor: SubAgentRunMonitor,
 ) {
     // workspace 系统提示注入 (依赖 workspaceRepository, 故在类内构造)
     private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository)
@@ -170,7 +172,7 @@ class ChatService(
     private val visionImageToTextTransformer = VisionImageToTextTransformer(providerManager)
 
     // subagent 嵌套执行核心（复用 GenerationHandler，无需 Koin 注册）
-    private val subAgentRunner = SubAgentRunner(generationHandler)
+    private val subAgentRunner = SubAgentRunner(generationHandler, subAgentRunMonitor)
 
     // 统一会话管理
     private val sessions = ConcurrentHashMap<Uuid, ConversationSession>()

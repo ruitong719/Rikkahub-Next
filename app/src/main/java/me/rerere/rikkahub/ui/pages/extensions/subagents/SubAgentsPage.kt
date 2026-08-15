@@ -32,12 +32,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.Activity02
 import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.Copy01
 import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.hugeicons.stroke.PencilEdit01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
+import me.rerere.rikkahub.data.ai.SubAgentRunStatus
 import me.rerere.rikkahub.data.model.SubAgent
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
@@ -45,6 +48,7 @@ import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import kotlin.uuid.Uuid
 
 @Composable
@@ -52,6 +56,8 @@ fun SubAgentsPage() {
     val navController = LocalNavController.current
     val vm = koinViewModel<SubAgentsVM>()
     val subagents by vm.subagents.collectAsStateWithLifecycle()
+    val runMonitor = koinInject<SubAgentRunMonitor>()
+    val runs by runMonitor.runs.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var deleteTarget by remember { mutableStateOf<SubAgent?>(null) }
 
@@ -107,10 +113,21 @@ fun SubAgentsPage() {
                 }
             } else {
                 items(subagents, key = { it.id.toString() }) { subAgent ->
+                    val run = runs[subAgent.id]
                     SubAgentCard(
                         subAgent = subAgent,
+                        running = run?.status == SubAgentRunStatus.RUNNING,
+                        hasTrace = run != null,
                         onClick = {
-                            navController.navigate(Screen.SubAgentEdit(subAgent.id.toString()))
+                            // 正在执行的智能体 -> 查看执行轨迹；否则进入编辑页
+                            if (run?.status == SubAgentRunStatus.RUNNING) {
+                                navController.navigate(Screen.SubAgentTrace(subAgent.id.toString()))
+                            } else {
+                                navController.navigate(Screen.SubAgentEdit(subAgent.id.toString()))
+                            }
+                        },
+                        onShowTrace = {
+                            navController.navigate(Screen.SubAgentTrace(subAgent.id.toString()))
                         },
                         onDuplicate = { vm.duplicateSubAgent(subAgent.id) },
                         onDelete = { deleteTarget = subAgent },
@@ -140,7 +157,10 @@ fun SubAgentsPage() {
 @Composable
 private fun SubAgentCard(
     subAgent: SubAgent,
+    running: Boolean,
+    hasTrace: Boolean,
     onClick: () -> Unit,
+    onShowTrace: () -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -159,10 +179,20 @@ private fun SubAgentCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Text(
-                    text = subAgent.name.ifBlank { stringResource(R.string.subagents_page_unnamed) },
-                    style = MaterialTheme.typography.titleMedium,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = subAgent.name.ifBlank { stringResource(R.string.subagents_page_unnamed) },
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    if (running) {
+                        Text(
+                            text = stringResource(R.string.subagents_page_running),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                }
                 Text(
                     text = subAgent.description.ifBlank { "-" },
                     style = MaterialTheme.typography.bodySmall,
@@ -179,6 +209,15 @@ private fun SubAgentCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline,
                 )
+            }
+            if (hasTrace) {
+                IconButton(onClick = onShowTrace) {
+                    Icon(
+                        imageVector = HugeIcons.Activity02,
+                        contentDescription = stringResource(R.string.subagents_trace_title),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
             IconButton(onClick = onDuplicate) {
                 Icon(

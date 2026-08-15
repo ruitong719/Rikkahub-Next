@@ -1307,6 +1307,16 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="subagents_page_meta">%1$d 个工具 · %2$d 个技能</string>
   <string name="subagents_page_title">Subagent</string>
   <string name="subagents_page_unnamed">未命名的 Subagent</string>
+  <string name="subagents_page_running">执行中</string>
+  <string name="subagents_trace_title">执行轨迹</string>
+  <string name="subagents_trace_empty">该智能体尚未执行过</string>
+  <string name="subagents_trace_status_running">执行中…</string>
+  <string name="subagents_trace_status_success">执行成功</string>
+  <string name="subagents_trace_status_error">执行失败</string>
+  <string name="subagents_trace_status_timeout">执行超时</string>
+  <string name="subagents_trace_task">任务</string>
+  <string name="subagents_trace_steps">工具调用（%1$d 步）</string>
+  <string name="subagents_trace_result">最终结果</string>
   <string name="todo_sheet_completed">已完成</string>
   <string name="todo_sheet_clear">清空列表</string>
   <string name="todo_sheet_clear_confirm_title">清空待办列表？</string>

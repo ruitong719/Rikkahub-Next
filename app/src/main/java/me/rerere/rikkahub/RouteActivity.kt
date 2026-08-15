@@ -93,6 +93,7 @@ import me.rerere.rikkahub.ui.pages.extensions.QuickMessagesPage
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillDetailPage
 import me.rerere.rikkahub.ui.pages.extensions.skills.SkillsPage
 import me.rerere.rikkahub.ui.pages.extensions.subagents.SubAgentEditPage
+import me.rerere.rikkahub.ui.pages.extensions.subagents.SubAgentTracePage
 import me.rerere.rikkahub.ui.pages.extensions.subagents.SubAgentsPage
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspacePage
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceDetailPage
@@ -494,6 +495,10 @@ class RouteActivity : ComponentActivity() {
                                 SubAgentEditPage(key.id)
                             }
 
+                            entry<Screen.SubAgentTrace> { key ->
+                                SubAgentTracePage(key.id)
+                            }
+
                             entry<Screen.Workspaces> {
                                 WorkspacePage()
                             }
@@ -703,6 +708,9 @@ sealed interface Screen : NavKey {
 
     @Serializable
     data class SubAgentEdit(val id: String) : Screen
+
+    @Serializable
+    data class SubAgentTrace(val id: String) : Screen
 
     @Serializable
     data object Workspaces : Screen

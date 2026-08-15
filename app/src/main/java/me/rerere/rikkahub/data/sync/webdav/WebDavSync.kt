@@ -136,7 +136,10 @@ class WebDavSync(
         }
     }
 
-    suspend fun prepareBackupFile(config: WebDavConfig): File = withContext(Dispatchers.IO) {
+    suspend fun prepareBackupFile(
+        config: WebDavConfig,
+        includeSettings: Boolean = true,
+    ): File = withContext(Dispatchers.IO) {
         val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
         val backupFile = File(context.cacheDir, "backup_$timestamp.zip")
 
@@ -146,11 +149,13 @@ class WebDavSync(
 
         // Create zip file and backup data
         ZipOutputStream(FileOutputStream(backupFile)).use { zipOut ->
-            addVirtualFileToZip(
-                zipOut = zipOut,
-                name = "settings.json",
-                content = json.encodeToString(settingsStore.settingsFlow.value)
-            )
+            if (includeSettings) {
+                addVirtualFileToZip(
+                    zipOut = zipOut,
+                    name = "settings.json",
+                    content = json.encodeToString(settingsStore.settingsFlow.value)
+                )
+            }
 
             // Backup database files: 一致性快照（先 wal_checkpoint 合并，避免 WAL 撕裂快照丢失最新会话）
             if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {

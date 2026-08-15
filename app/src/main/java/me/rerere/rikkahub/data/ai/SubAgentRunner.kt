@@ -23,9 +23,12 @@ import kotlin.uuid.Uuid
  *
  * 工具集：主工具池按 allowlist 过滤（needsApproval 覆盖为 false，派发时已一次性审批）
  * + subagent 自己的 enabledSkills 构建的 skill 工具。
+ *
+ * 执行轨迹：运行期间把工具调用步骤实时上报给 [monitor]，供执行轨迹页展示。
  */
 class SubAgentRunner(
     private val generationHandler: GenerationHandler,
+    private val monitor: SubAgentRunMonitor,
 ) {
     suspend fun run(
         subAgent: SubAgent,
@@ -38,10 +41,52 @@ class SubAgentRunner(
         memories: List<AssistantMemory>?,
         toolCatalog: List<Tool>,
         allSkills: List<SkillMetadata>,
-    ): String = withTimeoutOrNull(subAgent.timeoutMs) {
+    ): String {
+        monitor.start(subAgent.id, task)
+        val result = withTimeoutOrNull(subAgent.timeoutMs) {
+            runInternal(
+                subAgent = subAgent,
+                assistant = assistant,
+                settings = settings,
+                conversationSystemPrompt = conversationSystemPrompt,
+                conversationHistory = conversationHistory,
+                task = task,
+                context = context,
+                memories = memories,
+                toolCatalog = toolCatalog,
+                allSkills = allSkills,
+            )
+        } ?: buildSubAgentResultJson(
+            status = "timeout",
+            result = "Subagent timed out after ${subAgent.timeoutMs}ms",
+            steps = 0,
+            usage = null,
+        )
+        val (status, message) = when {
+            "\"status\":\"success\"" in result -> SubAgentRunStatus.SUCCESS to ""
+            "\"status\":\"timeout\"" in result -> SubAgentRunStatus.TIMEOUT to "timed out"
+            "\"status\":\"error\"" in result -> SubAgentRunStatus.ERROR to "failed"
+            else -> SubAgentRunStatus.ERROR to "unknown"
+        }
+        monitor.finish(subAgent.id, status, result = result, message = message)
+        return result
+    }
+
+    private suspend fun runInternal(
+        subAgent: SubAgent,
+        assistant: Assistant,
+        settings: Settings,
+        conversationSystemPrompt: String?,
+        conversationHistory: List<UIMessage>,
+        task: String,
+        context: String?,
+        memories: List<AssistantMemory>?,
+        toolCatalog: List<Tool>,
+        allSkills: List<SkillMetadata>,
+    ): String {
         val model = settings.findModelById(
             subAgent.modelId ?: assistant.chatModelId ?: settings.chatModelId
-        ) ?: return@withTimeoutOrNull buildSubAgentResultJson(
+        ) ?: return buildSubAgentResultJson(
             status = "error",
             result = "Model not found for subagent '${subAgent.name}'",
             steps = 0,
@@ -97,6 +142,7 @@ class SubAgentRunner(
         ).collect { chunk ->
             if (chunk is GenerationChunk.Messages) {
                 finalMessages = chunk.messages
+                monitor.updateSteps(subAgent.id, extractSteps(finalMessages))
             }
         }
 
@@ -121,10 +167,29 @@ class SubAgentRunner(
                 usage = finalMessages.lastOrNull()?.usage,
             )
         }
-    } ?: buildSubAgentResultJson(
-        status = "timeout",
-        result = "Subagent timed out after ${subAgent.timeoutMs}ms",
-        steps = 0,
-        usage = null,
-    )
+    }
+
+    /** 从最终消息中提取已执行的工具调用（工具名 + 简略输入/输出） */
+    private fun extractSteps(messages: List<UIMessage>): List<SubAgentRunStep> = buildList {
+        messages.forEach { message ->
+            message.parts.forEach { part ->
+                if (part is UIMessagePart.Tool && part.isExecuted) {
+                    val input = part.input.trim().replace('\n', ' ').take(80)
+                    val outputText = part.output
+                        .filterIsInstance<UIMessagePart.Text>()
+                        .joinToString(" ") { it.text }
+                        .trim()
+                        .replace('\n', ' ')
+                        .take(120)
+                    add(
+                        SubAgentRunStep(
+                            toolName = part.toolName,
+                            inputPreview = input,
+                            outputPreview = outputText,
+                        )
+                    )
+                }
+            }
+        }
+    }
 }

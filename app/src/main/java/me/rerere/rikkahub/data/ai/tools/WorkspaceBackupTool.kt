@@ -17,8 +17,8 @@ import java.io.File
  * workspace_create_backup: 复用"备份与恢复—导出到本地"的备份生成逻辑，
  * 在 /workspace 下生成 backup.zip，并返回文件路径供 LLM 处理。
  *
- * 注意：备份 zip 包含全部聊天记录/设置/上传文件（隐私敏感），默认需要用户审批。
- * 功能四修复后，zip 内的数据库是 wal_checkpoint 后的一致性快照。
+ * 注意：只导出 rikka_hub.db 数据库一致性快照（不含设置/上传文件等隐私数据）。
+ * zip 内的数据库是 wal_checkpoint 后的一致性快照。
  */
 fun createWorkspaceBackupTool(
     workspaceId: String,
@@ -27,9 +27,8 @@ fun createWorkspaceBackupTool(
 ): Tool = Tool(
     name = "workspace_create_backup",
     description = buildString {
-        append("Create a full app backup (settings, database and files) as /workspace/backup.zip inside the workspace. ")
+        append("Create a database-only backup (rikka_hub.db consistent snapshot) as /workspace/backup.zip inside the workspace. ")
         append("Returns the file path. ")
-        append("The zip contains all conversations and settings - treat it as sensitive. ")
         append("Use workspace_shell (e.g. unzip -l) to inspect it; the database inside is a consistent snapshot.")
     },
     parameters = { InputSchema.Obj(properties = buildJsonObject {}, required = emptyList()) },
@@ -41,9 +40,11 @@ fun createWorkspaceBackupTool(
         val settingsStore = getKoin().get<SettingsStore>()
         val webDavSync = getKoin().get<WebDavSync>()
         val backupFile = webDavSync.prepareBackupFile(
-            settingsStore.settingsFlow.value.webDavConfig.copy(
-                items = WebDavConfig.BackupItem.entries
-            )
+            config = settingsStore.settingsFlow.value.webDavConfig.copy(
+                items = listOf(WebDavConfig.BackupItem.DATABASE)
+            ),
+            // 只导出数据库文件，不含 settings.json
+            includeSettings = false,
         )
 
         // 复制到工作区文件区 /workspace/backup.zip（固定文件名，每次覆盖）
