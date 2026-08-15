@@ -127,6 +127,8 @@ class SubAgentRunner(
         }
         // 主 Agent 对话记录（去 think） + 任务；不传主 Agent 的 transformers
         val messages = stripReasoning(conversationHistory) + UIMessage.user(taskMessage)
+        // 本次运行新增消息的起始下标：轨迹只记录本次运行自己的工具调用，排除继承的主对话历史
+        val ownMessageStart = messages.size
 
         var finalMessages: List<UIMessage> = emptyList()
         generationHandler.generateText(
@@ -142,7 +144,10 @@ class SubAgentRunner(
         ).collect { chunk ->
             if (chunk is GenerationChunk.Messages) {
                 finalMessages = chunk.messages
-                monitor.updateSteps(subAgent.id, extractSteps(finalMessages))
+                monitor.updateSteps(
+                    subAgent.id,
+                    extractSteps(finalMessages, fromIndex = ownMessageStart)
+                )
             }
         }
 
@@ -169,9 +174,9 @@ class SubAgentRunner(
         }
     }
 
-    /** 从最终消息中提取已执行的工具调用（工具名 + 简略输入/输出） */
-    private fun extractSteps(messages: List<UIMessage>): List<SubAgentRunStep> = buildList {
-        messages.forEach { message ->
+    /** 从本次运行新增的消息中提取已执行的工具调用（工具名 + 简略输入/输出） */
+    private fun extractSteps(messages: List<UIMessage>, fromIndex: Int): List<SubAgentRunStep> = buildList {
+        messages.drop(fromIndex).forEach { message ->
             message.parts.forEach { part ->
                 if (part is UIMessagePart.Tool && part.isExecuted) {
                     val input = part.input.trim().replace('\n', ' ').take(80)

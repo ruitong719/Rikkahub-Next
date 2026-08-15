@@ -166,6 +166,21 @@ class WorkspaceBgManager(
             true
         }
 
+    /** 删除任务：运行中的先 kill，再删除整个任务目录（.l2s.bg/<taskId>） */
+    suspend fun deleteTask(workspaceRoot: String, taskId: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val dir = taskDir(workspaceRoot, taskId)
+            if (!dir.isDirectory) return@withContext false
+            val pid = File(dir, "pid").takeIf { it.exists() }?.readText()?.trim()
+            if (!pid.isNullOrBlank()) {
+                runCatching {
+                    ensureSession(workspaceRoot).submit("kill ${pid.shellQuote()} 2>/dev/null || true\n")
+                }
+            }
+            dir.deleteRecursively()
+            true
+        }
+
     /** 标记任务已完成提醒（提醒注入后调用，避免重复提醒） */
     fun markNotified(workspaceRoot: String, taskId: String) {
         File(taskDir(workspaceRoot, taskId), "notified").writeText("1")

@@ -402,6 +402,11 @@ fun ChatInput(
                                                     runCatching { workspaceBgManager.killTask(bgTaskRoot, taskId) }
                                                 }
                                             },
+                                            onDelete = { taskId ->
+                                                bgTaskScope.launch {
+                                                    runCatching { workspaceBgManager.deleteTask(bgTaskRoot, taskId) }
+                                                }
+                                            },
                                             onRefresh = { bgTaskRefreshTick++ },
                                             onDismiss = { showBgTaskSheet = false },
                                         )

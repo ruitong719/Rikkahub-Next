@@ -1320,6 +1320,7 @@
   <string name="bg_task_status_done">Done</string>
   <string name="bg_task_status_failed">Failed</string>
   <string name="bg_task_kill">Kill</string>
+  <string name="bg_task_delete">Delete task</string>
   <string name="bg_task_refresh">Refresh</string>
   <string name="subagent_monitor_sheet_title">Subagents (%1$d enabled)</string>
   <string name="subagent_monitor_empty">No subagents enabled for this assistant</string>
