@@ -75,7 +75,6 @@ import me.rerere.rikkahub.ui.hooks.EditStateContent
 import me.rerere.rikkahub.ui.hooks.heroAnimation
 import me.rerere.rikkahub.ui.hooks.useEditState
 import me.rerere.rikkahub.ui.modifier.onClick
-import me.rerere.rikkahub.ui.pages.assistant.detail.AssistantImporter
 import me.rerere.rikkahub.ui.theme.CustomColors
 import org.koin.androidx.compose.koinViewModel
 import sh.calvin.reorderable.ReorderableItem
@@ -358,14 +357,6 @@ private fun AssistantCreationSheet(
                             }, modifier = Modifier.fillMaxWidth()
                         )
                     }
-
-                    AssistantImporter(
-                        onUpdate = {
-                            update(it)
-                            state.confirm()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),

@@ -27,16 +27,6 @@
   <string name="assistant_extensions_page_tab_skills">Skills</string>
   <string name="assistant_extensions_page_tab_subagents">Subagent</string>
   <string name="assistant_extensions_page_title">扩展管理</string>
-  <string name="assistant_importer_import_failed">导入失败</string>
-  <string name="assistant_importer_import_tavern_json">导入酒馆角色卡 (JSON)</string>
-  <string name="assistant_importer_import_tavern_png">导入酒馆角色卡 (PNG)</string>
-  <string name="assistant_importer_importing">导入中...</string>
-  <string name="assistant_importer_missing_data_field">缺少数据字段</string>
-  <string name="assistant_importer_missing_name_field">缺少名称字段</string>
-  <string name="assistant_importer_missing_spec_field">缺少 spec 字段</string>
-  <string name="assistant_importer_read_json_failed">读取JSON失败</string>
-  <string name="assistant_importer_unsupported_file_type">不支持的文件类型: %s</string>
-  <string name="assistant_importer_unsupported_spec">不支持的规格: %s</string>
   <string name="assistant_page_actions">操作</string>
   <string name="assistant_page_add">添加</string>
   <string name="assistant_page_add_body">添加 Body</string>
@@ -747,7 +737,7 @@
   <string name="setting_page_assistant">助手</string>
   <string name="setting_page_assistant_desc">设置个性化助手 (智能体)</string>
   <string name="setting_page_built_in_tools">内置工具</string>
-  <string name="setting_provider_page_reasoning_mapping">思考深度映射</string>
+  <string name="setting_provider_page_reasoning_mapping">思考映射</string>
   <string name="setting_provider_page_reasoning_mapping_desc">设置六个思考深度等级对应发送给供应商的思考等级。留空的等级使用内置映射表（占位符即默认值），填写后以自定义值为准。</string>
   <string name="setting_provider_page_reasoning_mapping_default">默认：%1$s</string>
   <string name="setting_provider_page_reasoning_mapping_reset">恢复内置映射</string>
@@ -785,10 +775,6 @@
   <string name="setting_page_default_model_desc">设置各个功能的默认模型</string>
   <string name="setting_page_display_setting">显示设置</string>
   <string name="setting_page_display_setting_desc">管理显示设置</string>
-  <string name="setting_page_documentation">使用文档</string>
-  <string name="setting_page_documentation_desc">查看应用使用说明和帮助文档</string>
-  <string name="setting_page_donate">赞助</string>
-  <string name="setting_page_donate_desc">如果你喜欢这个应用，请赞助作者的工作</string>
   <string name="setting_page_dynamic_color">动态颜色</string>
   <string name="setting_page_dynamic_color_desc">是否基于壁纸动态生成 app 主题配色</string>
   <string name="setting_page_extensions">扩展管理</string>
@@ -799,7 +785,6 @@
   <string name="setting_page_mcp_desc">配置MCP服务器</string>
   <string name="setting_page_message_display_settings">消息显示</string>
   <string name="setting_page_model_and_services">模型与服务</string>
-  <string name="setting_page_no_share_app">找不到分享应用</string>
   <string name="setting_page_providers">提供商</string>
   <string name="setting_page_providers_desc">配置AI提供商</string>
   <string name="setting_page_request_logs">请求日志</string>
@@ -815,13 +800,6 @@
   <string name="setting_page_search_test_query_hint">输入测试查询…</string>
   <string name="setting_page_search_test_run">运行测试</string>
   <string name="setting_page_search_title">搜索服务</string>
-  <string name="setting_page_share">分享</string>
-  <string name="setting_page_share_desc">分享本APP给朋友</string>
-  <string name="setting_page_share_text">RikkaHub - 开源安卓AI助手\n\n官网: https://rikka-ai.com/</string>
-  <string name="setting_page_sponsor_alert_confirm">捐赠</string>
-  <string name="setting_page_sponsor_alert_desc">您已启动应用超过100次！如果您喜欢使用它，请考虑支持开发者。</string>
-  <string name="setting_page_sponsor_alert_dismiss">暂不</string>
-  <string name="setting_page_sponsor_alert_title">支持开发者</string>
   <string name="setting_page_theme_setting">主题</string>
   <string name="setting_page_theme_setting_desc">自定义应用配色方案</string>
   <string name="setting_theme_page_preset_themes">预设主题</string>
@@ -864,7 +842,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_provider_page_add">添加</string>
   <string name="setting_provider_page_add_model">添加模型</string>
   <string name="provider_type_openai">OpenAI</string>
-  <string name="provider_type_google">Google Gemini</string>
+  <string name="provider_type_google">Gemini</string>
   <string name="provider_type_claude">Claude</string>
   <string name="setting_provider_page_add_models_hint">点击下方按钮添加模型</string>
   <string name="setting_provider_page_add_new_model">添加新模型</string>
