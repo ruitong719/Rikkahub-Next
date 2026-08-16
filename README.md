@@ -1,11 +1,7 @@
 <div align="center">
   <img src="docs/icon.png" alt="应用图标" width="100" />
   <h1>Rikkahub Next</h1>
-
 原生 Android LLM 聊天客户端，支持在多个 AI 提供商之间自由切换 🤖💬
-
-[简体中文](README.md)（默认）
-</div>
 
 <div align="center">
   <img src="docs/img/chat.png" alt="聊天界面" width="150" />
@@ -14,10 +10,9 @@
 
 ## 🔗 与上游的关系
 
-本项目是 [RikkaHub](https://github.com/rikkahub/rikkahub)（[AGPL-3.0](LICENSE) 协议）的**中文定制分支（fork）**：
+本项目是 [RikkaHub](https://github.com/rikkahub/rikkahub)（[AGPL-3.0](LICENSE) 协议）的**Fork**：
 
 - **基线**：上游 `master` 2.4.9（`0c52b62b`），并持续跟踪上游更新
-- **方向**：在保留上游全部功能的基础上，面向中文用户做定制与增强
 
 ### 本分支与上游的差异
 
@@ -25,7 +20,7 @@
   - Firebase / google-services（构建**不再需要** `google-services.json`）
   - 模式注入 / 世界书（数据库迁移 26 → 27）
 - ➕ **新增**：
-  - Workspace 增强：后台任务、SAF 目录挂载、导出到手机、`backup.zip` 备份工具
+  - Workspace 增强：后台任务、SAF 目录挂载、导出到手机、`.db` 备份导出工具
   - Subagent（子代理）：数据模型、预置模板、运行器与完整编辑页
   - Todo 工具、per-tool 可注入提示词、思考深度映射
   - 应用图标与品牌更名为 Rikkahub Next
@@ -55,7 +50,6 @@
 - 🧠 类 ChatGPT 记忆功能
 - 📝 AI 翻译
 - 🌐 自定义 HTTP 请求头与请求体
-- 💌 Silly Tavern 角色卡导入
 - ⏳ Workspace 后台任务（关闭应用后继续执行）
 - 📂 SAF 目录挂载 / 文件导出到手机
 - 🧩 Subagent 子代理与 Todo 工具
@@ -70,7 +64,7 @@
 
 ## 🤝 贡献
 
-本项目使用 [Android Studio](https://developer.android.com/studio) 开发，欢迎提交 PR。
+本项目使用 **ZCode** 开发，欢迎提交 PR。
 
 技术栈：
 
@@ -87,6 +81,10 @@
 
 > [!TIP]
 > 本分支已移除 Firebase，构建**无需** `google-services.json` 文件，可直接编译。
+
+```
+cd .../rikkahub-next && JAVA_HOME="YOUR_JAVA_HOME" ./gradlew.bat -I .../rikkahub-next/init.gradle --no-configuration-cache :ai:testDebugUnitTest :app:assembleRelease
+```
 
 ## 💰 捐赠
 
