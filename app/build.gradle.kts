@@ -21,7 +21,7 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = 178
-        versionName = "1.01" (chore: bump to 2.4.10)
+        versionName = "2.4.10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

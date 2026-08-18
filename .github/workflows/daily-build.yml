@@ -76,9 +76,25 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
-      - name: Prepare signing (optional)
+      # 有 keystore secrets 则解码并写入 local.properties，构建签名 release；
+      # 否则降级为 debug 构建（免签名）
+      - name: Prepare signing
         run: |
-          echo "BUILD_MODE=debug" >> "$GITHUB_ENV"
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ] && [ -n "${{ secrets.KEYSTORE_PASSWORD }}" ]; then
+            mkdir -p app/keystore
+            printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/keystore/release.jks
+            {
+              echo "sdk.dir=$ANDROID_HOME"
+              echo "storeFile=keystore/release.jks"
+              echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}"
+              echo "keyAlias=${{ secrets.KEY_ALIAS }}"
+              echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
+            } > local.properties
+            echo "BUILD_MODE=release" >> "$GITHUB_ENV"
+          else
+            echo "keystore secrets not set, building debug APK (unsigned)"
+            echo "BUILD_MODE=debug" >> "$GITHUB_ENV"
+          fi
 
       - name: Gradle Build
         run: |
@@ -101,4 +117,4 @@ jobs:
             自动每日构建（commit `${{ github.sha }}`）
 
             > ⚠️ 开发版本，可能不稳定，仅供测试。
-          files: app/build/outputs/apk/${{ env.BUILD_MODE }}/*.apk
+          files: app/build/outputs/apk/**/*.apk
