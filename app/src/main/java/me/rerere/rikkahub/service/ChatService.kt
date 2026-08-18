@@ -48,6 +48,9 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.GenerationChunk
 import me.rerere.rikkahub.data.ai.GenerationHandler
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
+import me.rerere.rikkahub.data.ai.context.RollingContextSummary
+import me.rerere.rikkahub.data.ai.context.createRollingContextPlan
+import me.rerere.rikkahub.data.ai.context.rollingContextWindowStartIndex
 import me.rerere.rikkahub.data.ai.SubAgentRunner
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.createConversationTools
@@ -99,6 +102,14 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.uuid.Uuid
 
 private const val TAG = "ChatService"
+
+private const val ROLLING_CONTEXT_SUMMARY_PROMPT = """
+    Summarize the following conversation excerpt concisely in 2-4 sentences.
+    Preserve key facts, decisions, names, numbers, and any unresolved questions.
+    Write the summary in the same language as the conversation.
+    Only output the summary text, nothing else.
+    Conversation excerpt:
+"""
 
 internal fun backgroundTextGenerationParams(
     model: Model,
@@ -531,21 +542,69 @@ class ChatService(
             } else {
                 memoryRepository.getMemoriesOfAssistant(assistant.id.toString())
             }
+
+            // 滚动摘要上下文：当对话 token 超出阈值时，压缩早期消息为摘要
+            val rollingThresholdTokens = assistant.rollingContextCompressionThresholdTokens
+            val currentMessages = conversation.currentMessages.let {
+                if (messageRange != null) {
+                    it.subList(messageRange.start, messageRange.endInclusive + 1)
+                } else {
+                    it
+                }
+            }
+            val storedSummary = conversation.rollingContextSummary
+            val rollingPlan = createRollingContextPlan(
+                messages = currentMessages,
+                storedSummary = storedSummary,
+                thresholdTokens = rollingThresholdTokens,
+            )
+            var rollingContextText = storedSummary?.content
+            var requestStartIndex = 0
+
+            if (rollingPlan != null && rollingPlan.messagesToSummarize.isNotEmpty()) {
+                // 需要压缩：调用 AI 生成摘要
+                val summaryText = generateRollingContextSummary(
+                    model = model,
+                    provider = model.findProvider(settings.providers)
+                        ?: error("Provider not found"),
+                    providerManager = providerManager,
+                    messages = rollingPlan.messagesToSummarize,
+                    previousSummary = rollingPlan.previousSummary?.content,
+                    targetTokens = rollingPlan.targetTokens,
+                )
+                if (summaryText.isNotBlank()) {
+                    val newSummary = RollingContextSummary(
+                        content = summaryText,
+                        sourceMessageIds = rollingPlan.sourceMessageIds,
+                        updatedAtMillis = System.currentTimeMillis(),
+                    )
+                    // 持久化摘要到会话
+                    val updatedConversation = conversation.copy(rollingContextSummary = newSummary)
+                    conversationRepo.updateConversation(updatedConversation)
+                    rollingContextText = summaryText
+                    requestStartIndex = currentMessages.size - rollingPlan.messagesToSummarize.size - rollingPlan.previousSummary.let {
+                        if (it != null) rollingPlan.sourceMessageIds.size - rollingPlan.messagesToSummarize.size else 0
+                    }
+                    // 计算安全起始索引
+                    requestStartIndex = rollingContextWindowStartIndex(currentMessages, rollingThresholdTokens)
+                    Log.i(TAG, "Rolling context: compressed ${rollingPlan.messagesToSummarize.size} messages into summary (${summaryText.length} chars), start index = $requestStartIndex")
+                }
+            } else if (storedSummary != null) {
+                // 有摘要但不需要更新，计算安全起始索引
+                requestStartIndex = rollingContextWindowStartIndex(currentMessages, rollingThresholdTokens)
+            }
+
             generationHandler.generateText(
                 settings = settings,
                 model = model,
                 processingStatus = session.processingStatus,
-                messages = conversation.currentMessages.let {
-                    if (messageRange != null) {
-                        it.subList(messageRange.start, messageRange.endInclusive + 1)
-                    } else {
-                        it
-                    }
-                },
+                messages = currentMessages,
                 assistant = assistant,
                 conversationSystemPrompt = conversation.customSystemPrompt,
                 workspaceCwd = conversation.workspaceCwd,
                 memories = memories,
+                rollingContextSummary = rollingContextText,
+                requestMessageStartIndex = requestStartIndex,
                 inputTransformers = buildList {
                     addAll(inputTransformers)
                     add(templateTransformer)
@@ -975,6 +1034,45 @@ class ChatService(
         )
 
         saveConversation(conversationId, newConversation)
+    }
+
+    // ---- 滚动摘要上下文 ----
+
+    /**
+     * 调用 AI 生成滚动摘要上下文。
+     * 将早期对话压缩为一段简短摘要，后续请求只发送最近窗口消息 + 摘要。
+     */
+    private suspend fun generateRollingContextSummary(
+        model: Model,
+        provider: me.rerere.ai.provider.ProviderSetting,
+        providerManager: ProviderManager,
+        messages: List<UIMessage>,
+        previousSummary: String?,
+        targetTokens: Int,
+    ): String = withContext(Dispatchers.IO) {
+        val providerImpl = providerManager.getProviderByType(provider)
+        val conversationText = messages.joinToString("\n") { "[${it.role.name}] ${it.toText()}" }
+        val prompt = buildString {
+            append(ROLLING_CONTEXT_SUMMARY_PROMPT)
+            if (!previousSummary.isNullOrBlank()) {
+                append("\n\nPrevious summary:\n")
+                append(previousSummary)
+            }
+            append("\n\n")
+            append(conversationText)
+            append("\n\nSummary (target ~$targetTokens tokens):")
+        }
+        val result = providerImpl.generateText(
+            providerSetting = provider,
+            messages = listOf(UIMessage.user(prompt)),
+            params = TextGenerationParams(
+                model = model,
+                maxTokens = targetTokens.coerceAtMost(2_000),
+                temperature = 0.3f,
+                reasoningLevel = ReasoningLevel.OFF,
+            ),
+        )
+        result.message.toText().trim()
     }
 
     // ---- 对话状态更新 ----

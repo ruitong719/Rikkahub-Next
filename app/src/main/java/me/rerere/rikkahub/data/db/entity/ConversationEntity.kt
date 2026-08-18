@@ -28,4 +28,6 @@ data class ConversationEntity(
     val workspaceCwd: String = "",
     @ColumnInfo("folder_id", defaultValue = "")
     val folderId: String = "",
+    @ColumnInfo("rolling_context_summary", defaultValue = "")
+    val rollingContextSummary: String = "",
 )

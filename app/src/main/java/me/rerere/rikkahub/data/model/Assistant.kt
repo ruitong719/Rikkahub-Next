@@ -5,6 +5,7 @@ import me.rerere.ai.provider.CustomBody
 import me.rerere.ai.provider.CustomHeader
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.core.ReasoningLevel
+import me.rerere.rikkahub.data.ai.context.DEFAULT_ROLLING_CONTEXT_THRESHOLD_TOKENS
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
 import me.rerere.rikkahub.utils.SimpleCache
 import java.util.concurrent.TimeUnit
@@ -21,8 +22,8 @@ data class Assistant(
     val systemPrompt: String = "",
     val temperature: Float? = null,
     val topP: Float? = null,
-    // 上下文消息条数上限, 超出后阶梯式截断; 0 表示不限制
-    val contextMessageLimit: Int = 0,
+    // 上下文 Token 阈值, 超出后启用滚动摘要上下文。0 表示使用默认值 (32K)
+    val rollingContextCompressionThresholdTokens: Int = DEFAULT_ROLLING_CONTEXT_THRESHOLD_TOKENS,
     val streamOutput: Boolean = true,
     val enableMemory: Boolean = false,
     val useGlobalMemory: Boolean = false, // 使用全局共享记忆而非助手隔离记忆

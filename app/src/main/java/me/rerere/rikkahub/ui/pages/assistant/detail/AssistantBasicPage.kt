@@ -377,29 +377,29 @@ internal fun AssistantBasicContent(
                 }
             ) {
                 Slider(
-                    value = assistant.contextMessageLimit.toFloat(),
+                    value = assistant.rollingContextCompressionThresholdTokens.toFloat(),
                     onValueChange = { value ->
                         onUpdate(
                             assistant.copy(
-                                contextMessageLimit = snapContextMessageLimit(value)
+                                rollingContextCompressionThresholdTokens = snapContextTokenThreshold(value)
                             )
                         )
                     },
-                    valueRange = 0f..512f,
+                    valueRange = 0f..256_000f,
                     steps = 0,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Text(
-                    text = if (assistant.contextMessageLimit > 0) stringResource(
+                    text = if (assistant.rollingContextCompressionThresholdTokens > 0) stringResource(
                         R.string.assistant_page_context_message_limit_count,
-                        assistant.contextMessageLimit
+                        formatTokenThreshold(assistant.rollingContextCompressionThresholdTokens)
                     ) else stringResource(R.string.assistant_page_context_message_limit_unlimited),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.75f),
                 )
 
-                if (assistant.contextMessageLimit > 0) {
+                if (assistant.rollingContextCompressionThresholdTokens > 0) {
                     Text(
                         text = stringResource(R.string.assistant_page_context_message_limit_warning),
                         style = MaterialTheme.typography.labelSmall,
@@ -567,18 +567,28 @@ internal fun AssistantBasicContent(
  * 上下文限制的最小有效值
  *
  * 低于此值时截断点几乎每轮都在移动, 提示词缓存命中率跌破 90%,
- * 且保留的上下文通常达不到可缓存的最小长度, 限制本身失去意义
+ * 上下文 Token 阈值的最小值 (K tokens)
  */
-private const val MIN_CONTEXT_MESSAGE_LIMIT = 20
+private const val MIN_CONTEXT_TOKEN_THRESHOLD = 4_000
 
 /**
- * 把滑块取值吸附到 0(不限制) 或不低于 [MIN_CONTEXT_MESSAGE_LIMIT] 的有效档位
+ * 把滑块取值吸附到 0(默认) 或不低于 [MIN_CONTEXT_TOKEN_THRESHOLD] 的有效档位
  */
-private fun snapContextMessageLimit(value: Float): Int {
+private fun snapContextTokenThreshold(value: Float): Int {
     val raw = value.roundToInt()
     return when {
-        raw < MIN_CONTEXT_MESSAGE_LIMIT / 2 -> 0
-        raw < MIN_CONTEXT_MESSAGE_LIMIT -> MIN_CONTEXT_MESSAGE_LIMIT
+        raw < MIN_CONTEXT_TOKEN_THRESHOLD / 2 -> 0
+        raw < MIN_CONTEXT_TOKEN_THRESHOLD -> MIN_CONTEXT_TOKEN_THRESHOLD
         else -> raw
     }
+}
+
+/**
+ * 格式化 Token 阈值为人类可读形式 (e.g. "32K", "128K", "1M")
+ */
+private fun formatTokenThreshold(tokens: Int): String = when {
+    tokens <= 0 -> "Default (32K)"
+    tokens % 1_000_000 == 0 -> "${tokens / 1_000_000}M"
+    tokens % 1_000 == 0 -> "${tokens / 1_000}K"
+    else -> tokens.toString()
 }

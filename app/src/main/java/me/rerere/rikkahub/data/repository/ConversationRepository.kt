@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import me.rerere.ai.ui.UIMessage
+import me.rerere.rikkahub.data.ai.context.RollingContextSummary
 import me.rerere.rikkahub.data.db.AppDatabase
 import me.rerere.rikkahub.data.db.fts.MessageFtsManager
 import me.rerere.rikkahub.data.db.fts.MessageSearchSort
@@ -360,6 +361,7 @@ class ConversationRepository(
             customSystemPrompt = conversation.customSystemPrompt ?: "",
             workspaceCwd = conversation.workspaceCwd ?: "",
             folderId = conversation.folderId?.toString() ?: "",
+            rollingContextSummary = conversation.rollingContextSummary?.let(JsonInstant::encodeToString) ?: "",
         )
     }
 
@@ -379,6 +381,9 @@ class ConversationRepository(
             customSystemPrompt = conversationEntity.customSystemPrompt.ifEmpty { null },
             workspaceCwd = conversationEntity.workspaceCwd.ifEmpty { null },
             folderId = conversationEntity.folderId.ifEmpty { null }?.let { Uuid.parse(it) },
+            rollingContextSummary = conversationEntity.rollingContextSummary.ifEmpty {
+                null
+            }?.let { runCatching { JsonInstant.decodeFromString<RollingContextSummary>(it) }.getOrNull() },
         )
     }
 

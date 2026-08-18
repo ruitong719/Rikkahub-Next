@@ -1267,11 +1267,11 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="chat_page_folder_add">新建</string>
   <string name="chat_page_delete_folder_confirm">删除文件夹 "%1$s"？其中的对话不会被删除，只会从文件夹中移除。</string>
   <string name="chat_page_delete_folder_generating">此文件夹中有对话仍在生成中，请停止后再删除。</string>
-  <string name="assistant_page_context_message_limit">上下文消息限制</string>
-  <string name="assistant_page_context_message_limit_desc">限制发送给模型的最近消息数量。超出限制时，上下文会一次性缩减至约一半，而非每轮丢弃一条消息，从而保持请求前缀稳定，并使提示词缓存在多轮对话中持续生效。</string>
-  <string name="assistant_page_context_message_limit_count">上下文消息限制: %d</string>
-  <string name="assistant_page_context_message_limit_unlimited">无限上下文消息</string>
-  <string name="assistant_page_context_message_limit_warning">限制上下文会在每次上下文被修剪时使提示词缓存失效。更大的限制修剪频率更低；无限制则从不修剪，并保持缓存完全完好。</string>
+  <string name="assistant_page_context_message_limit">上下文 Token 阈值</string>
+  <string name="assistant_page_context_message_limit_desc">当对话超出此 Token 阈值时，早期消息将被压缩为滚动摘要。模型接收摘要加最近的对话，在保持上下文可管理的同时保留关键信息。</string>
+  <string name="assistant_page_context_message_limit_count">上下文 Token 阈值: %s</string>
+  <string name="assistant_page_context_message_limit_unlimited">默认阈值 (32K tokens)</string>
+  <string name="assistant_page_context_message_limit_warning">较低的阈值会更积极地压缩上下文，可能会丢失早期对话的细节。较高的阈值保留更多上下文，但每次请求会消耗更多 Token。</string>
   <string name="subagents_edit_cat_conversation">最近会话引用</string>
   <string name="subagents_edit_cat_local">本地工具（时间 / 剪贴板 / 日历 / 待办…）</string>
   <string name="subagents_edit_cat_mcp">MCP 工具</string>

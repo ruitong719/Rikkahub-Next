@@ -30,7 +30,7 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.StreamChunkHandler
 import me.rerere.ai.ui.handleTextGenerationResult
-import me.rerere.ai.ui.limitContext
+import me.rerere.rikkahub.data.ai.context.estimateContextTokens
 import me.rerere.rikkahub.data.ai.transformers.InputMessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.MessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.OutputMessageTransformer
@@ -80,7 +80,11 @@ class GenerationHandler(
         maxSteps: Int = 256,
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         conversationSystemPrompt: String? = null,
+        conversationModeInjectionIds: Set<Uuid> = emptySet(),
+        conversationLorebookIds: Set<Uuid> = emptySet(),
         workspaceCwd: String? = null,
+        rollingContextSummary: String? = null,
+        requestMessageStartIndex: Int = 0,
     ): Flow<GenerationChunk> = flow {
         val provider = model.findProvider(settings.providers) ?: error("Provider not found")
         val providerImpl = providerManager.getProviderByType(provider)
@@ -157,6 +161,8 @@ class GenerationHandler(
                     processingStatus = processingStatus,
                     conversationSystemPrompt = conversationSystemPrompt,
                     workspaceCwd = workspaceCwd,
+                    rollingContextSummary = rollingContextSummary,
+                    requestMessageStartIndex = requestMessageStartIndex,
                 )
                 messages = messages.visualTransforms(
                     transformers = outputTransformers,
@@ -354,7 +360,17 @@ class GenerationHandler(
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         conversationSystemPrompt: String? = null,
         workspaceCwd: String? = null,
+        rollingContextSummary: String? = null,
+        requestMessageStartIndex: Int = 0,
     ) {
+        // 滚动摘要上下文：如果有摘要，只发送最近窗口的消息 + 摘要
+        val requestStartIndex = requestMessageStartIndex.coerceIn(0, messages.size)
+        val slicedMessages = if (requestStartIndex > 0) {
+            messages.drop(requestStartIndex)
+        } else {
+            messages
+        }
+
         val internalMessages = buildList {
             val system = buildString {
                 val effectiveSystemPrompt =
@@ -365,6 +381,15 @@ class GenerationHandler(
                     }
                 if (effectiveSystemPrompt.isNotBlank()) {
                     append(effectiveSystemPrompt)
+                }
+
+                // 滚动摘要上下文
+                if (!rollingContextSummary.isNullOrBlank()) {
+                    appendLine()
+                    append("The following is a rolling summary of earlier conversation turns. Use it as context, ")
+                    append("but follow the latest messages when they differ:\n<rolling_context_summary>")
+                    append(rollingContextSummary)
+                    append("</rolling_context_summary>")
                 }
 
                 // 记忆
@@ -379,7 +404,7 @@ class GenerationHandler(
                 }
             }
             if (system.isNotBlank()) add(UIMessage.system(prompt = system))
-            addAll(messages.limitContext(assistant.contextMessageLimit))
+            addAll(slicedMessages)
         }.transforms(
             transformers = transformers,
             context = context,
