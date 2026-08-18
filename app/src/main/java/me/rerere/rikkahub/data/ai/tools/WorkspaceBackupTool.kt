@@ -6,8 +6,8 @@ import me.rerere.ai.core.InputSchema
 import me.rerere.ai.core.Tool
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.datastore.SettingsStore
-import me.rerere.rikkahub.data.datastore.WebDavConfig
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
+import me.rerere.rikkahub.data.sync.BackupScope
 import me.rerere.rikkahub.data.sync.webdav.WebDavSync
 import me.rerere.workspace.WorkspaceManager
 import org.koin.java.KoinJavaComponent.getKoin
@@ -41,7 +41,7 @@ fun createWorkspaceBackupTool(
         val webDavSync = getKoin().get<WebDavSync>()
         val backupFile = webDavSync.prepareBackupFile(
             config = settingsStore.settingsFlow.value.webDavConfig.copy(
-                items = listOf(WebDavConfig.BackupItem.DATABASE)
+                items = listOf(BackupScope.DATABASE)
             ),
             // 只导出数据库文件，不含 settings.json
             includeSettings = false,

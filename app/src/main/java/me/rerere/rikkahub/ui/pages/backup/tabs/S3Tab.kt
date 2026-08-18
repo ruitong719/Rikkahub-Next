@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dokar.sonner.ToastType
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.sync.BackupScope
 import me.rerere.rikkahub.data.sync.S3BackupItem
 import me.rerere.rikkahub.data.sync.s3.S3Config
 import me.rerere.rikkahub.ui.components.ui.CardGroup
@@ -211,11 +212,11 @@ fun S3Tab(
                         MultiChoiceSegmentedButtonRow(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            S3Config.BackupItem.entries.forEachIndexed { index, item ->
+                            BackupScope.selectableEntries.forEachIndexed { index, item ->
                                 SegmentedButton(
                                     shape = SegmentedButtonDefaults.itemShape(
                                         index = index,
-                                        count = S3Config.BackupItem.entries.size
+                                        count = BackupScope.selectableEntries.size
                                     ),
                                     onCheckedChange = { checked ->
                                         val newItems = if (checked) {
@@ -229,8 +230,8 @@ fun S3Tab(
                                 ) {
                                     Text(
                                         when (item) {
-                                            S3Config.BackupItem.DATABASE -> stringResource(R.string.backup_page_chat_records)
-                                            S3Config.BackupItem.FILES -> stringResource(R.string.backup_page_files)
+                                            BackupScope.DATABASE -> stringResource(R.string.backup_page_chat_records)
+                                            BackupScope.ATTACHMENTS -> stringResource(R.string.backup_page_files)
                                         }
                                     )
                                 }

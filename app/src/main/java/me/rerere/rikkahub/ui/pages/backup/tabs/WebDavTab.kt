@@ -56,6 +56,7 @@ import com.dokar.sonner.ToastType
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.WebDavConfig
+import me.rerere.rikkahub.data.sync.BackupScope
 import me.rerere.rikkahub.data.sync.webdav.WebDavBackupItem
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.context.LocalToaster
@@ -193,11 +194,11 @@ fun WebDavTab(
                     MultiChoiceSegmentedButtonRow(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        WebDavConfig.BackupItem.entries.forEachIndexed { index, item ->
+                        BackupScope.selectableEntries.forEachIndexed { index, item ->
                             SegmentedButton(
                                 shape = SegmentedButtonDefaults.itemShape(
                                     index = index,
-                                    count = WebDavConfig.BackupItem.entries.size
+                                    count = BackupScope.selectableEntries.size
                                 ),
                                 onCheckedChange = { checked ->
                                     val newItems = if (checked) {
@@ -211,8 +212,8 @@ fun WebDavTab(
                             ) {
                                 Text(
                                     when (item) {
-                                        WebDavConfig.BackupItem.DATABASE -> stringResource(R.string.backup_page_chat_records)
-                                        WebDavConfig.BackupItem.FILES -> stringResource(R.string.backup_page_files)
+                                        BackupScope.DATABASE -> stringResource(R.string.backup_page_chat_records)
+                                        BackupScope.ATTACHMENTS -> stringResource(R.string.backup_page_files)
                                     }
                                 )
                             }

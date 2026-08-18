@@ -13,6 +13,8 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.WebDavConfig
 import me.rerere.rikkahub.data.datastore.migration.SettingsJsonMigrator
 import me.rerere.rikkahub.data.db.DatabaseBackupManager
+import me.rerere.rikkahub.data.sync.BackupPolicy
+import me.rerere.rikkahub.data.sync.BackupScope
 import me.rerere.rikkahub.utils.fileSizeToString
 import java.io.File
 import java.io.FileInputStream
@@ -158,7 +160,7 @@ class WebDavSync(
             }
 
             // Backup database files: 一致性快照（先 wal_checkpoint 合并，避免 WAL 撕裂快照丢失最新会话）
-            if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
+            if (BackupPolicy.hasScope(config.items, BackupScope.DATABASE)) {
                 val snapshot = databaseBackupManager.createSnapshot(
                     File(context.cacheDir, "rikka_hub_snapshot.db")
                 )
@@ -175,7 +177,7 @@ class WebDavSync(
             }
 
             // Backup app files
-            if (config.items.contains(WebDavConfig.BackupItem.FILES)) {
+            if (BackupPolicy.hasScope(config.items, BackupScope.ATTACHMENTS)) {
                 val uploadFolder = File(context.filesDir, FileFolders.UPLOAD)
                 if (uploadFolder.exists() && uploadFolder.isDirectory) {
                     Log.i(TAG, "prepareBackupFile: Backing up files from ${uploadFolder.absolutePath}")
@@ -295,7 +297,7 @@ class WebDavSync(
 
                         // 新格式：一致性快照（主库 + 可选 wal 兜底）
                         "rikka_hub_snapshot.db" -> {
-                            if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
+                            if (BackupPolicy.hasScope(config.items, BackupScope.DATABASE)) {
                                 val snapshot = File(context.cacheDir, "restore_snapshot.db")
                                 FileOutputStream(snapshot).use { zipIn.copyTo(it) }
                                 pendingSnapshot = snapshot
@@ -303,7 +305,7 @@ class WebDavSync(
                         }
 
                         "rikka_hub_snapshot-wal" -> {
-                            if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
+                            if (BackupPolicy.hasScope(config.items, BackupScope.DATABASE)) {
                                 val snapshotWal = File(context.cacheDir, "restore_snapshot.db-wal")
                                 FileOutputStream(snapshotWal).use { zipIn.copyTo(it) }
                             }
@@ -311,7 +313,7 @@ class WebDavSync(
 
                         // 旧格式兼容：复制 db + wal（shm 不再恢复，由 SQLite 重建）
                         "rikka_hub.db", "rikka_hub-wal", "rikka_hub-shm" -> {
-                            if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
+                            if (BackupPolicy.hasScope(config.items, BackupScope.DATABASE)) {
                                 when (zipEntry.name) {
                                     "rikka_hub.db" -> {
                                         val db = File(context.cacheDir, "restore_legacy.db")
@@ -334,7 +336,7 @@ class WebDavSync(
                         }
 
                         else -> {
-                            if (config.items.contains(WebDavConfig.BackupItem.FILES) &&
+                            if (BackupPolicy.hasScope(config.items, BackupScope.ATTACHMENTS) &&
                                 zipEntry.name.startsWith("${FileFolders.UPLOAD}/")
                             ) {
                                 restoreSafeEntry(
@@ -343,11 +345,11 @@ class WebDavSync(
                                     entryName = zipEntry.name,
                                     zipIn = zipIn,
                                 )
-                            } else if (config.items.contains(WebDavConfig.BackupItem.FILES) &&
+                            } else if (BackupPolicy.hasScope(config.items, BackupScope.ATTACHMENTS) &&
                                 zipEntry.name.startsWith("${FileFolders.SKILLS}/")
                             ) {
                                 restoreSkillEntry(zipIn, zipEntry.name)
-                            } else if (config.items.contains(WebDavConfig.BackupItem.FILES) &&
+                            } else if (BackupPolicy.hasScope(config.items, BackupScope.ATTACHMENTS) &&
                                 zipEntry.name.startsWith("${FileFolders.FONTS}/")
                             ) {
                                 val fileName = zipEntry.name.substringAfter("${FileFolders.FONTS}/")
@@ -359,7 +361,7 @@ class WebDavSync(
                                         zipIn = zipIn,
                                     )
                                 }
-                            } else if (config.items.contains(WebDavConfig.BackupItem.FILES) &&
+                            } else if (BackupPolicy.hasScope(config.items, BackupScope.ATTACHMENTS) &&
                                 zipEntry.name.startsWith("workspaces/")
                             ) {
                                 restoreWorkspaceEntry(zipIn, zipEntry.name)
@@ -375,7 +377,7 @@ class WebDavSync(
         }
 
         // 恢复数据库快照（新格式优先，旧格式兜底）
-        if (config.items.contains(WebDavConfig.BackupItem.DATABASE)) {
+        if (BackupPolicy.hasScope(config.items, BackupScope.DATABASE)) {
             val snapshot = pendingSnapshot ?: pendingLegacyDb
             if (snapshot != null && snapshot.exists()) {
                 databaseBackupManager.restore(snapshot, legacyWal = pendingLegacyWal)

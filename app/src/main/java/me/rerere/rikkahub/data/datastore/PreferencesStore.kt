@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import me.rerere.rikkahub.data.sync.BackupScope
 import kotlinx.serialization.Transient
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.ReasoningLevel
@@ -661,17 +662,11 @@ data class WebDavConfig(
     val username: String = "",
     val password: String = "",
     val path: String = "rikkahub_backups",
-    val items: List<BackupItem> = listOf(
-        BackupItem.DATABASE,
-        BackupItem.FILES
+    val items: List<BackupScope> = listOf(
+        BackupScope.DATABASE,
+        BackupScope.ATTACHMENTS,
     ),
-) {
-    @Serializable
-    enum class BackupItem {
-        DATABASE,
-        FILES,
-    }
-}
+)
 
 @Serializable
 data class BackupReminderConfig(
