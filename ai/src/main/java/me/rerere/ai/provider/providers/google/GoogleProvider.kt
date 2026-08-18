@@ -18,6 +18,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import me.rerere.ai.provider.ModelDiscoveryProtocol
+import me.rerere.ai.provider.contextWindowTokensOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.intOrNull
@@ -151,6 +153,10 @@ class GoogleProvider(private val client: OkHttpClient, context: Context? = null)
                         modelId = modelObject["name"]!!.jsonPrimitive.content.substringAfter("/"),
                         displayName = modelObject["displayName"]!!.jsonPrimitive.content,
                         type = if ("generateContent" in supportedGenerationMethods) ModelType.CHAT else ModelType.EMBEDDING,
+                        contextWindowTokens = modelObject.contextWindowTokensOrNull(
+                            modelObject["name"]!!.jsonPrimitive.content.substringAfter("/"),
+                            ModelDiscoveryProtocol.GOOGLE,
+                        ),
                     )
                 }
             } else {

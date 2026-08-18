@@ -18,6 +18,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
+import me.rerere.ai.provider.ModelDiscoveryProtocol
+import me.rerere.ai.provider.contextWindowTokensOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -269,6 +271,7 @@ class ClaudeProvider(private val client: OkHttpClient, context: Context? = null)
                 Model(
                     modelId = id,
                     displayName = displayName,
+                    contextWindowTokens = modelObj.contextWindowTokensOrNull(id, ModelDiscoveryProtocol.ANTHROPIC),
                 )
             }
         }

@@ -21,6 +21,8 @@ data class Model(
     // 用户自定义思考深度映射：level -> 发给供应商的 effort 值。
     // 为空（未配置）时使用 ReasoningEffortMappings 内置映射表。
     val reasoningEffortMap: Map<ReasoningLevel, String> = emptyMap(),
+    // 模型上下文窗口大小（token 数），null 表示未知
+    val contextWindowTokens: Int? = null,
 )
 
 @Serializable

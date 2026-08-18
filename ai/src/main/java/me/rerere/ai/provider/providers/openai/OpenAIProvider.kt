@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import me.rerere.ai.provider.ModelDiscoveryProtocol
+import me.rerere.ai.provider.contextWindowTokensOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -80,6 +82,7 @@ class OpenAIProvider(
                 Model(
                     modelId = id,
                     displayName = id,
+                    contextWindowTokens = modelObj.contextWindowTokensOrNull(id, ModelDiscoveryProtocol.OPENAI),
                 )
             }
         }
