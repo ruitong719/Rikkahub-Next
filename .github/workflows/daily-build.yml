@@ -78,20 +78,7 @@ jobs:
 
       - name: Prepare signing (optional)
         run: |
-          if [ -n "${{ secrets.KEY_BASE64 }}" ]; then
-            echo "KEY_BASE64 secret found, configuring release signing..."
-            echo "${{ secrets.KEY_BASE64 }}" | base64 -d > app/keystore/rikkahubnext-release.jks
-            cat > local.properties <<EOF
-            storeFile=app/keystore/rikkahubnext-release.jks
-            storePassword=${{ secrets.STORE_PASSWORD }}
-            keyAlias=rikkahubnext
-            keyPassword=${{ secrets.KEY_PASSWORD }}
-            EOF
-            echo "BUILD_MODE=release" >> "$GITHUB_ENV"
-          else
-            echo "KEY_BASE64 secret not set, building debug APK (unsigned)"
-            echo "BUILD_MODE=debug" >> "$GITHUB_ENV"
-          fi
+          echo "BUILD_MODE=debug" >> "$GITHUB_ENV"
 
       - name: Gradle Build
         run: |
