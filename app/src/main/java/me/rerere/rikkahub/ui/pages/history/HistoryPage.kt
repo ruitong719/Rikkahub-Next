@@ -234,28 +234,6 @@ private fun ConversationItem(
         modifier = modifier
     ) {
         ListItem(
-            headlineContent = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    if (conversation.isPinned) {
-                        Icon(
-                            imageVector = HugeIcons.Pin,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                    Text(
-                        text = conversation.title.ifBlank { stringResource(R.string.history_page_new_conversation) }
-                            .trim(),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                }
-            },
             supportingContent = {
                 Text(conversation.createAt.toLocalDateTime())
             },
@@ -271,6 +249,27 @@ private fun ConversationItem(
                     )
                 }
             }
-        )
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (conversation.isPinned) {
+                    Icon(
+                        imageVector = HugeIcons.Pin,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                Text(
+                    text = conversation.title.ifBlank { stringResource(R.string.history_page_new_conversation) }
+                        .trim(),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+        }
     }
 }

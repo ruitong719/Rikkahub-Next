@@ -247,6 +247,8 @@ internal class WorkspaceTerminalViewClient(
         }
     }
 
+    // API 33 起弃用，无等价一行替代，保留旧行为
+    @Suppress("DEPRECATION")
     fun focusAndShowKeyboard() {
         val view = terminalView ?: return
         val inputMethodManager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager

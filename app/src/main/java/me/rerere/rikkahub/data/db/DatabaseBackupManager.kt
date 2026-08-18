@@ -27,7 +27,7 @@ class DatabaseBackupManager(
      */
     suspend fun createSnapshot(target: File): File = withContext(Dispatchers.IO) {
         val db = database.openHelper.writableDatabase
-        val dbFile = File(db.path)
+        val dbFile = File(db.path!!)
         require(dbFile.exists()) { "Database file not found: ${dbFile.absolutePath}" }
 
         // 把 wal 合并进主库并截断 wal（TRUNCATE 后 wal 文件长度为 0）
@@ -69,7 +69,7 @@ class DatabaseBackupManager(
         snapshot: File,
         legacyWal: File? = null,
     ): Boolean = withContext(Dispatchers.IO) {
-        val dbFile = File(database.openHelper.writableDatabase.path)
+        val dbFile = File(database.openHelper.writableDatabase.path!!)
         require(snapshot.exists()) { "Snapshot file not found: ${snapshot.absolutePath}" }
         dbFile.parentFile?.mkdirs()
 

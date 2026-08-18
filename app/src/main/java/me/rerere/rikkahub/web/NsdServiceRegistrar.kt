@@ -111,6 +111,8 @@ class NsdServiceRegistrar(
         Log.i(TAG, "Service unregistered")
     }
 
+    // API 31+ 无公开替代 API，保留旧接口
+    @Suppress("DEPRECATION")
     private fun getLocalIpAddress(): InetAddress? {
         return try {
             val wifiManager = context.applicationContext

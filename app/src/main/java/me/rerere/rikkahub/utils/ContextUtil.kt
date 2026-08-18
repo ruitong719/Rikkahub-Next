@@ -10,7 +10,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 
-import android.net.Uri
+import android.media.MediaScannerConnection
 import android.os.Build
 import android.os.Environment
 import android.os.Process
@@ -82,6 +82,8 @@ fun Context.writeClipboardText(text: String) {
 fun Context.hasUsageStatsPermission(): Boolean {
     val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
     val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        // API 29+ 获取 Usage Stats 权限模式的取用法，无替代 API
+        @Suppress("DEPRECATION")
         appOps.unsafeCheckOpNoThrow(
             AppOpsManager.OPSTR_GET_USAGE_STATS,
             Process.myUid(),
@@ -192,9 +194,7 @@ fun Context.exportImage(
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
 
             // 通知图库更新
-            val mediaScanIntent = Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
-            mediaScanIntent.data = Uri.fromFile(image)
-            sendBroadcast(mediaScanIntent)
+            MediaScannerConnection.scanFile(this, arrayOf(image.absolutePath), null, null)
         }
         Log.i(TAG, "Image saved successfully: $fileName")
     } catch (e: Exception) {
@@ -245,9 +245,7 @@ fun Context.exportImageFile(
             file.copyTo(image, overwrite = true)
 
             // 通知图库更新
-            val mediaScanIntent = Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE)
-            mediaScanIntent.data = Uri.fromFile(image)
-            sendBroadcast(mediaScanIntent)
+            MediaScannerConnection.scanFile(this, arrayOf(image.absolutePath), null, null)
         }
         Log.i(TAG, "Image file saved successfully: $fileName")
     } catch (e: Exception) {

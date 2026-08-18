@@ -137,6 +137,7 @@ sealed class UIMessagePart {
         val approvalState: ToolApprovalState = ToolApprovalState.Auto,
         override var metadata: JsonObject? = null
     ) : UIMessagePart() {
+        @Suppress("DEPRECATION") // 兼容旧序列化格式的合并逻辑，类本身已弃用
         fun merge(other: ToolCall): ToolCall {
             return ToolCall(
                 toolCallId = toolCallId,

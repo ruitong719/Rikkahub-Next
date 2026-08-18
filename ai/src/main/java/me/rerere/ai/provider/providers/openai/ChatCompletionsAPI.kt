@@ -100,10 +100,10 @@ class ChatCompletionsAPI(
 
         val response = client.newCall(request).await()
         if (!response.isSuccessful) {
-            throw Exception("Failed to get response: ${response.code} ${response.body?.string()}")
+            throw Exception("Failed to get response: ${response.code} ${response.body.string()}")
         }
 
-        val bodyStr = response.body?.string() ?: ""
+        val bodyStr = response.body.string()
         val bodyJson = json.parseToJsonElement(bodyStr).jsonObject
 
         // 从 JsonObject 中提取必要的信息
@@ -151,7 +151,7 @@ class ChatCompletionsAPI(
         Log.i(TAG, "streamText: ${json.encodeToString(requestBody)}")
 
         // just for debugging response body
-        // println(client.newCall(request).await().body?.string())
+        // println(client.newCall(request).await().body.string())
 
         val decoder = ChatCompletionsStreamDecoder()
 

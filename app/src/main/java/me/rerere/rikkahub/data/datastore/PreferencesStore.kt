@@ -394,9 +394,7 @@ class SettingsStore(
             preferences[S3_CONFIG] = JsonInstant.encodeToString(settings.s3Config)
             preferences[WORKSPACE_MOUNTS] = JsonInstant.encodeToString(settings.workspaceMounts)
             preferences[TTS_PROVIDERS] = JsonInstant.encodeToString(settings.ttsProviders)
-            settings.selectedTTSProviderId?.let {
-                preferences[SELECTED_TTS_PROVIDER] = it.toString()
-            } ?: preferences.remove(SELECTED_TTS_PROVIDER)
+            preferences[SELECTED_TTS_PROVIDER] = settings.selectedTTSProviderId.toString()
             preferences[DEFAULT_TTS_PLAYBACK_SPEED] = settings.defaultTTSPlaybackSpeed.coerceIn(0.5f, 2.0f)
             preferences[ASR_PROVIDERS] = JsonInstant.encodeToString(settings.asrProviders)
             settings.selectedASRProviderId?.let {
@@ -683,7 +681,7 @@ fun Settings.getQuickMessagesOfAssistant(assistant: Assistant) =
     quickMessages.filter { it.id in assistant.quickMessageIds }
 
 fun Settings.getSelectedTTSProvider(): TTSProviderSetting? {
-    return selectedTTSProviderId?.let { id ->
+    return selectedTTSProviderId.let { id ->
         ttsProviders.find { it.id == id }
     } ?: ttsProviders.firstOrNull()
 }

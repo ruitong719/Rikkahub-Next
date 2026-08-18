@@ -44,7 +44,6 @@ fun SkillsContent(
     ) {
         items(skills, key = { it.skillDir.absolutePath }) { skill ->
             ListItem(
-                headlineContent = { Text(skill.name) },
                 supportingContent = if (skill.description.isNotBlank()) {
                     {
                         Text(
@@ -61,7 +60,9 @@ fun SkillsContent(
                     )
                 },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            )
+            ) {
+                Text(skill.name)
+            }
         }
         if (onManage != null) {
             item {
@@ -85,9 +86,6 @@ fun QuickMessagesContent(
     ) {
         items(quickMessages, key = { it.id }) { quickMessage ->
             ListItem(
-                headlineContent = {
-                    Text(quickMessage.title.ifBlank { stringResource(R.string.extension_content_unnamed) })
-                },
                 supportingContent = if (quickMessage.content.isNotBlank()) {
                     {
                         Text(
@@ -105,7 +103,9 @@ fun QuickMessagesContent(
                     )
                 },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            )
+            ) {
+                Text(quickMessage.title.ifBlank { stringResource(R.string.extension_content_unnamed) })
+            }
         }
     }
 }

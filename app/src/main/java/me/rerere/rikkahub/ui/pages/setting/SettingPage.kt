@@ -318,9 +318,6 @@ private fun ProviderConfigWarningCard(navController: Navigator) {
             horizontalAlignment = Alignment.End
         ) {
             ListItem(
-                headlineContent = {
-                    Text(stringResource(R.string.setting_page_config_api_title))
-                },
                 supportingContent = {
                     Text(stringResource(R.string.setting_page_config_api_desc))
                 },
@@ -330,7 +327,9 @@ private fun ProviderConfigWarningCard(navController: Navigator) {
                 colors = ListItemDefaults.colors(
                     containerColor = Color.Transparent
                 )
-            )
+            ) {
+                Text(stringResource(R.string.setting_page_config_api_title))
+            }
 
             TextButton(
                 onClick = {
@@ -366,7 +365,6 @@ private fun QQGroupBottomSheet(onDismiss: () -> Unit) {
         ) {
             QQ_GROUPS.forEach { group ->
                 ListItem(
-                    headlineContent = { Text(group.name) },
                     leadingContent = {
                         Icon(
                             imageVector = TencentQQIcon,
@@ -378,7 +376,9 @@ private fun QQGroupBottomSheet(onDismiss: () -> Unit) {
                         context.joinQQGroup(group.key)
                         onDismiss()
                     }
-                )
+                ) {
+                    Text(group.name)
+                }
             }
         }
     }

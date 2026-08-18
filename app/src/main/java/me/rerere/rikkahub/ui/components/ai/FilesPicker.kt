@@ -184,9 +184,6 @@ internal fun FilesPicker(
                     contentDescription = stringResource(R.string.assistant_page_tab_extensions),
                 )
             },
-            headlineContent = {
-                Text(stringResource(R.string.assistant_page_tab_extensions))
-            },
             trailingContent = {
                 if (activeCount > 0) {
                     Text(
@@ -204,7 +201,9 @@ internal fun FilesPicker(
                 .clickable {
                     onShowInjectionSheetChange(true)
                 },
-        )
+        ) {
+            Text(stringResource(R.string.assistant_page_tab_extensions))
+        }
 
         // Compress History Button
         ListItem(
@@ -213,9 +212,6 @@ internal fun FilesPicker(
                     imageVector = HugeIcons.Package01,
                     contentDescription = stringResource(R.string.chat_page_compress_context),
                 )
-            },
-            headlineContent = {
-                Text(stringResource(R.string.chat_page_compress_context))
             },
             trailingContent = {
                 if (conversation.messageNodes.isNotEmpty()) {
@@ -234,7 +230,9 @@ internal fun FilesPicker(
                 .clickable {
                     onShowCompressDialogChange(true)
                 },
-        )
+        ) {
+            Text(stringResource(R.string.chat_page_compress_context))
+        }
 
         // Workspace CWD
         val boundWorkspace = remember(workspaces, assistant.workspaceId) {
@@ -320,9 +318,6 @@ private fun WorkspacePickerListItem(
                 contentDescription = stringResource(R.string.assistant_page_workspace),
             )
         },
-        headlineContent = {
-            Text(stringResource(R.string.assistant_page_workspace))
-        },
         supportingContent = {
             Text(
                 text = boundWorkspace?.name ?: stringResource(R.string.assistant_page_workspace_unbound),
@@ -365,7 +360,9 @@ private fun WorkspacePickerListItem(
         modifier = Modifier
             .clip(MaterialTheme.shapes.large)
             .clickable { showSheet = true },
-    )
+    ) {
+        Text(stringResource(R.string.assistant_page_workspace))
+    }
 
     if (showSheet) {
         WorkspaceSelectSheet(

@@ -170,9 +170,6 @@ fun AssistantExtensionsPage(id: String) {
                                 ) {
                                     items(settings.subagents, key = { it.id.toString() }) { subAgent ->
                                         ListItem(
-                                            headlineContent = {
-                                                Text(subAgent.name.ifBlank { subAgent.id.toString() })
-                                            },
                                             supportingContent = if (subAgent.description.isNotBlank()) {
                                                 {
                                                     Text(
@@ -196,7 +193,9 @@ fun AssistantExtensionsPage(id: String) {
                                                 )
                                             },
                                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                        )
+                                        ) {
+                                            Text(subAgent.name.ifBlank { subAgent.id.toString() })
+                                        }
                                     }
                                 }
                                 TextButton(

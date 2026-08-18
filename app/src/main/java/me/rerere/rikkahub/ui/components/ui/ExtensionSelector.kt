@@ -162,9 +162,6 @@ fun ExtensionSelector(
                             ) {
                                 items(settings.subagents, key = { it.id.toString() }) { subAgent ->
                                     ListItem(
-                                        headlineContent = {
-                                            Text(subAgent.name.ifBlank { subAgent.id.toString() })
-                                        },
                                         supportingContent = if (subAgent.description.isNotBlank()) {
                                             {
                                                 Text(
@@ -188,7 +185,9 @@ fun ExtensionSelector(
                                             )
                                         },
                                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                    )
+                                    ) {
+                                        Text(subAgent.name.ifBlank { subAgent.id.toString() })
+                                    }
                                 }
                             }
                             TextButton(

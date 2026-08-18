@@ -108,14 +108,6 @@ fun BackgroundTaskSheet(
             } else {
                 tasks.forEach { task ->
                     ListItem(
-                        headlineContent = {
-                            Text(
-                                text = task.command.ifBlank { task.taskId },
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                        },
                         supportingContent = {
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
@@ -155,7 +147,14 @@ fun BackgroundTaskSheet(
                             }
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    )
+                    ) {
+                        Text(
+                            text = task.command.ifBlank { task.taskId },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
                 }
             }
 

@@ -576,7 +576,7 @@ private fun WorkspaceExportTargetCard(
                     )
                 }
                 if (configured) {
-                    TextButton(onClick = onClearTarget, enabled = workspace != null) {
+                    TextButton(onClick = onClearTarget) {
                         Text(stringResource(R.string.workspace_detail_export_clear))
                     }
                 }
