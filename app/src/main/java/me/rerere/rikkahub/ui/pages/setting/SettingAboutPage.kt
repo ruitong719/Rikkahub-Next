@@ -153,13 +153,6 @@ fun SettingAboutPage(vm: SettingVM = koinViewModel()) {
                             headlineContent = { Text(stringResource(R.string.about_page_version)) },
                         )
                         item(
-                            leadingContent = { Icon(HugeIcons.SmartPhone01, null) },
-                            supportingContent = {
-                                Text("${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} / Android ${android.os.Build.VERSION.RELEASE} / SDK ${android.os.Build.VERSION.SDK_INT}")
-                            },
-                            headlineContent = { Text(stringResource(R.string.about_page_system)) },
-                        )
-                        item(
                             onClick = {
                                 updateUrlDraft = settings.updateUrl
                                 showUpdateUrlDialog = true
@@ -186,13 +179,19 @@ fun SettingAboutPage(vm: SettingVM = koinViewModel()) {
                         item(
                             onClick = { context.openUrl("https://github.com/rikkahub/rikkahub") },
                             leadingContent = { Icon(HugeIcons.Github, null) },
-                            supportingContent = { Text("https://github.com/rikkahub/rikkahub") },
-                            headlineContent = { Text(stringResource(R.string.about_page_github)) },
+                            supportingContent = { Text("rikkahub/rikkahub") },
+                            headlineContent = { Text("上游项目") },
+                        )
+                        item(
+                            onClick = { context.openUrl("https://github.com/ruitong719/Rikkahub-Next/") },
+                            leadingContent = { Icon(HugeIcons.Github, null) },
+                            supportingContent = { Text("ruitong719/Rikkahub-Next") },
+                            headlineContent = { Text("本项目") },
                         )
                         item(
                             onClick = { context.openUrl("https://github.com/rikkahub/rikkahub/blob/master/LICENSE") },
                             leadingContent = { Icon(HugeIcons.File02, null) },
-                            supportingContent = { Text("https://github.com/rikkahub/rikkahub/blob/master/LICENSE") },
+                            supportingContent = { Text("AGPL-3.0") },
                             headlineContent = { Text(stringResource(R.string.about_page_license)) },
                         )
                     }

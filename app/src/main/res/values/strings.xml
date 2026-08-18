@@ -892,7 +892,7 @@
   <string name="setting_theme_page_import_success">Theme imported successfully</string>
   <string name="setting_theme_page_dynamic_color_hint">Dynamic color is enabled. Disable it in Preferences &gt; Theme to use custom themes.</string>
   <string name="setting_page_tts_service">Speech Services</string>
-  <string name="setting_page_tts_service_desc">Configure text-to-speech and speech recognition providers</string>
+  <string name="setting_page_tts_service_desc">Configure TTS and speech recognition providers</string>
   <string name="setting_page_tts_settings">TTS Settings</string>
   <string name="setting_page_web_server">Web Server</string>
   <string name="setting_page_web_server_address_note">Address Notes</string>
