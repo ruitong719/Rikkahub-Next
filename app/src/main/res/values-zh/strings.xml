@@ -1352,6 +1352,21 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_update_reminder_pause_description">选择暂停更新提醒的时长。它们会自动恢复。</string>
   <string name="setting_update_reminder_pause_days">%1$d 天</string>
   <string name="setting_update_reminder_resume_now">立即恢复</string>
+  <string name="notification_channel_floating_bubble">悬浮球</string>
+  <string name="notification_floating_bubble_running">悬浮球已开启</string>
+  <string name="notification_floating_bubble_desc">点击悬浮球可快速回到 RikkaHub</string>
+  <string name="setting_page_floating_bubble">悬浮球</string>
+  <string name="setting_page_floating_bubble_title">悬浮球</string>
+  <string name="setting_page_floating_bubble_desc">在所有应用上方显示可拖动的悬浮小球，点击回到软件</string>
+  <string name="setting_page_floating_bubble_color">颜色</string>
+  <string name="setting_page_floating_bubble_size">大小</string>
+  <string name="setting_page_floating_bubble_permission_title">需要悬浮窗权限</string>
+  <string name="setting_page_floating_bubble_permission_desc">开启悬浮球需要"显示在其他应用上层"权限，是否前往系统设置授权？</string>
+  <string name="setting_page_floating_bubble_permission_grant">前往授权</string>
+  <string name="setting_page_floating_bubble_expand_width">展开窗口宽度</string>
+  <string name="setting_page_floating_bubble_expand_height">展开窗口高度</string>
+  <string name="setting_page_floating_bubble_show_todo_tab">显示待办标签</string>
+  <string name="setting_page_floating_bubble_show_live_tab">显示实时输出标签</string>
   <string name="reasoning_max">最大</string>
 </resources>
 

@@ -149,6 +149,17 @@ class SettingsStore(
         val WEB_SERVER_ACCESS_PASSWORD = stringPreferencesKey("web_server_access_password")
         val WEB_SERVER_LOCALHOST_ONLY = booleanPreferencesKey("web_server_localhost_only")
 
+        // 悬浮球：系统级悬浮窗，点击回到软件
+        val FLOATING_BUBBLE_ENABLED = booleanPreferencesKey("floating_bubble_enabled")
+        val FLOATING_BUBBLE_COLOR = stringPreferencesKey("floating_bubble_color")
+        val FLOATING_BUBBLE_SIZE = intPreferencesKey("floating_bubble_size")
+
+        // 悬浮球展开窗口：宽度/高度（dp），以及待办/实时输出标签开关
+        val FLOATING_BUBBLE_EXPAND_WIDTH = intPreferencesKey("floating_bubble_expand_width")
+        val FLOATING_BUBBLE_EXPAND_HEIGHT = intPreferencesKey("floating_bubble_expand_height")
+        val FLOATING_BUBBLE_SHOW_TODO_TAB = booleanPreferencesKey("floating_bubble_show_todo_tab")
+        val FLOATING_BUBBLE_SHOW_LIVE_TAB = booleanPreferencesKey("floating_bubble_show_live_tab")
+
         // 快捷消息
         val QUICK_MESSAGES = stringPreferencesKey("quick_messages")
 
@@ -255,6 +266,13 @@ class SettingsStore(
                 } ?: BackupReminderConfig(),
                 launchCount = preferences[LAUNCH_COUNT] ?: 0,
                 sponsorAlertDismissedAt = preferences[SPONSOR_ALERT_DISMISSED_AT] ?: 0,
+                floatingBubbleEnabled = preferences[FLOATING_BUBBLE_ENABLED] ?: false,
+                floatingBubbleColor = preferences[FLOATING_BUBBLE_COLOR]?.toLongOrNull() ?: 0xFF4F8EF7,
+                floatingBubbleSize = preferences[FLOATING_BUBBLE_SIZE] ?: 48,
+                floatingBubbleExpandWidth = preferences[FLOATING_BUBBLE_EXPAND_WIDTH] ?: 300,
+                floatingBubbleExpandHeight = preferences[FLOATING_BUBBLE_EXPAND_HEIGHT] ?: 420,
+                floatingBubbleShowTodoTab = preferences[FLOATING_BUBBLE_SHOW_TODO_TAB] ?: true,
+                floatingBubbleShowLiveTab = preferences[FLOATING_BUBBLE_SHOW_LIVE_TAB] ?: true,
             )
         }
         .map {
@@ -411,6 +429,13 @@ class SettingsStore(
             preferences[BACKUP_REMINDER_CONFIG] = JsonInstant.encodeToString(settings.backupReminderConfig)
             preferences[LAUNCH_COUNT] = settings.launchCount
             preferences[SPONSOR_ALERT_DISMISSED_AT] = settings.sponsorAlertDismissedAt
+            preferences[FLOATING_BUBBLE_ENABLED] = settings.floatingBubbleEnabled
+            preferences[FLOATING_BUBBLE_COLOR] = settings.floatingBubbleColor.toString()
+            preferences[FLOATING_BUBBLE_SIZE] = settings.floatingBubbleSize
+            preferences[FLOATING_BUBBLE_EXPAND_WIDTH] = settings.floatingBubbleExpandWidth
+            preferences[FLOATING_BUBBLE_EXPAND_HEIGHT] = settings.floatingBubbleExpandHeight
+            preferences[FLOATING_BUBBLE_SHOW_TODO_TAB] = settings.floatingBubbleShowTodoTab
+            preferences[FLOATING_BUBBLE_SHOW_LIVE_TAB] = settings.floatingBubbleShowLiveTab
         }
     }
 
@@ -550,6 +575,15 @@ data class Settings(
     val webServerJwtEnabled: Boolean = false,
     val webServerAccessPassword: String = "",
     val webServerLocalhostOnly: Boolean = false,
+    // 悬浮球：系统级悬浮窗，可拖动、半隐藏，点击回到软件
+    val floatingBubbleEnabled: Boolean = false,
+    val floatingBubbleColor: Long = 0xFF4F8EF7,
+    val floatingBubbleSize: Int = 48,
+    // 悬浮球展开窗口：宽度/高度（dp），以及待办/实时输出标签开关
+    val floatingBubbleExpandWidth: Int = 300,
+    val floatingBubbleExpandHeight: Int = 420,
+    val floatingBubbleShowTodoTab: Boolean = true,
+    val floatingBubbleShowLiveTab: Boolean = true,
     val updateUrl: String = "",
     val globalAgentMd: String = "",
     val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
