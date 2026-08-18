@@ -76,23 +76,31 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
-      - name: Prepare build files
+      - name: Prepare signing (optional)
         run: |
-          # 解码base64编码的keystore文件
-          echo "${{ secrets.KEY_BASE64 }}" | base64 -d > app/keystore/rikkahubnext-release.jks
-
-          # 写入签名配置到local.properties
-          cat > local.properties <<EOF
-          storeFile=app/keystore/rikkahubnext-release.jks
-          storePassword=${{ secrets.STORE_PASSWORD }}
-          keyAlias=rikkahubnext
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          EOF
+          if [ -n "${{ secrets.KEY_BASE64 }}" ]; then
+            echo "KEY_BASE64 secret found, configuring release signing..."
+            echo "${{ secrets.KEY_BASE64 }}" | base64 -d > app/keystore/rikkahubnext-release.jks
+            cat > local.properties <<EOF
+            storeFile=app/keystore/rikkahubnext-release.jks
+            storePassword=${{ secrets.STORE_PASSWORD }}
+            keyAlias=rikkahubnext
+            keyPassword=${{ secrets.KEY_PASSWORD }}
+            EOF
+            echo "BUILD_MODE=release" >> "$GITHUB_ENV"
+          else
+            echo "KEY_BASE64 secret not set, building debug APK (unsigned)"
+            echo "BUILD_MODE=debug" >> "$GITHUB_ENV"
+          fi
 
       - name: Gradle Build
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease
+          if [ "$BUILD_MODE" = "release" ]; then
+            ./gradlew assembleRelease
+          else
+            ./gradlew assembleDebug
+          fi
 
       # 把 APK 直接发布为 Prerelease，用户点链接即可下载单个 apk，无需登录、无需解压
       - name: Publish nightly prerelease
@@ -106,4 +114,4 @@ jobs:
             自动每日构建（commit `${{ github.sha }}`）
 
             > ⚠️ 开发版本，可能不稳定，仅供测试。
-          files: app/build/outputs/apk/release/*.apk
+          files: app/build/outputs/apk/${{ env.BUILD_MODE }}/*.apk
