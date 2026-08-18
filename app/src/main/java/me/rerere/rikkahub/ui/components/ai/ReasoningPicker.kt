@@ -52,6 +52,9 @@ private val labeledLevels = setOf(
     ReasoningLevel.OFF,
     ReasoningLevel.AUTO,
     ReasoningLevel.LOW,
+    ReasoningLevel.MEDIUM,
+    ReasoningLevel.HIGH,
+    ReasoningLevel.XHIGH,
     ReasoningLevel.MAX,
 )
 
