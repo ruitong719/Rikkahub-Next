@@ -71,6 +71,7 @@ val appModule = module {
             appScope = get(),
             eventBus = get(),
             json = get(),
+            todoStore = get(),
         )
     }
 

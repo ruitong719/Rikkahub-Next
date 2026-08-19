@@ -46,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -68,7 +69,7 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.service.FloatingActivityHub
 import me.rerere.rikkahub.service.FloatingActivityState
 import me.rerere.rikkahub.service.TerminalCommand
-import me.rerere.rikkahub.service.TodoItem
+import me.rerere.rikkahub.service.TodoStoreItem
 
 /**
  * 悬浮球展开窗口：一个可通过 WindowManager 显示在任意应用之上的 Compose 悬浮窗。
@@ -360,7 +361,7 @@ private fun ExpandWindowBody(
         .padding(12.dp)
 
     if (selectedTab == 0) {
-        TodoContent(state.todos, state.terminalCommands, scrollState, contentModifier)
+        TodoContent(state.realTodos, state.terminalCommands, scrollState, contentModifier)
     } else {
         LiveOutputContent(state, scrollState, contentModifier)
     }
@@ -368,7 +369,7 @@ private fun ExpandWindowBody(
 
 @Composable
 private fun TodoContent(
-    todos: List<TodoItem>,
+    todos: List<TodoStoreItem>,
     terminalCommands: List<TerminalCommand>,
     scrollState: ScrollState,
     modifier: Modifier = Modifier,
@@ -378,8 +379,21 @@ private fun TodoContent(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (todos.isNotEmpty()) {
-            todos.forEach { todo ->
+            val active = todos.filter { !it.completed }
+            val done = todos.filter { it.completed }
+            active.forEach { todo ->
                 TodoRow(todo)
+            }
+            if (done.isNotEmpty()) {
+                if (active.isNotEmpty()) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+                }
+                done.forEach { todo ->
+                    TodoRow(todo)
+                }
             }
         } else {
             val running = terminalCommands.filter { it.isRunning }
@@ -390,7 +404,7 @@ private fun TodoContent(
                     color = MaterialTheme.colorScheme.primary,
                 )
                 running.forEach { cmd ->
-                    CommandLine(command = cmd.command, output = "")
+                    CommandLine(command = cmd.command)
                 }
             } else {
                 Text(
@@ -404,30 +418,39 @@ private fun TodoContent(
 }
 
 @Composable
-private fun TodoRow(todo: TodoItem) {
+private fun TodoRow(todo: TodoStoreItem) {
     Row(
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Icon(
-            imageVector = if (todo.done) HugeIcons.CheckmarkCircle02 else HugeIcons.Task01,
+            imageVector = if (todo.completed) HugeIcons.CheckmarkCircle02 else HugeIcons.Task01,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
-            tint = if (todo.done) {
+            tint = if (todo.completed) {
                 MaterialTheme.colorScheme.primary
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
         )
-        Text(
-            text = todo.text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (todo.done) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-        )
+        Column {
+            Text(
+                text = todo.title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (todo.completed) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
+            if (todo.description.isNotBlank()) {
+                Text(
+                    text = todo.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
@@ -448,8 +471,10 @@ private fun LiveOutputContent(
         if (state.reasoning.isNotBlank()) {
             Text(
                 text = state.reasoning,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontStyle = FontStyle.Italic,
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             )
         }
         if (state.liveText.isNotBlank()) {
@@ -462,7 +487,7 @@ private fun LiveOutputContent(
         if (state.terminalCommands.isNotEmpty()) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             state.terminalCommands.forEach { cmd ->
-                CommandLine(command = cmd.command, output = cmd.output)
+                CommandLine(command = cmd.command)
             }
         }
         if (state.reasoning.isBlank() && state.liveText.isBlank() && state.terminalCommands.isEmpty()) {
@@ -476,34 +501,22 @@ private fun LiveOutputContent(
 }
 
 @Composable
-private fun CommandLine(command: String, output: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(
-                imageVector = HugeIcons.CommandLine,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Text(
-                text = command,
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-        if (output.isNotBlank()) {
-            Text(
-                text = output,
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 20.dp),
-            )
-        }
+private fun CommandLine(command: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            imageVector = HugeIcons.CommandLine,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            text = command,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
