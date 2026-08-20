@@ -178,18 +178,6 @@ class WebDavSync(
 
             // Backup app files
             if (BackupPolicy.hasScope(config.items, BackupScope.ATTACHMENTS)) {
-                val uploadFolder = File(context.filesDir, FileFolders.UPLOAD)
-                if (uploadFolder.exists() && uploadFolder.isDirectory) {
-                    Log.i(TAG, "prepareBackupFile: Backing up files from ${uploadFolder.absolutePath}")
-                    uploadFolder.listFiles()?.forEach { file ->
-                        if (file.isFile) {
-                            addFileToZip(zipOut, file, "${FileFolders.UPLOAD}/${file.name}")
-                        }
-                    }
-                } else {
-                    Log.w(TAG, "prepareBackupFile: Upload folder does not exist or is not a directory")
-                }
-
                 val skillsFolder = File(context.filesDir, FileFolders.SKILLS)
                 if (skillsFolder.exists() && skillsFolder.isDirectory) {
                     Log.i(TAG, "prepareBackupFile: Backing up skills from ${skillsFolder.absolutePath}")
@@ -228,7 +216,7 @@ class WebDavSync(
                     Log.w(TAG, "prepareBackupFile: Fonts folder does not exist or is not a directory")
                 }
 
-                // 工作区文件: /workspace 文件区 + /root 用户主目录（不含整个 rootfs，体积可控）
+                // 工作区文件: /workspace 文件区 + /root 仅 .bashrc（rootfs 其余内容体积过大，不备份）
                 val workspacesDir = File(context.filesDir, "workspaces")
                 if (workspacesDir.exists() && workspacesDir.isDirectory) {
                     Log.i(TAG, "prepareBackupFile: Backing up workspaces from ${workspacesDir.absolutePath}")
@@ -243,13 +231,14 @@ class WebDavSync(
                                 entryPrefix = "workspaces/${wsDir.name}/files/"
                             )
                         }
-                        val rootHome = File(wsDir, "linux/root")
-                        if (rootHome.exists() && rootHome.isDirectory) {
-                            addDirectoryToZip(
-                                zipOut = zipOut,
-                                rootDir = rootHome,
-                                currentDir = rootHome,
-                                entryPrefix = "workspaces/${wsDir.name}/linux/root/"
+                        // rootfs 主目录仅备份 .bashrc：其余（.nvm/.cache/已装软件树等）体积过大，
+                        // 全量递归会让备份卡死在未 close 的 zip 上。.bashrc 含用户自定义环境变量/别名，体积小且关键。
+                        val bashrc = File(wsDir, "linux/root/.bashrc")
+                        if (bashrc.exists() && bashrc.isFile) {
+                            addFileToZip(
+                                zipOut,
+                                bashrc,
+                                "workspaces/${wsDir.name}/linux/root/.bashrc",
                             )
                         }
                     }
