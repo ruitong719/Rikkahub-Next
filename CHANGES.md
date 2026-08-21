@@ -413,3 +413,65 @@
   `UIMessage.assistant()` 工厂与 junit 依赖存在性核对
 - 待下次正常构建时回归：`:app:testDebugUnitTest`（含新合入的 ThinkTagTransformerTest）
   与助手编辑页手动验证
+
+---
+
+# Rikkahub Next — 2026-08-21 Shell 实时输出直播（实验性）
+
+## A. 功能概述
+
+阻塞式 `workspace_shell` 改造为可流式直播 stdout/stderr：命令执行中在聊天内实时滚动显示
+尾部输出（详情弹窗自动吸底 + 折叠态最新一行）。设置 → 偏好 → 常规新增
+「Shell 实时输出（实验性）」开关，**默认关闭**；关闭时行为与原版本完全一致。
+
+## B. 架构（纯展示旁路，ai 模块零改动）
+
+```
+ProotShellRunner 收集线程 --chunk--> ShellRunMonitor(Koin single)
+                                        │ 按 toolCallId 分槽
+ShellToolUI(loading 时订阅) ────────────┘ 弹窗实时滚动 + 折叠态单行
+```
+
+最终 tool output 与消息持久化完全不变; monitor 为内存态, App 被杀后直播丢失
+（与 SubAgentRunMonitor 同一决策）。
+
+## C. 各层改动
+
+- **workspace 模块**（接口零改动）：`WorkspaceShellContext` 新增可选 `onOutput`
+  回调字段，`StreamCollector` 读循环逐块回调（解码由 BufferedReader 完成，
+  UTF-8 多字节边界安全）；`WorkspaceManager.executeCommand` 加同名透传参数；
+  回调不传时行为与原来逐字节一致
+- **身份注入**：`GenerationHandler` 执行工具处包一层
+  `withContext(ShellRunKey(tool.toolCallId))`，工具侧用
+  `coroutineContext[ShellRunKey]` 取回调用身份——不改 `Tool.execute` 签名；
+  `ShellRunKey` 为通用机制，未来其他需要调用身份的工具可复用
+- **ShellRunMonitor**（新文件，`data/ai/`）：按 toolCallId 存 `ShellRunState`
+  （command/cwd/startedAt/running/stdoutTail/stderrTail）；tail 窗口 16K chars、
+  截断对齐换行防半行；条目上限 16 自动淘汰最旧已结束条目；
+  `StateFlow.update` 原子 + conflation 天然节流（UI 每帧最多消费一个值），
+  无需显式节流协程
+- **工具层**（`createShellTool`）：开关开启时走新增的
+  `WorkspaceRepository.executeCommandStreaming` 并喂 monitor，`finally` 中
+  `finish()`（取消/超时路径同样收尾）；关闭时走原 `executeCommand` 阻塞路径。
+  runKey 取 `coroutineContext[ShellRunKey]?.id`，缺失时回退 conversationId/workspaceId
+- **UI**（`ShellToolUI`）：`hasSummary` 在 loading 态也保留摘要位；
+  Preview 弹窗在 content 为空（执行中）时插入实时区——stdout 尾部 +
+  stderr 红色尾部，新输出到达 `animateScrollTo` 自动吸底；折叠态 Summary
+  显示最新一行（120 chars 截断）。命令结束后消息更新到达，
+  自动切回完整输出渲染，与原有行为无缝衔接
+- **设置**：`DisplaySetting.enableShellLiveOutput = false`（带默认值，旧数据兼容）；
+  设置页偏好-常规新增开关行；新增中英文字符串各 3 条
+
+## D. 已知限制
+
+- 非 tty 管道下 stdio 为块缓冲，个别程序（python 裸 print 等）输出成块到达而非
+  逐行——管道固有行为，bg 任务日志相同；提示词可建议 `stdbuf -oL`，本期不修
+- 直播为进程内内存态，App 被杀后丢失（最终结果以消息里的完整 output 为准，无损）
+- UI 按 toolCallId 精确匹配，无歧义；toolCallId 缺失的异常路径下直播静默降级为不显示
+
+## E. 验证情况
+
+沙箱无 Android SDK 未跑构建。已做：11 个改动 Kotlin 文件括号平衡检查、
+双语 strings XML 解析通过、引用 API（LocalSettings/settingsFlow/
+collectAsStateWithLifecycle/Koin 注册）逐一确认存在。待真机构建回归：
+开关关闭时 shell 行为与线上一致；开启后长输出命令（如 gradle build）弹窗直播效果。
