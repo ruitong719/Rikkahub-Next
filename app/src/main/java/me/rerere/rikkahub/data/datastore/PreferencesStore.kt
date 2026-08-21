@@ -645,6 +645,8 @@ data class DisplaySetting(
     val showReasoningButton: Boolean = true,
     val showTodoButton: Boolean = true,
     val showSubAgentButton: Boolean = true,
+    // 实验性功能: workspace shell 命令执行中在聊天内实时显示 stdout/stderr（默认关闭）
+    val enableShellLiveOutput: Boolean = false,
 )
 
 @Serializable

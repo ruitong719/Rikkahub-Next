@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.Serializable
@@ -286,7 +287,10 @@ class GenerationHandler(
                                 error("Invalid tool arguments JSON for ${tool.toolName}: ${it.message}")
                             }
                             Log.i(TAG, "generateText: executing tool ${toolDef.name} with args: $args")
-                            val result = toolDef.execute(args)
+                            // 注入 toolCallId 供工具实现侧标识本次调用(如 shell 直播), 见 ShellRunKey
+                            val result = withContext(ShellRunKey(tool.toolCallId)) {
+                                toolDef.execute(args)
+                            }
                             val hasShellAccess = toolsInternal.any { it.name == "workspace_shell" }
                             executedTools += tool.copy(
                                 output = maybeTruncateToolOutput(tool.toolCallId, result, hasShellAccess)

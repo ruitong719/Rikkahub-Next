@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.ui.components.message.tools
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,9 +45,14 @@ import me.rerere.rikkahub.ui.components.richtext.DiffRemovedColor
 import me.rerere.rikkahub.ui.components.richtext.DiffView
 import me.rerere.rikkahub.ui.components.richtext.HighlightCodeBlock
 import me.rerere.rikkahub.ui.components.richtext.parseDiffStats
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import me.rerere.rikkahub.data.ai.ShellRunMonitor
+import me.rerere.rikkahub.data.ai.ShellRunState
+import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.modifier.shimmer
 import me.rerere.rikkahub.utils.generateUnifiedDiff
 import me.rerere.rikkahub.utils.jsonPrimitiveOrNull
+import org.koin.java.KoinJavaComponent.getKoin
 
 /**
  * 工作空间编辑文件: 摘要显示增删统计与精简 diff, 详情为完整 diff view
@@ -302,11 +310,17 @@ object ShellToolUI : ToolUIRenderer {
         return stringResource(R.string.tool_ui_shell, truncated)
     }
 
-    override fun hasSummary(context: ToolUIContext): Boolean = context.content != null
+    // loading 态也保留摘要位, 用于显示直播单行(LiveOutputSummaryLine)
+    override fun hasSummary(context: ToolUIContext): Boolean =
+        context.content != null || context.loading
 
     @Composable
     override fun Summary(context: ToolUIContext) {
-        val content = context.content ?: return
+        val content = context.content
+        if (content == null) {
+            LiveOutputSummaryLine(context)
+            return
+        }
         val combined = remember(content) {
             listOf(content.getStringContent("stdout"), content.getStringContent("stderr"))
                 .filterNot { it.isNullOrBlank() }
@@ -342,11 +356,12 @@ object ShellToolUI : ToolUIRenderer {
         val content = context.content
         val command = context.arguments.getStringContent("command").orEmpty()
         val cwd = context.arguments.getStringContent("cwd")
+        val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
                 .fillMaxHeight(0.8f)
                 .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(
@@ -377,6 +392,9 @@ object ShellToolUI : ToolUIRenderer {
                 language = "bash",
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (content == null) {
+                LiveOutputSection(context, scrollState)
+            }
             if (content != null) {
                 // 已执行完成：展示完整输出；执行中打开时命令结束后会自动刷新到这里
                 val stdout = content.getStringContent("stdout").orEmpty()
@@ -420,6 +438,77 @@ private fun ShellExitStatus(content: JsonElement, style: androidx.compose.ui.tex
         style = style,
         color = if (ok) DiffAddedColor else MaterialTheme.colorScheme.error,
     )
+}
+
+/**
+ * 执行中(loading)的 shell 直播订阅: 按 toolCallId 精确查找运行状态
+ * (执行侧经 ShellRunKey 注入, 见 ShellRunMonitor)。
+ * 实验性开关关闭或无直播时返回 null。
+ */
+@Composable
+private fun LiveShellRun(context: ToolUIContext): ShellRunState? {
+    if (!LocalSettings.current.displaySetting.enableShellLiveOutput) return null
+    val monitor = remember { getKoin().get<ShellRunMonitor>() }
+    val runs by monitor.runs.collectAsStateWithLifecycle()
+    return runs[context.tool.toolCallId]?.takeIf { it.running }
+}
+
+/** 折叠态摘要: 直播输出的最新一行 */
+@Composable
+private fun LiveOutputSummaryLine(context: ToolUIContext) {
+    val run = LiveShellRun(context) ?: return
+    val lastLine = remember(run.stdoutTail, run.stderrTail) {
+        sequenceOf(run.stdoutTail, run.stderrTail)
+            .flatMap { it.lineSequence() }
+            .lastOrNull { it.isNotBlank() }
+            ?.trim()
+            ?.take(120)
+            .orEmpty()
+    }
+    if (lastLine.isEmpty()) return
+    Text(
+        text = lastLine,
+        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+        fontSize = 11.sp,
+        lineHeight = 14.sp,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/** 详情弹窗: 执行中实时显示尾部输出, 新输出到达时自动吸底滚动 */
+@Composable
+private fun LiveOutputSection(context: ToolUIContext, scrollState: ScrollState) {
+    val run = LiveShellRun(context) ?: return
+    LaunchedEffect(run.stdoutTail, run.stderrTail) {
+        if (scrollState.maxValue > 0) scrollState.animateScrollTo(scrollState.maxValue)
+    }
+    Text(
+        text = stringResource(R.string.tool_ui_shell_live_output),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.secondary,
+    )
+    if (run.stdoutTail.isNotEmpty()) {
+        Text(text = "stdout", style = MaterialTheme.typography.labelMedium)
+        HighlightCodeBlock(
+            code = run.stdoutTail,
+            language = "plaintext",
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    if (run.stderrTail.isNotEmpty()) {
+        Text(
+            text = "stderr",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
+        HighlightCodeBlock(
+            code = run.stderrTail,
+            language = "plaintext",
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
 
 /** 从工具输出 JSON 读取布尔字段 */

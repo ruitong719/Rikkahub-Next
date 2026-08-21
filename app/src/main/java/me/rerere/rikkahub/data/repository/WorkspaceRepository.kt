@@ -316,6 +316,27 @@ class WorkspaceRepository(
         cwd: String = "",
         timeoutMillis: Long = WorkspaceManager.DEFAULT_COMMAND_TIMEOUT_MS,
         stdin: ByteArray? = null,
+    ): WorkspaceCommandResult = executeCommandInternal(id, command, cwd, timeoutMillis, stdin, null)
+
+    /**
+     * 与 [executeCommand] 相同, 但通过 [onOutput] 实时回调 stdout/stderr 块。
+     * 回调在进程输出收集线程上触发, 实现方需自行保证线程安全。
+     */
+    suspend fun executeCommandStreaming(
+        id: String,
+        command: String,
+        cwd: String = "",
+        timeoutMillis: Long = WorkspaceManager.DEFAULT_COMMAND_TIMEOUT_MS,
+        onOutput: (isStderr: Boolean, chunk: String) -> Unit,
+    ): WorkspaceCommandResult = executeCommandInternal(id, command, cwd, timeoutMillis, null, onOutput)
+
+    private suspend fun executeCommandInternal(
+        id: String,
+        command: String,
+        cwd: String,
+        timeoutMillis: Long,
+        stdin: ByteArray?,
+        onOutput: ((isStderr: Boolean, chunk: String) -> Unit)?,
     ): WorkspaceCommandResult {
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
         val mounts = dynamicBindMounts()
@@ -329,6 +350,7 @@ class WorkspaceRepository(
                 timeoutMillis,
                 stdin,
                 mounts,
+                onOutput,
             )
         }
     }

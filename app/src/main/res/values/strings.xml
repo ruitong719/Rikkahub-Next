@@ -707,6 +707,8 @@
   <string name="setting_display_page_volume_key_scroll_desc">Scroll pages with volume keys, ideal for e-ink screens</string>
   <string name="setting_display_page_volume_key_scroll_ratio">Scroll Amount</string>
   <string name="setting_display_page_volume_key_scroll_title">Volume Key Page Scroll</string>
+  <string name="setting_display_page_shell_live_output_title">Live Shell Output (Experimental)</string>
+  <string name="setting_display_page_shell_live_output_desc">Stream workspace shell stdout/stderr in chat while commands run</string>
   <string name="setting_files_page_cancel_action">Cancel</string>
   <string name="setting_files_page_clean_action">Clean</string>
   <string name="setting_files_page_clean_confirmation">All files in this category will be permanently deleted. This action cannot be undone.</string>
@@ -1276,6 +1278,7 @@
   <string name="tool_ui_shell_pending">waiting to run</string>
   <string name="tool_ui_shell_timeout">timeout</string>
   <string name="tool_ui_shell_exit">exit %s</string>
+  <string name="tool_ui_shell_live_output">Live output</string>
   <string name="tool_ui_speaking">Speaking: %s</string>
   <string name="tool_ui_replay">Replay</string>
   <string name="tool_ui_delete_memory">Delete memory</string>

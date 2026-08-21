@@ -2,6 +2,7 @@ package me.rerere.rikkahub.di
 
 import android.content.Context
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
+import me.rerere.rikkahub.data.ai.ShellRunMonitor
 import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.files.SkillManager
@@ -91,6 +92,11 @@ val repositoryModule = module {
     // subagent 执行轨迹注册表（进程内共享，供 SubAgentsPage / 轨迹页观察）
     single {
         SubAgentRunMonitor()
+    }
+
+    // workspace_shell 执行直播注册表（进程内共享，供 ShellToolUI 在执行中实时展示输出）
+    single {
+        ShellRunMonitor()
     }
 
     single {

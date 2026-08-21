@@ -258,6 +258,18 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                             }
                         )
                     }
+                    item(
+                        headlineContent = { Text(stringResource(R.string.setting_display_page_shell_live_output_title)) },
+                        supportingContent = { Text(stringResource(R.string.setting_display_page_shell_live_output_desc)) },
+                        trailingContent = {
+                            Switch(
+                                checked = displaySetting.enableShellLiveOutput,
+                                onCheckedChange = {
+                                    updateDisplaySetting(displaySetting.copy(enableShellLiveOutput = it))
+                                }
+                            )
+                        },
+                    )
                 }
             }
 

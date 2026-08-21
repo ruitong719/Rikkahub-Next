@@ -655,6 +655,8 @@
   <string name="setting_display_page_volume_key_scroll_desc">使用音量键翻页，非常适合电子墨水屏</string>
   <string name="setting_display_page_volume_key_scroll_ratio">滚动幅度</string>
   <string name="setting_display_page_volume_key_scroll_title">音量键翻页</string>
+  <string name="setting_display_page_shell_live_output_title">Shell 实时输出（实验性）</string>
+  <string name="setting_display_page_shell_live_output_desc">shell 命令执行中在聊天内实时显示 stdout/stderr 输出</string>
   <string name="setting_files_page_cancel_action">取消</string>
   <string name="setting_files_page_clean_action">清理</string>
   <string name="setting_files_page_clean_confirmation">将永久删除此分类中的全部文件，此操作无法撤销。</string>
@@ -1225,6 +1227,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="tool_ui_shell_pending">等待执行</string>
   <string name="tool_ui_shell_timeout">timeout</string>
   <string name="tool_ui_shell_exit">exit %s</string>
+  <string name="tool_ui_shell_live_output">实时输出</string>
   <string name="tool_ui_speaking">朗读: %s</string>
   <string name="tool_ui_replay">重播</string>
   <string name="tool_ui_delete_memory">删除记忆</string>

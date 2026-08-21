@@ -11,6 +11,9 @@ import me.rerere.ai.core.Tool
 import me.rerere.ai.ui.DiffMetadata
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.toMetadata
+import me.rerere.rikkahub.data.ai.ShellRunKey
+import me.rerere.rikkahub.data.ai.ShellRunMonitor
+import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.utils.generateUnifiedDiff
@@ -19,6 +22,7 @@ import me.rerere.workspace.WorkspaceFileEntry
 import me.rerere.workspace.WorkspaceManager
 import org.koin.java.KoinJavaComponent.getKoin
 import java.io.ByteArrayOutputStream
+import kotlin.coroutines.coroutineContext
 
 private const val SHELL_TIMEOUT_MAX_SECONDS = 600L
 private const val MAX_READ_FILE_BYTES = 8L * 1024 * 1024
@@ -267,18 +271,41 @@ private fun createShellTool(
             ?.coerceIn(1L, SHELL_TIMEOUT_MAX_SECONDS)
             ?.times(1_000L)
             ?: WorkspaceManager.DEFAULT_COMMAND_TIMEOUT_MS
-        val result = workspaceRepository.executeCommand(workspaceId, command, cwd, timeoutMillis)
-        listOf(
-            UIMessagePart.Text(
-                buildJsonObject {
-                    put("exitCode", result.exitCode)
-                    put("stdout", result.stdout)
-                    put("stderr", result.stderr)
-                    put("timedOut", result.timedOut)
-                    if (result.truncated) put("truncated", true)
-                }.toString()
+
+        // 实验性开关关闭时保持原有阻塞行为, 不注册直播
+        val liveOutput = getKoin().get<SettingsStore>()
+            .settingsFlow.value.displaySetting.enableShellLiveOutput
+        // GenerationHandler 通过 ShellRunKey 注入 toolCallId; 缺失时回退 conversationId/workspaceId
+        val runKey = coroutineContext[ShellRunKey]?.id ?: conversationId ?: workspaceId
+
+        if (liveOutput) {
+            getKoin().get<ShellRunMonitor>().start(runKey, command, cwd.takeIf { it.isNotBlank() })
+        }
+        try {
+            val result = if (liveOutput) {
+                val monitor = getKoin().get<ShellRunMonitor>()
+                workspaceRepository.executeCommandStreaming(workspaceId, command, cwd, timeoutMillis) { isStderr, chunk ->
+                    monitor.append(runKey, isStderr, chunk)
+                }
+            } else {
+                workspaceRepository.executeCommand(workspaceId, command, cwd, timeoutMillis)
+            }
+            listOf(
+                UIMessagePart.Text(
+                    buildJsonObject {
+                        put("exitCode", result.exitCode)
+                        put("stdout", result.stdout)
+                        put("stderr", result.stderr)
+                        put("timedOut", result.timedOut)
+                        if (result.truncated) put("truncated", true)
+                    }.toString()
+                )
             )
-        )
+        } finally {
+            if (liveOutput) {
+                getKoin().get<ShellRunMonitor>().finish(runKey)
+            }
+        }
     },
 )
 
