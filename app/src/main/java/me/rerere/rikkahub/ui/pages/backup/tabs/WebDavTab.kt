@@ -214,6 +214,8 @@ fun WebDavTab(
                                     when (item) {
                                         BackupScope.DATABASE -> stringResource(R.string.backup_page_chat_records)
                                         BackupScope.ATTACHMENTS -> stringResource(R.string.backup_page_files)
+                                        // Only selectable entries are rendered; keep the branch exhaustive.
+                                        else -> ""
                                     }
                                 )
                             }

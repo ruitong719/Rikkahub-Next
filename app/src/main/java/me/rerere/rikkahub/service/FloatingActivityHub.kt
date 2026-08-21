@@ -6,7 +6,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -111,7 +110,6 @@ class FloatingActivityHub(
         // 订阅当前对话的真实 todos（来自 TodoStore）
         scope.launch {
             currentConversationId
-                .distinctUntilChanged()
                 .flatMapLatest { conversationId ->
                     if (conversationId != null) {
                         todoStore.todos(conversationId)
