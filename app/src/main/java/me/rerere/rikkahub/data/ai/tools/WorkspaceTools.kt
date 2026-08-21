@@ -62,7 +62,7 @@ suspend fun createWorkspaceTools(
         createReadFileTool(workspaceId, ::needsApproval, workspaceRepository),
         createWriteFileTool(workspaceId, ::needsApproval, workspaceRepository),
         createEditFileTool(workspaceId, ::needsApproval, workspaceRepository),
-        createShellTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd),
+        createShellTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd, conversationId),
         createWorkspaceExportTool(workspaceId, ::needsApproval, workspaceRepository),
     ) + createWorkspaceMountTools(::needsApproval) +
         createWorkspaceBgTools(workspaceId, ::needsApproval, workspaceRepository, conversationId) +
@@ -222,6 +222,7 @@ private fun createShellTool(
     needsApproval: (String) -> Boolean,
     workspaceRepository: WorkspaceRepository,
     defaultCwd: String? = null,
+    conversationId: String? = null,
 ) = Tool(
     name = "workspace_shell",
     description = buildString {
