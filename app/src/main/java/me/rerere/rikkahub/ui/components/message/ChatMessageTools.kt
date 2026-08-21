@@ -188,7 +188,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
         } else {
             null
         },
-        onClick = if (context.content != null || isPending || images.isNotEmpty()) {
+        onClick = if (context.content != null || isPending || images.isNotEmpty() || loading) {
             { showResult = true }
         } else {
             null

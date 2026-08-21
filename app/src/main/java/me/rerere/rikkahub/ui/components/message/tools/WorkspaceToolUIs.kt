@@ -340,14 +340,8 @@ object ShellToolUI : ToolUIRenderer {
     @Composable
     override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
         val content = context.content
-        if (content == null) {
-            DefaultToolPreview(context = context)
-            return
-        }
         val command = context.arguments.getStringContent("command").orEmpty()
         val cwd = context.arguments.getStringContent("cwd")
-        val stdout = content.getStringContent("stdout").orEmpty()
-        val stderr = content.getStringContent("stderr").orEmpty()
         Column(
             modifier = Modifier
                 .fillMaxHeight(0.8f)
@@ -365,32 +359,48 @@ object ShellToolUI : ToolUIRenderer {
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
-                ShellExitStatus(content, MaterialTheme.typography.labelMedium)
+                if (content != null) {
+                    ShellExitStatus(content, MaterialTheme.typography.labelMedium)
+                } else {
+                    Text(
+                        text = stringResource(
+                            if (context.loading) R.string.tool_ui_shell_running
+                            else R.string.tool_ui_shell_pending
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
             }
             HighlightCodeBlock(
                 code = if (cwd.isNullOrBlank()) command else "# cwd: $cwd\n$command",
                 language = "bash",
                 modifier = Modifier.fillMaxWidth(),
             )
-            if (stdout.isNotEmpty()) {
-                Text(text = "stdout", style = MaterialTheme.typography.labelMedium)
-                HighlightCodeBlock(
-                    code = stdout,
-                    language = "plaintext",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            if (stderr.isNotEmpty()) {
-                Text(
-                    text = "stderr",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                HighlightCodeBlock(
-                    code = stderr,
-                    language = "plaintext",
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            if (content != null) {
+                // 已执行完成：展示完整输出；执行中打开时命令结束后会自动刷新到这里
+                val stdout = content.getStringContent("stdout").orEmpty()
+                val stderr = content.getStringContent("stderr").orEmpty()
+                if (stdout.isNotEmpty()) {
+                    Text(text = "stdout", style = MaterialTheme.typography.labelMedium)
+                    HighlightCodeBlock(
+                        code = stdout,
+                        language = "plaintext",
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (stderr.isNotEmpty()) {
+                    Text(
+                        text = "stderr",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    HighlightCodeBlock(
+                        code = stderr,
+                        language = "plaintext",
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
     }
