@@ -362,3 +362,54 @@
   - app-arm64-v8a-release.apk（38.7MB）/ app-x86_64-release.apk（39.4MB）/
     app-universal-release.apk（48.8MB，含 web-ui）
 - 版本号 1.00 / versionCode 177（`app/build.gradle.kts`）
+
+---
+
+# Rikkahub Next — 2026-08-21 上游同步与 Token 阈值输入改造
+
+## A. 上游同步对账（2.4.9 `0c52b62b` → `6b37912f`，共 12 commits）
+
+对账方法：`git cherry`（patch-id 等价判定）+ fork 历史逐条核对。结论：8 个此前已合入、
+1 个本次合入、3 个按决策跳过/改造，上游至此全部处理完毕。
+
+| 上游 commit | 处理 | 说明 |
+|---|---|---|
+| `d1e8effc` style(ui): 移除推理等级选择器底部刻度 | **跳过** | 保留 fork `a47fab90`（显示全部 7 档标签），与上游方向相反；后续上游再动 ReasoningPicker 需手动解冲突 |
+| `de888df2` fix(asr): DashScope 语音识别无文本输出 | 已合入 | fork `b9aaaf6f` |
+| `97df86ec` fix(workspace): 修复 SAF 文件存在性判断 | 已合入 | fork `96f70a83` |
+| `bca21d4d` fix: 修复 .agc 文件支持 | 已合入 | fork `c94e97ad` |
+| `c88822d6` feat: 支持豆包搜索 | 已合入 | fork `3ac6896d` |
+| `82758c36` fix(chat): 启用英文句首自动大写 | 已合入 | fork `98c4ae85` |
+| `dca7f01c` feat: 正则支持排序 | 已合入 | fork `ae21cb95` |
+| `693c2ce5` chore: bump to 2.4.10 | 已合入 | fork `da3ca8b1`（fork 现为 versionCode 178 / 2.4.10） |
+| `3b4b80a4` fix: 修复混淆破坏 auth/jwt | 已合入 | fork `bf9bf81e` |
+| `85402745` fix(thinking): 忽略正文中内联 think 标签 | **本次合入** | fork `efdbe8d2`，零冲突（fork 原文件与上游父提交逐字节一致，合入即上游原版）；仅消息开头的 `&lt;think&gt;` 转为推理，正文中的字面标签保留显示；有原生 reasoning 时跳过解析；附 `ThinkTagTransformerTest` 8 个用例 |
+| `adf333ec` feat(assistant): 上下文条数改数字输入 | **不直接合入** | `contextMessageLimit` 字段已被滚动摘要功能整体移除，上游改的是不存在的 UI；其交互模式已适配到 Token 阈值输入框（见 B） |
+| `6b37912f` docs: 移除 claude.md | 跳过 | fork 已在 `15525bea` 删除根目录 CLAUDE.md，空操作 |
+
+> 注意：fork 内 `upstream` 远程引用仍停在 `3b4b80a4`，本次对齐用的是本地 clone
+> （临时 remote `local-upstream` → `/workspace/rikkahub`）；下次同步前先 fetch 更新。
+
+## B. Token 阈值滑条 → 数字输入框（`d6629e20`）
+
+- 参考上游 `adf333ec` 的交互（滑条换数字输入 + 失焦校验 + 过小自动重置弹窗），
+  适配到 fork 的 `rollingContextCompressionThresholdTokens`
+- 输入支持纯数字（`32000`）与 K/M 后缀（`32K` / `1.5M`，大小写与中间空格均可），
+  非法字符不进入输入框；`AssistantBasicPage.kt` 新增
+  `parseTokenThresholdInput` / `normalizeTokenThreshold`，移除滑条专用的
+  `snapContextTokenThreshold`（含"低于最小值一半归零"吸附——打字输入不需要）
+- 合法值（0 或 ≥ 4000）输入时实时生效；1~3999 实时标红；失焦 / Done 统一校验：
+  非法内容回滚为当前值，1~3999 自动重置为 4000 并弹窗提示，`32K` 写法规范化为 `32000`
+- 0 = 默认阈值；下方格式化显示（32K/128K/1M）与警告文案保留
+- 键盘用文本键盘（数字键盘打不出 K/M），ImeAction Done；状态沿用本文件 topP
+  输入框的 `remember(assistant.id)` 模式，避免打字过程中文本被重写、光标跳动
+- 新增中英文字符串各 2 条（hint + 重置弹窗）；ja/ko/ru 缺失时回退英文默认
+
+## C. 验证情况
+
+- 本沙箱无 Android SDK，未跑 Gradle 构建；已做：strings XML（values / values-zh）解析通过、
+  阈值解析逻辑以等价正则模拟 13 组输入全部符合预期（含超大值饱和到 Int.MAX，不崩溃）、
+  无 `snapContextTokenThreshold` 残留引用、新增 import 均为 Compose/M3 标准 API、
+  `UIMessage.assistant()` 工厂与 junit 依赖存在性核对
+- 待下次正常构建时回归：`:app:testDebugUnitTest`（含新合入的 ThinkTagTransformerTest）
+  与助手编辑页手动验证

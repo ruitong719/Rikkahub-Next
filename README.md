@@ -13,7 +13,7 @@
 
 本项目是 [RikkaHub](https://github.com/rikkahub/rikkahub)（[AGPL-3.0](LICENSE)）的 **Fork**：
 
-- **基线**：上游 `master` 2.4.9（`0c52b62b`），持续跟踪上游更新
+- **基线**：上游 `master` 2.4.9（`0c52b62b`），已同步上游至 `6b37912f`（2.4.10 后），持续跟踪上游更新
 - 逐功能合入、review 与编译验证记录见 [CHANGES.md](CHANGES.md)
 
 > [!WARNING]
@@ -33,7 +33,7 @@
 - 🤖 **Subagent 子代理**：数据模型、预置模板、运行器、编辑页与执行轨迹
 - ✅ **Todo 工具**与 per-tool 可注入提示词
 - 🔵 **悬浮球**：聊天时实时查看待办与工具执行状态（源自 rikkahub-apk fork）
--  **Token-aware** 滚动摘要上下文、模型上下文窗口自动发现
+-  **Token-aware** 滚动摘要上下文（阈值支持 `32000` / `32K` / `1M` 数字输入）、模型上下文窗口自动发现
 -  每日自动构建（nightly prerelease）
 - 🏷️ 应用更名为 Rikkahub Next
 
