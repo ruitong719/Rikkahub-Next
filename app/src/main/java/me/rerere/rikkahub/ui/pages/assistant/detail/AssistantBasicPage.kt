@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -21,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,9 +32,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -376,19 +382,104 @@ internal fun AssistantBasicContent(
                     )
                 }
             ) {
-                Slider(
-                    value = assistant.rollingContextCompressionThresholdTokens.toFloat(),
-                    onValueChange = { value ->
+                var tokenThresholdInput by remember(assistant.id) {
+                    mutableStateOf(assistant.rollingContextCompressionThresholdTokens.toString())
+                }
+                var tokenThresholdFocused by remember(assistant.id) {
+                    mutableStateOf(false)
+                }
+                var showTokenThresholdDialog by remember(assistant.id) {
+                    mutableStateOf(false)
+                }
+                val focusManager = LocalFocusManager.current
+
+                fun commitTokenThresholdInput() {
+                    val parsed = parseTokenThresholdInput(tokenThresholdInput)
+                    if (parsed == null) {
+                        tokenThresholdInput = assistant.rollingContextCompressionThresholdTokens.toString()
+                        return
+                    }
+                    val normalized = normalizeTokenThreshold(parsed)
+                    tokenThresholdInput = normalized.toString()
+                    if (normalized != assistant.rollingContextCompressionThresholdTokens) {
                         onUpdate(
                             assistant.copy(
-                                rollingContextCompressionThresholdTokens = snapContextTokenThreshold(value)
+                                rollingContextCompressionThresholdTokens = normalized
                             )
                         )
+                    }
+                    if (normalized != parsed) {
+                        showTokenThresholdDialog = true
+                    }
+                }
+
+                val parsedTokenThreshold = parseTokenThresholdInput(tokenThresholdInput)
+                OutlinedTextField(
+                    value = tokenThresholdInput,
+                    onValueChange = { input ->
+                        if (input.all { it.isDigit() || it in "KkMm." || it == ' ' }) {
+                            tokenThresholdInput = input
+                            parseTokenThresholdInput(input)
+                                ?.takeIf { it == 0 || it >= MIN_CONTEXT_TOKEN_THRESHOLD }
+                                ?.takeIf { it != assistant.rollingContextCompressionThresholdTokens }
+                                ?.let { next ->
+                                    onUpdate(
+                                        assistant.copy(
+                                            rollingContextCompressionThresholdTokens = next
+                                        )
+                                    )
+                                }
+                        }
                     },
-                    valueRange = 0f..256_000f,
-                    steps = 0,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { focusState ->
+                            if (tokenThresholdFocused && !focusState.isFocused) {
+                                commitTokenThresholdInput()
+                            }
+                            tokenThresholdFocused = focusState.isFocused
+                        },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { focusManager.clearFocus() }
+                    ),
+                    singleLine = true,
+                    isError = tokenThresholdInput.isNotBlank() &&
+                        (parsedTokenThreshold == null || parsedTokenThreshold in 1 until MIN_CONTEXT_TOKEN_THRESHOLD),
+                    supportingText = {
+                        Text(
+                            stringResource(
+                                R.string.assistant_page_context_message_limit_hint,
+                                MIN_CONTEXT_TOKEN_THRESHOLD
+                            )
+                        )
+                    }
                 )
+
+                if (showTokenThresholdDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showTokenThresholdDialog = false },
+                        title = {
+                            Text(stringResource(R.string.assistant_page_context_message_limit))
+                        },
+                        text = {
+                            Text(
+                                stringResource(
+                                    R.string.assistant_page_context_message_limit_too_small,
+                                    MIN_CONTEXT_TOKEN_THRESHOLD
+                                )
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showTokenThresholdDialog = false }) {
+                                Text(stringResource(R.string.common_confirm))
+                            }
+                        }
+                    )
+                }
 
                 Text(
                     text = if (assistant.rollingContextCompressionThresholdTokens > 0) stringResource(
@@ -564,24 +655,34 @@ internal fun AssistantBasicContent(
 }
 
 /**
- * 上下文限制的最小有效值
+ * 上下文 Token 阈值的最小值
  *
  * 低于此值时截断点几乎每轮都在移动, 提示词缓存命中率跌破 90%,
- * 上下文 Token 阈值的最小值 (K tokens)
+ * 且保留的上下文通常达不到可缓存的最小长度, 限制本身失去意义
  */
 private const val MIN_CONTEXT_TOKEN_THRESHOLD = 4_000
 
 /**
- * 把滑块取值吸附到 0(默认) 或不低于 [MIN_CONTEXT_TOKEN_THRESHOLD] 的有效档位
+ * 把输入值规范化: 0(默认) 保留, 低于最小值的正数重置为 [MIN_CONTEXT_TOKEN_THRESHOLD]
  */
-private fun snapContextTokenThreshold(value: Float): Int {
-    val raw = value.roundToInt()
-    return when {
-        raw < MIN_CONTEXT_TOKEN_THRESHOLD / 2 -> 0
-        raw < MIN_CONTEXT_TOKEN_THRESHOLD -> MIN_CONTEXT_TOKEN_THRESHOLD
-        else -> raw
+internal fun normalizeTokenThreshold(value: Int): Int =
+    if (value in 1 until MIN_CONTEXT_TOKEN_THRESHOLD) MIN_CONTEXT_TOKEN_THRESHOLD else value
+
+/**
+ * 解析 Token 阈值输入, 支持纯数字 (32000) 与 K/M 后缀 (32K, 1.5M) 两种写法
+ */
+private fun parseTokenThresholdInput(input: String): Int? {
+    val match = TOKEN_THRESHOLD_INPUT_REGEX.matchEntire(input.trim()) ?: return null
+    val number = match.groupValues[1].toFloatOrNull() ?: return null
+    val multiplier = when (match.groupValues[2].uppercase()) {
+        "K" -> 1_000f
+        "M" -> 1_000_000f
+        else -> 1f
     }
+    return (number * multiplier).roundToInt()
 }
+
+private val TOKEN_THRESHOLD_INPUT_REGEX = Regex("(\\d+(?:\\.\\d+)?)\\s*([KkMm]?)")
 
 /**
  * 格式化 Token 阈值为人类可读形式 (e.g. "32K", "128K", "1M")
