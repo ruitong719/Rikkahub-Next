@@ -188,13 +188,6 @@
   <string name="backup_page_restore_now">復元</string>
   <string name="backup_page_restore_success">復元成功</string>
   <string name="backup_page_restoring">復元中...</string>
-  <string name="backup_page_s3_access_key_id">アクセスキーID</string>
-  <string name="backup_page_s3_backup">S3バックアップ</string>
-  <string name="backup_page_s3_backup_files">S3バックアップファイル</string>
-  <string name="backup_page_s3_bucket">バケット</string>
-  <string name="backup_page_s3_endpoint">エンドポイント</string>
-  <string name="backup_page_s3_region">リージョン</string>
-  <string name="backup_page_s3_secret_access_key">シークレットアクセスキー</string>
   <string name="backup_page_test_connection">接続テスト</string>
   <string name="backup_page_title">バックアップと復元</string>
   <string name="backup_page_unknown_error">不明なエラー</string>
@@ -1134,8 +1127,6 @@ mDNSアドレス: .localホスト名を使用し、IPを知らなくても同じ
   <string name="tool_ui_replay">リプレイ</string>
   <string name="tool_ui_delete_memory">メモリを削除</string>
   <string name="tool_ui_file">ファイル</string>
-  <string name="backup_page_s3_path_style">パス形式</string>
-  <string name="backup_page_s3_path_style_desc">endpoint/bucket/object を使用します。オフにすると bucket.endpoint/object を使用します。</string>
   <string name="workspace_page_name_duplicate">名前は既に存在します</string>
   <string name="setting_mcp_page_name_invalid">名前は英数字のみ使用可能です。</string>
   <string name="error_mcp_invalid_server_name">無効なMCPサーバー名です（英数字のみ使用可能）：%1$s</string>

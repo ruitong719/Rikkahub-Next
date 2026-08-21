@@ -15,8 +15,6 @@ import me.rerere.rikkahub.data.sync.importer.ChatboxImporter
 import me.rerere.rikkahub.data.sync.importer.CherryStudioProviderImporter
 import me.rerere.rikkahub.data.sync.webdav.WebDavBackupItem
 import me.rerere.rikkahub.data.sync.webdav.WebDavSync
-import me.rerere.rikkahub.data.sync.S3BackupItem
-import me.rerere.rikkahub.data.sync.S3Sync
 import me.rerere.rikkahub.utils.UiState
 import java.io.File
 
@@ -25,7 +23,6 @@ private const val TAG = "BackupVM"
 class BackupVM(
     private val settingsStore: SettingsStore,
     private val webDavSync: WebDavSync,
-    private val s3Sync: S3Sync,
     private val conversationRepository: ConversationRepository,
 ) : ViewModel() {
     val settings = settingsStore.settingsFlow.stateIn(
@@ -35,11 +32,9 @@ class BackupVM(
     )
 
     val webDavBackupItems = MutableStateFlow<UiState<List<WebDavBackupItem>>>(UiState.Idle)
-    val s3BackupItems = MutableStateFlow<UiState<List<S3BackupItem>>>(UiState.Idle)
 
     init {
         loadBackupFileItems()
-        loadS3BackupFileItems()
     }
 
     fun updateSettings(settings: Settings) {
@@ -157,41 +152,6 @@ class BackupVM(
                 providers = importProviders + settings.value.providers,
             )
         )
-    }
-
-    // S3 Backup methods
-    fun loadS3BackupFileItems() {
-        viewModelScope.launch {
-            runCatching {
-                s3BackupItems.emit(UiState.Loading)
-                s3BackupItems.emit(
-                    value = UiState.Success(
-                        data = s3Sync.listBackupFiles(
-                            config = settings.value.s3Config
-                        )
-                    )
-                )
-            }.onFailure {
-                s3BackupItems.emit(UiState.Error(it))
-            }
-        }
-    }
-
-    suspend fun testS3() {
-        s3Sync.testS3(settings.value.s3Config)
-    }
-
-    suspend fun backupToS3() {
-        s3Sync.backupToS3(settings.value.s3Config)
-        recordBackupTime()
-    }
-
-    suspend fun restoreFromS3(item: S3BackupItem) {
-        s3Sync.restoreFromS3(config = settings.value.s3Config, item = item)
-    }
-
-    suspend fun deleteS3BackupFile(item: S3BackupItem) {
-        s3Sync.deleteS3BackupFile(settings.value.s3Config, item)
     }
 
     private suspend fun recordBackupTime() {

@@ -42,7 +42,6 @@ import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.data.model.DEFAULT_SUBAGENTS
 import me.rerere.rikkahub.data.model.SubAgent
 import me.rerere.rikkahub.data.model.Tag
-import me.rerere.rikkahub.data.sync.s3.S3Config
 import me.rerere.rikkahub.ui.theme.CustomTheme
 import me.rerere.rikkahub.ui.theme.PresetThemes
 import me.rerere.rikkahub.utils.JsonInstant
@@ -121,9 +120,6 @@ class SettingsStore(
 
         // WebDAV
         val WEBDAV_CONFIG = stringPreferencesKey("webdav_config")
-
-        // S3
-        val S3_CONFIG = stringPreferencesKey("s3_config")
 
         // 工作区 SAF 挂载点（全局共享，所有工作区可见 /mnt/<name>）
         val WORKSPACE_MOUNTS = stringPreferencesKey("workspace_mounts")
@@ -236,9 +232,6 @@ class SettingsStore(
                 webDavConfig = preferences[WEBDAV_CONFIG]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: WebDavConfig(),
-                s3Config = preferences[S3_CONFIG]?.let {
-                    JsonInstant.decodeFromString(it)
-                } ?: S3Config(),
                 workspaceMounts = preferences[WORKSPACE_MOUNTS]?.let {
                     JsonInstant.decodeFromString<List<WorkspaceMountConfig>>(it)
                 } ?: emptyList(),
@@ -410,7 +403,6 @@ class SettingsStore(
 
             preferences[MCP_SERVERS] = JsonInstant.encodeToString(settings.mcpServers)
             preferences[WEBDAV_CONFIG] = JsonInstant.encodeToString(settings.webDavConfig)
-            preferences[S3_CONFIG] = JsonInstant.encodeToString(settings.s3Config)
             preferences[WORKSPACE_MOUNTS] = JsonInstant.encodeToString(settings.workspaceMounts)
             preferences[TTS_PROVIDERS] = JsonInstant.encodeToString(settings.ttsProviders)
             preferences[SELECTED_TTS_PROVIDER] = settings.selectedTTSProviderId.toString()
@@ -563,7 +555,6 @@ data class Settings(
     val searchServiceSelected: Int = 0,
     val mcpServers: List<McpServerConfig> = emptyList(),
     val webDavConfig: WebDavConfig = WebDavConfig(),
-    val s3Config: S3Config = S3Config(),
     val workspaceMounts: List<WorkspaceMountConfig> = emptyList(),
     val ttsProviders: List<TTSProviderSetting> = DEFAULT_TTS_PROVIDERS,
     val selectedTTSProviderId: Uuid = DEFAULT_SYSTEM_TTS_ID,
