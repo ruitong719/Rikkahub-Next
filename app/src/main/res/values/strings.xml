@@ -1384,4 +1384,6 @@
   <string name="setting_page_floating_bubble_expand_height">Expand window height</string>
   <string name="setting_page_floating_bubble_show_todo_tab">Show todo tab</string>
   <string name="setting_page_floating_bubble_show_live_tab">Show live output tab</string>
+  <string name="backup_page_import_overwrite_confirm">Importing a backup will overwrite app data. Continue?</string>
 </resources>
+

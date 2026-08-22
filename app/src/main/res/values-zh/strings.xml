@@ -1382,5 +1382,6 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_page_floating_bubble_show_todo_tab">显示待办标签</string>
   <string name="setting_page_floating_bubble_show_live_tab">显示实时输出标签</string>
   <string name="reasoning_max">最大</string>
+  <string name="backup_page_import_overwrite_confirm">导入备份会覆盖 App 数据，是否继续</string>
 </resources>
 
