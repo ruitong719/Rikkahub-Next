@@ -39,6 +39,8 @@ import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
@@ -145,6 +147,7 @@ fun ChatInput(
     onCancelClick: () -> Unit,
     onSendClick: () -> Unit,
     onLongSendClick: () -> Unit,
+    queuedCount: Int = 0,
     todos: List<TodoItem> = emptyList(),
     onClearTodos: () -> Unit = {},
     messages: List<UIMessage> = emptyList(),
@@ -173,7 +176,14 @@ fun ChatInput(
     fun sendMessage() {
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
-        if (loading) onCancelClick() else onSendClick()
+        // 生成中按钮是"两次点击"机制：第一次点击（发送样式）= 入队；
+        // 入队后按钮切换为打断样式，第二次点击 = 打断并发送队列。
+        // 生成中无输入或队列非空时按钮即为打断样式，点击 = 打断。
+        if (loading && (queuedCount > 0 || state.isEmpty())) {
+            onCancelClick()
+        } else {
+            onSendClick()
+        }
     }
 
     fun sendMessageWithoutAnswer() {
@@ -482,13 +492,16 @@ fun ChatInput(
                                         }
                                     )
                             ) {
+                                // 两次点击机制：生成中且（队列非空 或 无输入）→ 打断样式；
+                                // 否则为发送/入队样式。同一按钮位，状态切换。
+                                val showInterrupt = loading && (queuedCount > 0 || state.isEmpty())
                                 val containerColor = when {
-                                    loading -> MaterialTheme.colorScheme.errorContainer
+                                    showInterrupt -> MaterialTheme.colorScheme.errorContainer
                                     state.isEmpty() -> MaterialTheme.colorScheme.surfaceContainerHigh
                                     else -> MaterialTheme.colorScheme.primary
                                 }
                                 val contentColor = when {
-                                    loading -> MaterialTheme.colorScheme.onErrorContainer
+                                    showInterrupt -> MaterialTheme.colorScheme.onErrorContainer
                                     state.isEmpty() -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                                     else -> MaterialTheme.colorScheme.onPrimary
                                 }
@@ -499,16 +512,20 @@ fun ChatInput(
                                     content = {})
                                 if (loading) {
                                     KeepScreenOn()
+                                }
+                                // 队列角标：入队后按钮变为打断样式，角标提示"打断 = 发送 N 条"
+                                BadgedBox(
+                                    badge = {
+                                        if (queuedCount > 0) {
+                                            Badge { Text(queuedCount.coerceAtMost(99).toString()) }
+                                        }
+                                    },
+                                ) {
                                     Icon(
-                                        imageVector = HugeIcons.Cancel01,
-                                        contentDescription = stringResource(R.string.stop),
-                                        tint = contentColor,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = HugeIcons.ArrowUp02,
-                                        contentDescription = stringResource(R.string.send),
+                                        imageVector = if (showInterrupt) HugeIcons.Cancel01 else HugeIcons.ArrowUp02,
+                                        contentDescription = stringResource(
+                                            if (showInterrupt) R.string.stop else R.string.send
+                                        ),
                                         tint = contentColor,
                                         modifier = Modifier.size(18.dp)
                                     )

@@ -86,6 +86,12 @@ class GenerationHandler(
         workspaceCwd: String? = null,
         rollingContextSummary: String? = null,
         requestMessageStartIndex: Int = 0,
+        /**
+         * 生成循环中每轮调用 LLM 前回调：返回需要插入对话的用户补充消息（队列）。
+         * 插入点在工具执行完之后、下一轮调用之前，让 LLM 尽快看到用户补充；
+         * 返回的消息会立即追加并 emit（UI/持久化与工具结果同链路）。
+         */
+        onPollQueuedMessages: () -> List<UIMessage> = { emptyList() },
     ): Flow<GenerationChunk> = flow {
         val provider = model.findProvider(settings.providers) ?: error("Provider not found")
         val providerImpl = providerManager.getProviderByType(provider)
@@ -94,6 +100,14 @@ class GenerationHandler(
 
         for (stepIndex in 0 until maxSteps) {
             Log.i(TAG, "streamText: start step #$stepIndex (${model.id})")
+
+            // 队列消息插入：工具执行完/新一轮调用前，让 LLM 尽快看到用户补充
+            val queued = onPollQueuedMessages()
+            if (queued.isNotEmpty()) {
+                Log.i(TAG, "streamText: inserting ${queued.size} queued messages before step #$stepIndex")
+                messages = messages + queued
+                emit(GenerationChunk.Messages(messages))
+            }
 
             val toolsInternal = buildList {
                 Log.i(TAG, "generateInternal: build tools($assistant)")

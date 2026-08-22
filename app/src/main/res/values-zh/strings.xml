@@ -1332,6 +1332,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="bg_task_kill">终止</string>
   <string name="bg_task_delete">删除任务</string>
   <string name="bg_task_refresh">刷新</string>
+  <string name="message_queued_toast">已加入队列，生成结束后自动发送；点打断可立即插入</string>
   <string name="subagent_monitor_sheet_title">子智能体（已启用 %1$d 个）</string>
   <string name="subagent_monitor_empty">当前助手未启用子智能体</string>
   <string name="subagent_monitor_manage">管理子智能体</string>

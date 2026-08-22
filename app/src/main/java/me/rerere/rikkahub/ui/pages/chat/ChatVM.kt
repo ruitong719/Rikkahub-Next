@@ -82,6 +82,12 @@ class ChatVM(
         chatService
             .getProcessingStatusFlow(_conversationId)
 
+    // 生成中用户补充消息队列数（驱动输入区按钮角标/打断切换）
+    val queuedCount: StateFlow<Int> = chatService
+        .getQueuedMessagesFlow(_conversationId)
+        .map { it.size }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
     val conversationJobs = chatService
         .getConversationJobs()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
@@ -192,10 +198,10 @@ class ChatVM(
      * @param content 消息内容
      * @param answer 是否触发消息生成，如果为false，则仅添加消息到消息列表中
      */
-    fun handleMessageSend(content: List<UIMessagePart>,answer: Boolean = true) {
-        if (content.isEmptyInputMessage()) return
-
-        chatService.sendMessage(_conversationId, content, answer)
+    fun handleMessageSend(content: List<UIMessagePart>, answer: Boolean = true): Boolean {
+        if (content.isEmptyInputMessage()) return false
+        // 生成中调用返回 true（消息入队），非生成返回 false（直接发送）
+        return chatService.sendMessage(_conversationId, content, answer)
     }
 
     fun handleMessageEdit(parts: List<UIMessagePart>, messageId: Uuid) {

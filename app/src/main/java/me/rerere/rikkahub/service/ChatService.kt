@@ -298,6 +298,12 @@ class ChatService(
         return session.generationJob
     }
 
+    /** 生成中用户补充消息队列（驱动输入区角标） */
+    fun getQueuedMessagesFlow(conversationId: Uuid): Flow<List<UIMessage>> {
+        val session = sessions[conversationId] ?: return flowOf(emptyList())
+        return session.queuedMessages
+    }
+
     fun getProcessingStatusFlow(conversationId: Uuid): StateFlow<String?> {
         val session = sessions[conversationId] ?: return MutableStateFlow(null)
         return session.processingStatus
@@ -341,16 +347,67 @@ class ChatService(
 
     // ---- 发送消息 ----
 
-    fun sendMessage(conversationId: Uuid, content: List<UIMessagePart>, answer: Boolean = true) {
+    /**
+     * 发送消息。生成中调用时消息进入队列（不打断），由生成循环在工具轮次间隙插入，
+     * 或生成结束后兜底发送；非生成状态直接发送。
+     *
+     * @return true 表示消息已入队（生成中），false 表示已直接发送
+     */
+    fun sendMessage(conversationId: Uuid, content: List<UIMessagePart>, answer: Boolean = true): Boolean {
+        if (content.isEmptyInputMessage()) return false
+
+        val session = getOrCreateSession(conversationId)
+        if (session.isGenerating) {
+            session.enqueue(UIMessage(role = MessageRole.USER, parts = content))
+            Log.i(TAG, "sendMessage: queued message for $conversationId while generating")
+            return true
+        }
+        sendMessageInternal(conversationId, content, answer)
+        return false
+    }
+
+    private fun sendMessageInternal(conversationId: Uuid, content: List<UIMessagePart>, answer: Boolean = true) {
         if (content.isEmptyInputMessage()) return
 
         val session = getOrCreateSession(conversationId)
         val previousJob = session.getJob()
         previousJob?.cancel()
 
-        val job = appScope.launch {
+        val job = launchSendUserMessage(conversationId, content, answer, waitPrevious = true)
+        session.setJob(job)
+    }
+
+    /**
+     * 生成结束后发送队列残留消息（快路径在生成循环内已消费，这里兜底）。
+     * 在生成 job 的 finally 中调用：正常结束 / 报错 / 被打断统一触发，
+     * 因此"打断并立即发送队列"无需额外逻辑。
+     */
+    private fun flushQueuedMessages(conversationId: Uuid) {
+        val session = sessions[conversationId] ?: return
+        val queued = session.drainQueue()
+        if (queued.isEmpty()) return
+        Log.i(TAG, "flushQueuedMessages: sending ${queued.size} queued messages for $conversationId")
+        val job = launchSendUserMessage(conversationId, queued.flatMap { it.parts }, answer = true, waitPrevious = false)
+        session.setJob(job)
+    }
+
+    /**
+     * 用户消息发送 job 主体。waitPrevious=false 用于队列兜底 flush：
+     * 此时上一个 job 正在 finally 中调用本方法，不能 cancel/join 它（会自杀/死锁）。
+     */
+    private fun launchSendUserMessage(
+        conversationId: Uuid,
+        content: List<UIMessagePart>,
+        answer: Boolean,
+        waitPrevious: Boolean,
+    ): Job {
+        val session = getOrCreateSession(conversationId)
+        val previousJob = session.getJob()
+        return appScope.launch {
             try {
-                runCatching { previousJob?.join() }
+                if (waitPrevious) {
+                    runCatching { previousJob?.join() }
+                }
                 finishInterruptedPendingTools(conversationId)
 
                 val currentConversation = session.state.value
@@ -377,9 +434,11 @@ class ChatService(
             } catch (e: Exception) {
                 e.printStackTrace()
                 addError(e, conversationId, title = context.getString(R.string.error_title_send_message))
+            } finally {
+                // 兜底：生成结束（正常/失败/打断）后发送队列残留（快路径已消费的队列为空）
+                flushQueuedMessages(conversationId)
             }
         }
-        session.setJob(job)
     }
 
     private fun preprocessUserInputParts(parts: List<UIMessagePart>, assistant: Assistant): List<UIMessagePart> {
@@ -436,6 +495,8 @@ class ChatService(
                 _generationDoneFlow.emit(conversationId)
             } catch (e: Exception) {
                 addError(e, conversationId, title = context.getString(R.string.error_title_regenerate_message))
+            } finally {
+                flushQueuedMessages(conversationId)
             }
         }
 
@@ -499,6 +560,8 @@ class ChatService(
                 _generationDoneFlow.emit(conversationId)
             } catch (e: Exception) {
                 addError(e, conversationId, title = context.getString(R.string.error_title_tool_approval))
+            } finally {
+                flushQueuedMessages(conversationId)
             }
         }
 
@@ -614,6 +677,10 @@ class ChatService(
                 memories = memories,
                 rollingContextSummary = rollingContextText,
                 requestMessageStartIndex = requestStartIndex,
+                onPollQueuedMessages = {
+                    // 生成循环每轮调用 LLM 前取出队列（快路径），插入对话让 LLM 尽快看到用户补充
+                    sessions[conversationId]?.drainQueue() ?: emptyList()
+                },
                 inputTransformers = buildList {
                     addAll(inputTransformers)
                     add(templateTransformer)
@@ -832,6 +899,8 @@ class ChatService(
                     _generationDoneFlow.emit(conversationId)
                 } catch (e: Exception) {
                     addError(e, conversationId, title = context.getString(R.string.error_title_send_message))
+                } finally {
+                    flushQueuedMessages(conversationId)
                 }
             }
             session.setJob(job)

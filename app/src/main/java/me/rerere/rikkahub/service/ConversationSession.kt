@@ -7,7 +7,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.data.model.Conversation
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.uuid.Uuid
@@ -35,6 +37,25 @@ class ConversationSession(
     val generationJob: StateFlow<Job?> = _generationJob.asStateFlow()
     val isGenerating: Boolean get() = _generationJob.value?.isActive == true
     val isInUse: Boolean get() = refCount.get() > 0 || isGenerating
+
+    // 生成中用户补充消息队列（LLM 输出期间入队，生成循环间隙插入对话或结束后兜底发送）
+    private val _queuedMessages = MutableStateFlow<List<UIMessage>>(emptyList())
+    val queuedMessages: StateFlow<List<UIMessage>> = _queuedMessages.asStateFlow()
+    val queuedCount: Int get() = _queuedMessages.value.size
+
+    fun enqueue(message: UIMessage) {
+        _queuedMessages.update { it + message }
+    }
+
+    /** 取出并清空队列（原子），供生成循环/结束时插入对话 */
+    fun drainQueue(): List<UIMessage> {
+        var drained: List<UIMessage> = emptyList()
+        _queuedMessages.update { current ->
+            drained = current
+            emptyList()
+        }
+        return drained
+    }
 
     // 空闲检查任务
     private var idleCheckJob: Job? = null
@@ -73,7 +94,11 @@ class ConversationSession(
         _generationJob.value?.cancel()
         _generationJob.value = job
         job?.invokeOnCompletion {
-            _generationJob.value = null
+            // 仅当当前登记的仍是该 job 时才清空：
+            // flush 场景旧 job 完成时可能已登记新 job，不能顶掉它
+            if (_generationJob.value === job) {
+                _generationJob.value = null
+            }
             if (refCount.get() <= 0) {
                 scheduleIdleCheck()
             }

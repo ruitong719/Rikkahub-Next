@@ -115,6 +115,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
     val conversation by vm.conversation.collectAsStateWithLifecycle()
     val loadingJob by vm.conversationJob.collectAsStateWithLifecycle()
     val processingStatus by vm.processingStatus.collectAsStateWithLifecycle()
+    val queuedCount by vm.queuedCount.collectAsStateWithLifecycle()
     val currentChatModel by vm.currentChatModel.collectAsStateWithLifecycle()
     val enableWebSearch by vm.enableWebSearch.collectAsStateWithLifecycle()
     val errors by vm.errors.collectAsStateWithLifecycle()
@@ -336,6 +337,7 @@ private fun ChatPageContent(
                 ChatInput(
                     state = inputState,
                     loading = loadingJob != null,
+                    queuedCount = queuedCount,
                     settings = setting,
                     hazeState = hazeState,
                     completionProviders = completionProviders,
@@ -384,7 +386,13 @@ private fun ChatPageContent(
                                 messageId = inputState.editingMessage!!,
                             )
                         } else {
-                            vm.handleMessageSend(inputState.getContents())
+                            val queued = vm.handleMessageSend(inputState.getContents())
+                            if (queued) {
+                                toaster.show(
+                                    stringResource(R.string.message_queued_toast),
+                                    type = ToastType.Info,
+                                )
+                            }
                             scope.launch {
                                 chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
                             }
