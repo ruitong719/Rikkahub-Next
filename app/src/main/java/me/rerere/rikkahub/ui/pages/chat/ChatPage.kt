@@ -115,7 +115,6 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
     val conversation by vm.conversation.collectAsStateWithLifecycle()
     val loadingJob by vm.conversationJob.collectAsStateWithLifecycle()
     val processingStatus by vm.processingStatus.collectAsStateWithLifecycle()
-    val queuedCount by vm.queuedCount.collectAsStateWithLifecycle()
     val currentChatModel by vm.currentChatModel.collectAsStateWithLifecycle()
     val enableWebSearch by vm.enableWebSearch.collectAsStateWithLifecycle()
     val errors by vm.errors.collectAsStateWithLifecycle()
@@ -295,6 +294,10 @@ private fun ChatPageContent(
     var showFilesSheet by remember { mutableStateOf(false) }
     val todos by vm.todos.collectAsStateWithLifecycle()
 
+    // 生成中消息队列数 + 入队提示文案（ChatInput 按钮状态切换/Toast 用）
+    val queuedCount by vm.queuedCount.collectAsStateWithLifecycle()
+    val messageQueuedToast = stringResource(R.string.message_queued_toast)
+
     val completionProviders = remember(assistant.workspaceId, conversation.workspaceCwd, workspaceRepository) {
         assistant.workspaceId?.let { workspaceId ->
             listOf(
@@ -389,7 +392,7 @@ private fun ChatPageContent(
                             val queued = vm.handleMessageSend(inputState.getContents())
                             if (queued) {
                                 toaster.show(
-                                    stringResource(R.string.message_queued_toast),
+                                    messageQueuedToast,
                                     type = ToastType.Info,
                                 )
                             }
