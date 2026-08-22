@@ -469,6 +469,30 @@ ShellToolUI(loading 时订阅) ────────────┘ 弹窗实
 - 直播为进程内内存态，App 被杀后丢失（最终结果以消息里的完整 output 为准，无损）
 - UI 按 toolCallId 精确匹配，无歧义；toolCallId 缺失的异常路径下直播静默降级为不显示
 
+---
+
+# Rikkahub Next — 2026-08-21 上游同步（`6b37912f` → `c167c70e`，共 4 commits）
+
+对账方法：`git cherry`（patch-id）确认 `6b37912f` 及之前全部处理完毕（见上文对账表），
+本次仅新增上游 4 个提交，按时间顺序逐个 cherry-pick，全部保留原作者署名。
+
+| 上游 commit | fork commit | 说明 |
+|---|---|---|
+| `f167a855` chore: 适配 deepseek-v4-flash-vision-exp 能力 | `00234b94` | 零冲突 |
+| `8b3a1f84` feat: 适配小米 MiMo 思考参数（#1751） | `3a52630c` | ChatCompletionsAPI.kt 因 fork 的 moonshot K2.6 keep 逻辑自动合并；MiMo 块落在 bigmodel 与 moonshot 之间，K2.6 逻辑完好 |
+| `91b81fef` chore: 更新模型图标（gemma/kimi/qwen） | `6e3993dd` | 零冲突 |
+| `c167c70e` feat: ModelRegistry 支持注册模型上下文长度 | `a882ce60` | 依赖 `f167a855` 先行（给 DEEPSEEK_V4_FLASH_VISION_EXP 补 contextLength），按序应用后零冲突 |
+
+说明：fork 的"模型上下文窗口自动发现"是运行时 API 发现（`contextWindowTokensOrNull`），
+与注册表新增的静态 `MODEL_CONTEXT_LENGTH` 互补，无重复实现。
+
+验证情况：沙箱无 Android SDK 未跑 Gradle。已做：4 补丁按序 `git apply --check` 通过；
+ModelRegistry/ModelDsl/测试文件在合入前与基线 `6b37912f` 逐字节一致（上游已测代码原样落地）；
+合并结果逐文件人工核对，总差异 +95/-20 与 4 提交并集一致。待下次构建回归 `:ai:testDebugUnitTest`
+（新增 ModelRegistryTest 上下文长度用例）。
+
+至此上游 `master`（`c167c70e`）已全部同步完毕，无待处理提交。
+
 ## E. 验证情况
 
 沙箱无 Android SDK 未跑构建。已做：11 个改动 Kotlin 文件括号平衡检查、
