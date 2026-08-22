@@ -69,12 +69,12 @@ fun BackupPage(vm: BackupVM = koinViewModel()) {
                 Tab(
                     selected = pagerState.currentPage == 0,
                     onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
-                    text = { Text(stringResource(R.string.backup_page_webdav_backup)) }
+                    text = { Text(stringResource(R.string.backup_page_import_export)) }
                 )
                 Tab(
                     selected = pagerState.currentPage == 1,
                     onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
-                    text = { Text(stringResource(R.string.backup_page_import_export)) }
+                    text = { Text(stringResource(R.string.backup_page_webdav_backup)) }
                 )
                 Tab(
                     selected = pagerState.currentPage == 2,
@@ -91,14 +91,14 @@ fun BackupPage(vm: BackupVM = koinViewModel()) {
             ) { page ->
                 when (page) {
                     0 -> {
-                        WebDavTab(
+                        ImportExportTab(
                             vm = vm,
                             onShowRestartDialog = { showRestartDialog = true }
                         )
                     }
 
                     1 -> {
-                        ImportExportTab(
+                        WebDavTab(
                             vm = vm,
                             onShowRestartDialog = { showRestartDialog = true }
                         )
