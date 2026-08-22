@@ -7,12 +7,19 @@ import android.widget.Toast
 import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import me.rerere.common.http.await
+import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.BuildConfig
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import okhttp3.OkHttpClient
@@ -24,18 +31,27 @@ const val DEFAULT_UPDATE_URL = "https://updates.rikka-ai.com/"
 class UpdateChecker(
     private val client: OkHttpClient,
     private val settingsStore: SettingsStore,
+    appScope: AppScope,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun checkUpdate(): Flow<UiState<UpdateInfo>> = flow {
+    // 进程级共享的更新状态：所有订阅者复用同一次检查（修复每次进聊天页都发请求的问题）；
+    // 更新地址是 fork 的配置项，地址变化时自动重新检查
+    val updateState: StateFlow<UiState<UpdateInfo>> = settingsStore.settingsFlow
+        .map { it.updateUrl.trim().ifBlank { DEFAULT_UPDATE_URL } }
+        .distinctUntilChanged()
+        .flatMapLatest { url -> checkUpdate(url) }
+        .stateIn(
+            scope = appScope,
+            started = SharingStarted.Lazily,
+            initialValue = UiState.Loading,
+        )
+
+    private fun checkUpdate(updateUrl: String): Flow<UiState<UpdateInfo>> = flow {
         emit(UiState.Loading)
         emit(
             UiState.Success(
                 data = try {
-                    // 更新地址作为配置项：设置里可修改，为空时回退默认地址
-                    val updateUrl = settingsStore.settingsFlow.value.updateUrl
-                        .trim()
-                        .ifBlank { DEFAULT_UPDATE_URL }
                     val response = client.newCall(
                         Request.Builder()
                             .url(updateUrl)

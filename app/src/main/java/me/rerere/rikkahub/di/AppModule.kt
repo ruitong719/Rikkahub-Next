@@ -35,7 +35,11 @@ val appModule = module {
     }
 
     single {
-        UpdateChecker(get(), get())
+        UpdateChecker(
+            client = get(),
+            settingsStore = get(),
+            appScope = get(),
+        )
     }
 
     single {
