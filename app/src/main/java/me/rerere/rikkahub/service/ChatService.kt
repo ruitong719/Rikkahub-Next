@@ -7,6 +7,7 @@ import androidx.core.net.toUri
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -80,6 +81,7 @@ import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
+import me.rerere.rikkahub.data.files.BgTaskStatus
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.files.WorkspaceBgManager
 import me.rerere.rikkahub.data.model.Conversation
@@ -102,6 +104,9 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.uuid.Uuid
 
 private const val TAG = "ChatService"
+
+/** 后台任务完成自动拉起的轮询间隔 */
+private const val BG_AUTO_RESUME_POLL_MS = 2_000L
 
 private const val ROLLING_CONTEXT_SUMMARY_PROMPT = """
     Summarize the following conversation excerpt concisely in 2-4 sentences.
@@ -189,6 +194,10 @@ class ChatService(
     // 统一会话管理
     private val sessions = ConcurrentHashMap<Uuid, ConversationSession>()
     private val _sessionsVersion = MutableStateFlow(0L)
+
+    init {
+        startBgTaskAutoResumeWatcher()
+    }
 
     // 错误状态
     private val _errors = MutableStateFlow<List<ChatError>>(emptyList())
@@ -764,6 +773,70 @@ class ChatService(
             bgManager = workspaceBgManager,
             conversationId = conversationId?.toString(),
         )
+
+    // ---- 后台任务完成自动拉起 ----
+
+    /**
+     * 后台任务完成自动拉起：模型调用 workspace_bg_start 后结束回合等待时，
+     * 任务一完成就自动触发一次生成，无需用户发消息。提醒内容由
+     * [BackgroundTaskReminderTransformer] 在生成前注入并标记 notified。
+     *
+     * 只拉起**活跃会话**（聊天页打开中）且当前没有生成、没有挂起审批的对话；
+     * 与 sendMessage 一样通过 session.setJob 登记生成任务，用户主动发消息会取消本次拉起（用户优先）。
+     */
+    private fun startBgTaskAutoResumeWatcher() {
+        appScope.launch {
+            while (true) {
+                delay(BG_AUTO_RESUME_POLL_MS)
+                runCatching { checkFinishedBgTasksAndResume() }
+                    .onFailure { Log.w(TAG, "checkFinishedBgTasksAndResume failed", it) }
+            }
+        }
+    }
+
+    private suspend fun checkFinishedBgTasksAndResume() {
+        for (conversationId in sessions.keys) {
+            val session = sessions[conversationId] ?: continue
+            if (session.isGenerating) continue
+
+            val conversation = session.state.value
+            if (conversation.messageNodes.isEmpty()) continue
+
+            // 存在挂起审批/未恢复工具时不自动拉起，避免打断审批流程
+            val hasPendingTool = conversation.messageNodes.any { node ->
+                node.currentMessage.getTools().any { !it.isExecuted && !it.approvalState.canResumeToolExecution() }
+            }
+            if (hasPendingTool) continue
+
+            val assistant = settingsStore.settingsFlow.first()
+                .getAssistantById(conversation.assistantId) ?: continue
+            val workspaceId = assistant.workspaceId?.toString() ?: continue
+            val workspace = workspaceRepository.getById(workspaceId) ?: continue
+            if (workspace.shellStatus != WorkspaceShellStatus.READY.name) continue
+
+            val hasFinishedTask = workspaceBgManager.listTasks(workspace.root)
+                .any {
+                    it.conversationId == conversationId.toString() &&
+                        !it.notified &&
+                        it.status != BgTaskStatus.RUNNING
+                }
+            if (!hasFinishedTask) continue
+
+            // 上面的挂起点之间可能已有用户消息/审批触发生成，再查一次避免重复拉起
+            if (session.isGenerating) continue
+
+            Log.i(TAG, "bg auto-resume: conversation $conversationId has finished task, triggering generation")
+            val job = appScope.launch {
+                try {
+                    handleMessageComplete(conversationId)
+                    _generationDoneFlow.emit(conversationId)
+                } catch (e: Exception) {
+                    addError(e, conversationId, title = context.getString(R.string.error_title_send_message))
+                }
+            }
+            session.setJob(job)
+        }
+    }
 
     // ---- 检查无效消息 ----
 
