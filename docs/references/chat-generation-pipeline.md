@@ -7,7 +7,7 @@
 | 类                          | 职责                          |
 |----------------------------|-----------------------------|
 | `ChatService`              | 入口与编排层，管理所有会话，对外暴露操作接口      |
-| `ConversationSession`      | 单个会话的状态容器（引用计数、生成 Job、处理状态） |
+| `ConversationSession`      | 单个会话的状态容器（引用计数、生成 Job、处理状态、消息队列） |
 | `GenerationHandler`        | 核心生成逻辑，驱动 Step 循环与工具调用      |
 | `InputMessageTransformer`  | 发送给 API 前对消息列表的变换管道         |
 | `OutputMessageTransformer` | 接收到流式 chunk 后对消息列表的变换管道     |
@@ -21,15 +21,23 @@
     │
     ▼
 ChatService.sendMessage()
-    ├── 取消上一个 Job（cancel + join）
-    ├── finishInterruptedPendingTools()  // 补全上次被打断的 Tool 输出
-    ├── preprocessUserInputParts()       // 对用户文本执行助手 regex 替换
-    ├── 将 UIMessage(USER) 追加到 Conversation.messageNodes
-    └── handleMessageComplete()
+    ├── 生成中（session.isGenerating）→ 消息入队（ConversationSession.enqueue），
+    │   不打断，返回 true；由生成循环在工具轮次间隙插入（快路径），
+    │   或生成结束后兜底发送（flushQueuedMessages）
+    └── 非生成 → sendMessageInternal()
+            ├── 取消上一个 Job（cancel + join）
+            ├── finishInterruptedPendingTools()  // 补全上次被打断的 Tool 输出
+            ├── preprocessUserInputParts()       // 对用户文本执行助手 regex 替换
+            ├── 将 UIMessage(USER) 追加到 Conversation.messageNodes
+            └── handleMessageComplete()
             │
             ▼
         GenerationHandler.generateText()   ← Flow<GenerationChunk>
             │  (最多 maxSteps=256 轮循环)
+            │
+            ├─ 每轮顶部 onPollQueuedMessages()  // 队列消息插入（快路径）
+            │       └── 非空 → 追加到 messages → emit GenerationChunk.Messages
+            │           （工具执行完、下一轮调用之前，LLM 尽快看到用户补充）
             │
             ├─ [若无待处理 Tool] generateInternal()
             │       ├── 构建 internalMessages
@@ -63,6 +71,12 @@ ChatService.sendMessage()
             │
             └─ 将执行结果写回 messages → emit → 继续下一 Step
                     (Tool 结果内联在 ASSISTANT 消息的 parts 中，不创建 TOOL 角色消息)
+
+    ▼
+生成 Job 结束（正常 / 报错 / 打断统一触发）
+    └── Job finally → flushQueuedMessages()  // 慢路径兜底：队列残留消息
+            作为用户消息发出（合并为一条）；因此"打断按钮 = 打断并立即发送队列"
+            无需额外逻辑：stopGeneration 取消 Job → finally 自动发出
 
     ▼
 onCompletion（Flow 结束或取消）
@@ -175,7 +189,11 @@ Pending ──── 用户操作 ────► Approved → 执行工具
 
 - `acquire()` / `release()` — UI 页面打开/关闭时调用
 - `refCount == 0 && !isGenerating` — 触发 5 秒空闲超时后，`ChatService.removeSession()` 清理 session
-- `setJob()` — 设置生成 Job，完成后自动置 null 并触发空闲检查
+- `setJob()` — 设置生成 Job，完成后自动置 null 并触发空闲检查（身份校验：
+  仅当当前登记的仍是该 Job 时才清空，避免 flush 场景旧 Job 完成顶掉新登记的 Job）
+- `enqueue()` / `drainQueue()` — 生成中消息队列（内存态）：生成期间发送消息
+  入队，`GenerationHandler` 循环顶部 drain 插入（快路径）或 Job finally
+  flush（慢路径兜底）；`drainQueue` 原子取出清空，防并发丢消息
 
 ---
 

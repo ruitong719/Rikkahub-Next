@@ -499,3 +499,107 @@ ModelRegistry/ModelDsl/测试文件在合入前与基线 `6b37912f` 逐字节一
 双语 strings XML 解析通过、引用 API（LocalSettings/settingsFlow/
 collectAsStateWithLifecycle/Koin 注册）逐一确认存在。待真机构建回归：
 开关关闭时 shell 行为与线上一致；开启后长输出命令（如 gradle build）弹窗直播效果。
+
+---
+
+# Rikkahub Next — 2026-08-22 后台任务自动拉起 + 生成中消息队列
+
+本次两个功能直接提交到 `master`（`f3316b2a` / `3c20d5bf`），均为对现有机制
+的补全：前者补上"后台任务完成主动通知 LLM"的闭环，后者补上"生成期间补充消息
+不必打断"的交互。
+
+## A. 后台任务完成自动拉起（`f3316b2a`，仅 ChatService.kt +73）
+
+**背景**：plan.md 功能三拍板"提醒时机 = 下次生成前注入"，任务完成时没有任何
+机制主动触发生成，用户必须手动发消息提醒 LLM 继续——与工具描述里
+"when it finishes you will be notified automatically"的承诺不符。
+
+**改动**：
+
+- `ChatService` 新增 watcher：每 2s 扫描活跃会话，发现**本对话绑定**的后台任务
+  已完成（done/failed）且未提醒过（`notified=false`）时，自动触发一次生成
+- 触发守卫：
+  - 会话生成中跳过（不打断进行中的生成）
+  - 存在挂起审批/未恢复工具跳过（不打断审批流程）
+  - 所有挂起点（settingsFlow / workspace 查询 / listTasks）之后复查
+    `isGenerating`，避免与用户消息/审批重复拉起
+  - 与 `sendMessage` 一样 `session.setJob` 登记生成任务——用户此刻主动发消息
+    会取消本次拉起（用户优先）
+- 提醒内容仍由 `BackgroundTaskReminderTransformer` 在生成前注入
+  `<bg_reminder>` 并标记 notified，LLM 看到后自行调用 `workspace_bg_output` 继续
+
+**边界**：只拉起活跃会话（聊天页打开中）；App 内会话 5s 空闲回收，关闭的
+聊天页不自动生成。
+
+## B. 生成中消息队列（`3c20d5bf`，8 文件 +163/-22）
+
+**背景**：生成期间 `sendMessage` 无条件 `previousJob?.cancel()`，补充消息必须先
+打断。目标：LLM 输出时用户输入进入队列，在**合适时机自动插入**；也可
+**强制打断立即插入**。
+
+### 时机设计（快路径 + 慢路径兜底）
+
+- **快路径（核心）**：`GenerationHandler.generateText` 新增
+  `onPollQueuedMessages: () -> List<UIMessage>` 回调，在 Step 循环顶部
+  （工具执行完、下一轮 LLM 调用之前）drain 队列并追加到 messages、
+  `emit(GenerationChunk.Messages)`——与工具结果同链路，UI 显示与持久化自动生效。
+  LLM 连续工具调用时，补充消息最快下一轮就被看到；插入不会推翻已执行的
+  工具决策（上一步已定、下一步未定，天然缝隙）
+- **慢路径（兜底）**：4 个生成入口（sendMessage / regenerateAtMessage /
+  handleToolApproval / 自动拉起 watcher）的 Job `finally` 统一
+  `flushQueuedMessages`——正常结束、报错、被打断都触发；因此
+  **"打断并立即发送队列"零额外逻辑**：`stopGeneration` 取消 Job → finally
+  自动把队列发出。快路径已消费的队列，兜底时为空，不会重复
+
+### 交互（单按钮两次点击机制）
+
+生成中同一按钮位状态切换，不新增按钮：
+
+| 状态 | 按钮样式 | 点击行为 |
+|---|---|---|
+| 队列空 + 有输入 | 发送（↑，primary） | **入队**（Toast 提示，输入框清空） |
+| 队列非空 | 打断（✕，errorContainer）+ 队列数角标 | **打断并立即发送队列** |
+| 无输入 | 打断（✕） | 只打断（保留现状） |
+| 非生成 | 发送 | 发送（现状） |
+
+### 各层改动
+
+- **`ConversationSession`**：新增内存队列 `StateFlow<List<UIMessage>>` +
+  `enqueue` / `drainQueue`（`update` 原子取出清空，防并发丢消息）
+- **`ChatService`**：
+  - `sendMessage` 生成中入队并返回 `true`（调用方据此 Toast）；
+  - 抽取 `sendMessageInternal` / `launchSendUserMessage`
+    （`waitPrevious` 参数：flush 场景不能 cancel/join 上一个 Job——它正在
+    finally 中调用本方法，否则自杀/死锁）；
+  - 新增 `flushQueuedMessages`（慢路径，多条合并为一条用户消息发送）、
+    `getQueuedMessagesFlow`（驱动 UI 角标）
+- **`GenerationHandler`**：循环顶部插入队列消息
+- **`ChatInput` / `ChatPage` / `ChatVM`**：单按钮状态切换 + 角标 +
+  入队 Toast 接线；`ChatVM.handleMessageSend` 返回是否入队
+- **strings**：新增 `message_queued_toast`（中/英）
+
+### 顺手修复的竞态
+
+`ConversationSession.setJob`：旧 Job 完成回调原来无条件把 `_generationJob`
+置 null——flush 场景旧 Job 完成时可能已登记新 Job，会把新 Job 顶掉
+（`isGenerating` 误报 false，UI 状态错乱）。改为 `===` 身份校验，仅当当前
+登记的仍是该 Job 时才清空。
+
+### 已知限制
+
+- 队列在内存，聊天页关闭（会话 5s 空闲回收）后清空
+- 生成中长按发送按钮仍为打断（快捷打断）
+- web 端 `sendMessage` 生成中同样入队（无角标提示）
+- 快路径多条队列消息逐条插入；慢路径 flush 合并为一条
+
+## C. 验证情况
+
+沙箱 Ubuntu：kotlinc 语法检查通过；`./gradlew :app:compileDebugKotlin`
+（`-x :web:buildWebUi`）BUILD SUCCESSFUL（含全部库模块类型检查）。
+
+待真机回归：
+- 自动拉起：后台任务完成 → 无操作下 LLM 自动继续
+- 快路径：长工具链生成中入队 → 下一轮 LLM 即看到补充
+- 打断立即发送：入队后点打断 → 停止当前生成并立即发送队列
+- 入队后生成自然结束 → 队列自动发送
+- 审批流 / 重新生成 / 用户主动发送与队列的竞态
