@@ -59,6 +59,20 @@ object ReasoningEffortMappings {
             ReasoningLevel.XHIGH to "max",
             ReasoningLevel.MAX to "max",
         ),
+        // opencode Zen free 的 x-preview-f-free（Ox Alpha）：chat/completions
+        // 只接受 low/high/max，其余档位 400（实测 2026-08-23；none/auto/medium/
+        // xhigh 均被上游拒绝）。语义对照 hermes-agent OX_ALPHA_*：xhigh -> max，
+        // 中间档收敛到最近的更弱合法档；OFF 压成 low（该端点不接受 none，与
+        // openai_chat 约定一致）。注意：该模型走 /responses 时无此限制，但压档
+        // 不会报错，仅略微保守。
+        "x-preview-f-free" to mapOf(
+            ReasoningLevel.OFF to "low",
+            ReasoningLevel.LOW to "low",
+            ReasoningLevel.MEDIUM to "low",
+            ReasoningLevel.HIGH to "high",
+            ReasoningLevel.XHIGH to "max",
+            ReasoningLevel.MAX to "max",
+        ),
         // 需要为具体模型单独指定映射时在此追加，例如：
         // "kimi-k3" to mapOf(ReasoningLevel.XHIGH to "max"),
     )

@@ -53,6 +53,25 @@ class ReasoningEffortMappingsTest {
     }
 
     @Test
+    fun opencodeOxAlphaClampsToLowHighMax() {
+        // x-preview-f-free（Ox Alpha）chat/completions 只接受 low/high/max，
+        // none/auto/medium/xhigh 上游直接 400，必须收敛（实测 2026-08-23）
+        assertEquals("low", ReasoningEffortMappings.resolveEffort("opencode", "x-preview-f-free", ReasoningLevel.OFF))
+        assertEquals("low", ReasoningEffortMappings.resolveEffort("opencode", "x-preview-f-free", ReasoningLevel.LOW))
+        assertEquals("low", ReasoningEffortMappings.resolveEffort("opencode", "x-preview-f-free", ReasoningLevel.MEDIUM))
+        assertEquals("high", ReasoningEffortMappings.resolveEffort("opencode", "x-preview-f-free", ReasoningLevel.HIGH))
+        assertEquals("max", ReasoningEffortMappings.resolveEffort("opencode", "x-preview-f-free", ReasoningLevel.XHIGH))
+        assertEquals("max", ReasoningEffortMappings.resolveEffort("opencode", "x-preview-f-free", ReasoningLevel.MAX))
+    }
+
+    @Test
+    fun opencodeOtherModelsKeepDefaultSemantics() {
+        // 只有 x-preview-f-free 受覆盖，其余 opencode 模型沿用默认映射
+        assertEquals("medium", ReasoningEffortMappings.resolveEffort("opencode", "laguna-s-2.1-free", ReasoningLevel.MEDIUM))
+        assertEquals("xhigh", ReasoningEffortMappings.resolveEffort("opencode", "hy3-free", ReasoningLevel.XHIGH))
+    }
+
+    @Test
     fun gemini3CapsHighAndXhigh() {
         assertEquals("low", ReasoningEffortMappings.resolveEffort("gemini3", "gemini-3-flash", ReasoningLevel.LOW))
         assertEquals("medium", ReasoningEffortMappings.resolveEffort("gemini3", "gemini-3-flash", ReasoningLevel.MEDIUM))
