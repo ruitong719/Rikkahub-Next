@@ -64,6 +64,7 @@ import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.CheckmarkCircle02
 import me.rerere.hugeicons.stroke.CommandLine
 import me.rerere.hugeicons.stroke.Task01
+import me.rerere.hugeicons.stroke.ViewOff
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.service.FloatingActivityHub
 import me.rerere.rikkahub.service.FloatingActivityState
@@ -81,6 +82,8 @@ class FloatingExpandWindow(
     private val context: Context,
     private val hub: FloatingActivityHub,
     private val settingsStore: SettingsStore,
+    // 用户点击面板上的"暂停显示悬浮球"按钮
+    private val onPauseBubble: () -> Unit = {},
 ) {
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
@@ -133,6 +136,7 @@ class FloatingExpandWindow(
                     hub = hub,
                     settingsStore = settingsStore,
                     onClose = { hide() },
+                    onPauseBubble = onPauseBubble,
                     onDrag = { dx, dy ->
                         val lp = this@FloatingExpandWindow.layoutParams
                         if (lp != null) {
@@ -216,6 +220,7 @@ private fun ExpandWindowContent(
     hub: FloatingActivityHub,
     settingsStore: SettingsStore,
     onClose: () -> Unit,
+    onPauseBubble: () -> Unit,
     onDrag: (Int, Int) -> Unit,
     onResize: (Int, Int) -> Unit,
 ) {
@@ -240,6 +245,7 @@ private fun ExpandWindowContent(
                 ExpandWindowHeader(
                     state = state,
                     onClose = onClose,
+                    onPauseBubble = onPauseBubble,
                     onDrag = onDrag,
                 )
                 HorizontalDivider(color = colorScheme.outlineVariant)
@@ -257,6 +263,7 @@ private fun ExpandWindowContent(
 private fun ExpandWindowHeader(
     state: FloatingActivityState,
     onClose: () -> Unit,
+    onPauseBubble: () -> Unit,
     onDrag: (Int, Int) -> Unit,
 ) {
     Row(
@@ -300,6 +307,15 @@ private fun ExpandWindowHeader(
                 )
             }
         }
+        Icon(
+            imageVector = HugeIcons.ViewOff,
+            contentDescription = "暂停显示悬浮球",
+            modifier = Modifier
+                .size(28.dp)
+                .clickable { onPauseBubble() },
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.width(12.dp))
         Icon(
             imageVector = HugeIcons.Cancel01,
             contentDescription = "关闭",

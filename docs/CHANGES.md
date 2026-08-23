@@ -698,3 +698,46 @@ kotlinc 语法级检查通过；`:app:compileDebugKotlin` BUILD SUCCESSFUL。
 - 实现注意：CardGroup 的 `item {}` 工厂非 composable 上下文，置灰的
   ListItemColors 需在页面 composable 中预计算；本项目 material3 版本
   使用旧参数名（headlineColor/supportingColor/trailingIconColor）
+
+---
+
+## G. 悬浮球：透明度 / 自定义图标 / 手势扩展 / 滑块卡顿修复
+
+### 滑块卡顿修复（根因）
+
+颜色（HSL 三滑杆）、大小、展开宽高滑块原先每个拖动 tick 都直接
+`vm.updateSettings()` 写 DataStore（磁盘序列化）+ settingsFlow 触发全应用
+重组。改为：拖动期间只更新本地草稿状态驱动 UI，`onValueChangeFinished`
+才提交一次；`ColorPickerRow` 新增 `onColorChangeFinished` 回调（HSL 文本
+输入属低频离散提交，直接视为完成）。
+
+### 透明度调节
+
+- `floatingBubbleOpacity`（20–100%，默认 100）滑条；
+- Service 侧 `applyBubbleAlpha()`：基础透明度 × 半隐藏系数（贴边再乘 0.5），
+  与原有贴边半隐藏逻辑互不干扰。
+
+### 自定义图标
+
+- 设置项走系统 Photo Picker（PickVisualMedia），选中图片居中裁方、采样到
+  256px 后拷贝进应用私有目录（`filesDir/floating_bubble_icon.png`，避免
+  相册 URI 授权失效），路径存 `floatingBubbleIconPath`；
+- `BubbleView` 支持图标绘制：BitmapShader 圆形裁剪 + 四周 2dp 颜色描边，
+  透明度跟随整体；清除图标（删除文件 + 置空路径）恢复纯色圆球；
+- Service 侧仅在路径变化时于 IO 线程解码并 post 到主线程更新。
+
+### 手势扩展
+
+- **长按（按住 500ms 不动）**：直接回 App 主界面（等同原双击的跳转），
+  实现在 floatingx `onTouch` 回调内计时，触发后以时间戳吞掉松手补发的单击
+  （700ms 守卫窗口）；
+- **双击改为「暂停显示悬浮球」**：隐藏悬浮球与面板，服务保活
+  （`tempHidden` 静态标记）；下次回到 App 主界面（RouteActivity.onResume）
+  发送 `ACTION_RESUME` 自动恢复；setupBubble 在暂停期间不重新展示，
+  防止设置页生命周期误触发提前复显；
+- 面板标题栏新增「暂停显示」按钮（ViewOff 图标），与双击同路径。
+
+### 已知边界
+
+- 暂停显示后若进程被杀（服务 START_NOT_STICKY），下次启动悬浮球直接恢复；
+- 查看暂停期间任务被删除等极端时序沿用 runCatching 兜底。

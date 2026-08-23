@@ -6,6 +6,13 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.Shader
+import android.graphics.BitmapShader
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
@@ -36,6 +43,7 @@ import me.rerere.rikkahub.RouteActivity
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.ui.floating.FloatingExpandWindow
 import org.koin.android.ext.android.inject
+import java.io.File
 
 private const val TAG = "FloatingBubbleService"
 
@@ -52,12 +60,27 @@ class FloatingBubbleService : Service() {
     companion object {
         const val ACTION_START = "me.rerere.rikkahub.action.FLOATING_BUBBLE_START"
         const val ACTION_STOP = "me.rerere.rikkahub.action.FLOATING_BUBBLE_STOP"
+        const val ACTION_RESUME = "me.rerere.rikkahub.action.FLOATING_BUBBLE_RESUME"
         const val FLOATING_X_TAG = "floating_bubble"
         const val NOTIFICATION_ID = 3002
+
+        // 供 RouteActivity 判断是否需要发送恢复动作（进程内静态状态）
+        @Volatile
+        var serviceRunning: Boolean = false
+            private set
+
+        @Volatile
+        var tempHidden: Boolean = false
+            private set
+
         private const val SIZE_MIN_DP = 32
         private const val SIZE_MAX_DP = 80
-        private const val HALF_HIDE_ALPHA = 0.5f
+        private const val HALF_HIDE_FACTOR = 0.5f
         private const val DOUBLE_CLICK_INTERVAL_MS = 350L
+        private const val LONG_PRESS_TIMEOUT_MS = 500L
+        private const val LONG_PRESS_CLICK_GUARD_MS = 700L
+        private const val BUBBLE_OPACITY_MIN_PERCENT = 20
+        private const val ICON_TARGET_SIZE_PX = 256
     }
 
     private val settingsStore: SettingsStore by inject()
@@ -74,24 +97,54 @@ class FloatingBubbleService : Service() {
     // 悬浮球外观状态
     private var bubbleColor = 0xFF4F8EF7.toInt()
     private var bubbleSizeDp = 48
-    private var bubbleAlpha = 1f
+    private var bubbleBaseAlpha = 1f
+    private var lastIconPath: String? = null
 
     // 交互状态
     private var isHalfHidden = false
     private var hasDragged = false
     private var lastClickTime = 0L
+    private var longPressFiredAt = 0L
 
     private val singleClickRunnable = Runnable {
         toggleExpandWindow()
     }
 
+    // 长按（按住不动超时）：直接回 App 主界面；时间戳用于吞掉松手时的补发单击
+    private val longPressRunnable = Runnable {
+        if (!hasDragged && control != null) {
+            longPressFiredAt = SystemClock.elapsedRealtime()
+            expandWindow?.hide()
+            launchApp()
+        }
+    }
+
+    /** 用户设置的基础透明度 × 半隐藏系数 */
+    private fun applyBubbleAlpha() {
+        val effective = bubbleBaseAlpha * if (isHalfHidden) HALF_HIDE_FACTOR else 1f
+        bubbleView?.setBubbleAlpha(effective)
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        serviceRunning = true
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
+            }
+
+            ACTION_RESUME -> {
+                // 主页面再次打开：恢复被"暂停显示"的悬浮球
+                if (tempHidden && control != null) {
+                    tempHidden = false
+                    control?.show()
+                }
             }
 
             else -> {
@@ -112,6 +165,7 @@ class FloatingBubbleService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        serviceRunning = false
         settingsJob?.cancel()
         mainHandler.removeCallbacksAndMessages(null)
         expandWindow?.hide()
@@ -165,14 +219,15 @@ class FloatingBubbleService : Service() {
     private fun setupBubble() {
         val existing = control
         if (existing != null) {
-            existing.show()
+            // 暂停显示期间不重新展示，等主页面发 RESUME 动作恢复
+            if (!tempHidden) existing.show()
             observeSettings()
             return
         }
 
         val view = BubbleView(this).apply {
             setBubbleColor(bubbleColor)
-            setBubbleAlpha(bubbleAlpha)
+            setBubbleAlpha(bubbleBaseAlpha)
             setBubbleSize(dp2px(bubbleSizeDp).toInt())
         }
         bubbleView = view
@@ -205,14 +260,25 @@ class FloatingBubbleService : Service() {
                     hasDragged = true
                 }
 
-                override fun onTouch(event: MotionEvent, control: IFxInternalHelper?): Boolean = false
+                override fun onTouch(event: MotionEvent, control: IFxInternalHelper?): Boolean {
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN ->
+                            mainHandler.postDelayed(longPressRunnable, LONG_PRESS_TIMEOUT_MS)
+
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                            mainHandler.removeCallbacks(longPressRunnable)
+
+                        else -> Unit
+                    }
+                    return false
+                }
 
                 override fun onInterceptTouchEvent(event: MotionEvent, control: IFxInternalHelper?): Boolean = false
             })
         }
         control?.apply {
             setClickListener { handleClick() }
-            show()
+            if (!tempHidden) show()
         }
 
         observeSettings()
@@ -229,24 +295,36 @@ class FloatingBubbleService : Service() {
                 }
                 bubbleColor = settings.floatingBubbleColor.toInt()
                 bubbleSizeDp = settings.floatingBubbleSize.coerceIn(SIZE_MIN_DP, SIZE_MAX_DP)
+                bubbleBaseAlpha =
+                    settings.floatingBubbleOpacity.coerceIn(BUBBLE_OPACITY_MIN_PERCENT, 100) / 100f
+                applyBubbleAlpha()
                 bubbleView?.setBubbleColor(bubbleColor)
                 bubbleView?.setBubbleSize(dp2px(bubbleSizeDp).toInt())
+                val iconPath = settings.floatingBubbleIconPath
+                if (iconPath != lastIconPath) {
+                    lastIconPath = iconPath
+                    serviceScope.launch(Dispatchers.IO) {
+                        val bitmap = iconPath?.let { loadBubbleIcon(File(it)) }
+                        mainHandler.post { bubbleView?.setIconBitmap(bitmap) }
+                    }
+                }
             }
         }
     }
 
     private fun handleClick() {
+        // 长按刚触发过：吞掉松手时 floatingx 补发的单击
+        if (SystemClock.elapsedRealtime() - longPressFiredAt < LONG_PRESS_CLICK_GUARD_MS) return
         if (isHalfHidden) {
             restoreFromHalfHide()
             return
         }
         val now = SystemClock.elapsedRealtime()
         if (now - lastClickTime < DOUBLE_CLICK_INTERVAL_MS) {
-            // 双击：收起展开窗口并回到软件
+            // 双击：暂停显示悬浮球（服务保活），下次打开 App 主界面时自动恢复
             mainHandler.removeCallbacks(singleClickRunnable)
             lastClickTime = 0L
-            expandWindow?.hide()
-            launchApp()
+            pauseBubbleTemporarily()
         } else {
             // 单击：延迟到双击判定窗口之后执行展开/收起
             lastClickTime = now
@@ -256,7 +334,9 @@ class FloatingBubbleService : Service() {
     }
 
     private fun toggleExpandWindow() {
-        val window = expandWindow ?: FloatingExpandWindow(this, floatingActivityHub, settingsStore).also {
+        val window = expandWindow ?: FloatingExpandWindow(this, floatingActivityHub, settingsStore) {
+            pauseBubbleTemporarily()
+        }.also {
             expandWindow = it
         }
         if (window.isShowing) {
@@ -264,6 +344,13 @@ class FloatingBubbleService : Service() {
         } else {
             window.show()
         }
+    }
+
+    /** 双击 / 面板按钮：隐藏悬浮球与面板；服务保活，主页面 RESUME 时恢复 */
+    private fun pauseBubbleTemporarily() {
+        tempHidden = true
+        expandWindow?.hide()
+        control?.hide()
     }
 
     private fun launchApp() {
@@ -285,21 +372,18 @@ class FloatingBubbleService : Service() {
         if (nearLeft || nearRight) {
             if (isHalfHidden) return
             isHalfHidden = true
-            bubbleAlpha = HALF_HIDE_ALPHA
-            bubbleView?.setBubbleAlpha(bubbleAlpha)
+            applyBubbleAlpha()
             val targetX = if (nearLeft) -sizePx / 2f else screenWidthPx - sizePx / 2f
             c.move(targetX, c.getY(), true)
         } else if (isHalfHidden) {
             isHalfHidden = false
-            bubbleAlpha = 1f
-            bubbleView?.setBubbleAlpha(bubbleAlpha)
+            applyBubbleAlpha()
         }
     }
 
     private fun restoreFromHalfHide() {
         isHalfHidden = false
-        bubbleAlpha = 1f
-        bubbleView?.setBubbleAlpha(bubbleAlpha)
+        applyBubbleAlpha()
         val c = control ?: return
         val sizePx = dp2px(bubbleSizeDp)
         val screenWidthPx = resources.displayMetrics.widthPixels
@@ -309,16 +393,51 @@ class FloatingBubbleService : Service() {
 
     private fun dp2px(dp: Int): Float = dp * resources.displayMetrics.density
 
+    /** 解码自定义图标并居中裁成方形（采样到 ~[ICON_TARGET_SIZE_PX]），失败返回 null */
+    private fun loadBubbleIcon(file: File): Bitmap? = runCatching {
+        if (!file.isFile) return@runCatching null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= ICON_TARGET_SIZE_PX &&
+            bounds.outHeight / (sample * 2) >= ICON_TARGET_SIZE_PX
+        ) {
+            sample *= 2
+        }
+        val source = BitmapFactory.decodeFile(
+            file.absolutePath,
+            BitmapFactory.Options().apply { inSampleSize = sample },
+        ) ?: return@runCatching null
+        centerCropSquare(source, ICON_TARGET_SIZE_PX)
+    }.getOrNull()
+
+    /** 居中裁方并缩放到 [target] 边长 */
+    private fun centerCropSquare(source: Bitmap, target: Int): Bitmap {
+        val side = minOf(source.width, source.height)
+        val x = (source.width - side) / 2
+        val y = (source.height - side) / 2
+        val cropped = Bitmap.createBitmap(source, x, y, side, side)
+        return if (cropped.width == target && cropped.height == target) {
+            cropped
+        } else {
+            Bitmap.createScaledBitmap(cropped, target, target, true)
+        }
+    }
+
     /**
      * 悬浮球视图: 普通 View + GradientDrawable 绘制纯色圆球。
-     * 支持运行时更新颜色/透明度/大小, 不依赖 Compose 与 LifecycleOwner。
+     * 支持运行时更新颜色/透明度/大小/自定义图标（圆形裁剪，四周留颜色描边），
+     * 不依赖 Compose 与 LifecycleOwner。
      */
     private class BubbleView(context: Context) : View(context) {
 
         private val drawable = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
         }
+        private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
+        private var iconBitmap: Bitmap? = null
         private var sizePx = 0
 
         init {
@@ -331,6 +450,13 @@ class FloatingBubbleService : Service() {
 
         fun setBubbleAlpha(alpha: Float) {
             drawable.alpha = (alpha * 255).toInt().coerceIn(0, 255)
+            iconPaint.alpha = drawable.alpha
+            invalidate()
+        }
+
+        fun setIconBitmap(bitmap: Bitmap?) {
+            iconBitmap = bitmap
+            invalidate()
         }
 
         fun setBubbleSize(px: Int) {
@@ -342,6 +468,24 @@ class FloatingBubbleService : Service() {
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val size = if (sizePx > 0) sizePx else suggestedMinimumWidth
             setMeasuredDimension(size, size)
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val bitmap = iconBitmap ?: return
+            val border = resources.displayMetrics.density * 2f
+            val drawSize = sizePx - border * 2
+            if (drawSize <= 0f) return
+            // 圆形绘制图标，四周留出背景色描边；透明度跟随整体 alpha
+            val matrix = Matrix()
+            val scale = drawSize / bitmap.width
+            matrix.setScale(scale, scale)
+            matrix.postTranslate(border, border)
+            iconPaint.shader = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
+                setLocalMatrix(matrix)
+            }
+            canvas.drawCircle(sizePx / 2f, sizePx / 2f, drawSize / 2f, iconPaint)
+            iconPaint.shader = null
         }
     }
 }

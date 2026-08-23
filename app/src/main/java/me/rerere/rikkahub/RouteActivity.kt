@@ -64,6 +64,7 @@ import me.rerere.rikkahub.data.db.DatabaseMigrationTracker
 import me.rerere.rikkahub.data.db.MigrationState
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
+import me.rerere.rikkahub.service.FloatingBubbleService
 import me.rerere.rikkahub.ui.activity.SafeModeActivity
 import me.rerere.rikkahub.ui.components.ui.TTSController
 import me.rerere.rikkahub.ui.context.LocalASRState
@@ -233,6 +234,18 @@ class RouteActivity : ComponentActivity() {
         // Navigate to the chat screen if a conversation ID is provided
         intent.getStringExtra("conversationId")?.let { text ->
             navStack?.add(Screen.Chat(text))
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 悬浮球“暂停显示”后，回到 App 主界面时自动恢复显示
+        if (FloatingBubbleService.serviceRunning && FloatingBubbleService.tempHidden) {
+            startService(
+                Intent(this, FloatingBubbleService::class.java).setAction(
+                    FloatingBubbleService.ACTION_RESUME
+                )
+            )
         }
     }
 

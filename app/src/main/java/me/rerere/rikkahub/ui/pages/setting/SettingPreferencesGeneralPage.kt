@@ -1,8 +1,14 @@
 package me.rerere.rikkahub.ui.pages.setting
 
+import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,7 +19,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -33,6 +42,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.Eraser
+import me.rerere.hugeicons.stroke.Image02
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -50,6 +62,7 @@ import me.rerere.rikkahub.ui.hooks.rememberSharedPreferenceBoolean
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 import org.koin.androidx.compose.koinViewModel
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -320,6 +333,31 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
             item {
                 val bubbleContext = LocalContext.current
                 var showOverlayPermissionDialog by remember { mutableStateOf(false) }
+                // 滑块拖动期间用本地草稿驱动 UI，松手才写设置：
+                // 每帧 updateSettings 会触发 DataStore 磁盘写入 + 全应用重组，造成明显卡顿
+                var bubbleColorDraft by remember(settings.floatingBubbleColor) {
+                    mutableStateOf(Color(settings.floatingBubbleColor.toInt()))
+                }
+                var bubbleSizeDraft by remember(settings.floatingBubbleSize) {
+                    mutableStateOf(settings.floatingBubbleSize.toFloat())
+                }
+                var bubbleOpacityDraft by remember(settings.floatingBubbleOpacity) {
+                    mutableStateOf(settings.floatingBubbleOpacity)
+                }
+                var expandWidthDraft by remember(settings.floatingBubbleExpandWidth) {
+                    mutableStateOf(settings.floatingBubbleExpandWidth.toFloat())
+                }
+                var expandHeightDraft by remember(settings.floatingBubbleExpandHeight) {
+                    mutableStateOf(settings.floatingBubbleExpandHeight.toFloat())
+                }
+                val bubbleIconPickerLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.PickVisualMedia()
+                ) { uri ->
+                    uri ?: return@rememberLauncherForActivityResult
+                    copyFloatingBubbleIcon(bubbleContext, uri)?.let { path ->
+                        vm.updateSettings(settings.copy(floatingBubbleIconPath = path))
+                    }
+                }
                 val lifecycleOwner = LocalLifecycleOwner.current
                 DisposableEffect(lifecycleOwner, settings.floatingBubbleEnabled) {
                     val observer = LifecycleEventObserver { _, event ->
@@ -367,14 +405,16 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                             headlineContent = { Text(stringResource(R.string.setting_page_floating_bubble_color)) },
                             supportingContent = {
                                 ColorPickerRow(
-                                    color = Color(settings.floatingBubbleColor.toInt()),
-                                    onColorChange = { color ->
+                                    color = bubbleColorDraft,
+                                    onColorChange = { color -> bubbleColorDraft = color },
+                                    onColorChangeFinished = {
                                         vm.updateSettings(
                                             settings.copy(
-                                                floatingBubbleColor = color.toArgb().toLong() and 0xFFFFFFFFL
+                                                floatingBubbleColor =
+                                                    bubbleColorDraft.toArgb().toLong() and 0xFFFFFFFFL
                                             )
                                         )
-                                    }
+                                    },
                                 )
                             },
                         )
@@ -387,16 +427,80 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
                                     Slider(
-                                        value = settings.floatingBubbleSize.toFloat(),
-                                        onValueChange = { value ->
+                                        value = bubbleSizeDraft,
+                                        onValueChange = { value -> bubbleSizeDraft = value },
+                                        onValueChangeFinished = {
                                             vm.updateSettings(
-                                                settings.copy(floatingBubbleSize = value.roundToInt())
+                                                settings.copy(floatingBubbleSize = bubbleSizeDraft.roundToInt())
                                             )
                                         },
                                         valueRange = 32f..80f,
                                         modifier = Modifier.weight(1f),
                                     )
-                                    Text("${settings.floatingBubbleSize}dp")
+                                    Text("${bubbleSizeDraft.roundToInt()}dp")
+                                }
+                            },
+                        )
+                        item(
+                            headlineContent = { Text(stringResource(R.string.setting_page_floating_bubble_opacity)) },
+                            supportingContent = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Slider(
+                                        value = bubbleOpacityDraft.toFloat(),
+                                        onValueChange = { value -> bubbleOpacityDraft = value.roundToInt() },
+                                        onValueChangeFinished = {
+                                            vm.updateSettings(
+                                                settings.copy(floatingBubbleOpacity = bubbleOpacityDraft)
+                                            )
+                                        },
+                                        valueRange = 20f..100f,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    Text("${bubbleOpacityDraft}%")
+                                }
+                            },
+                        )
+                        item(
+                            headlineContent = { Text(stringResource(R.string.setting_page_floating_bubble_custom_icon)) },
+                            supportingContent = {
+                                Text(stringResource(R.string.setting_page_floating_bubble_custom_icon_desc))
+                            },
+                            trailingContent = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            bubbleIconPickerLauncher.launch(
+                                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                            )
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = HugeIcons.Image02,
+                                            contentDescription = stringResource(R.string.setting_page_floating_bubble_pick_icon)
+                                        )
+                                    }
+                                    if (settings.floatingBubbleIconPath != null) {
+                                        IconButton(
+                                            onClick = {
+                                                settings.floatingBubbleIconPath?.let { path ->
+                                                    runCatching { File(path).delete() }
+                                                }
+                                                vm.updateSettings(settings.copy(floatingBubbleIconPath = null))
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = HugeIcons.Eraser,
+                                                contentDescription = stringResource(R.string.setting_page_floating_bubble_clear_icon)
+                                            )
+                                        }
+                                    }
                                 }
                             },
                         )
@@ -431,16 +535,17 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
                                     Slider(
-                                        value = settings.floatingBubbleExpandWidth.toFloat(),
-                                        onValueChange = { value ->
+                                        value = expandWidthDraft,
+                                        onValueChange = { value -> expandWidthDraft = value },
+                                        onValueChangeFinished = {
                                             vm.updateSettings(
-                                                settings.copy(floatingBubbleExpandWidth = value.roundToInt())
+                                                settings.copy(floatingBubbleExpandWidth = expandWidthDraft.roundToInt())
                                             )
                                         },
                                         valueRange = 240f..500f,
                                         modifier = Modifier.weight(1f),
                                     )
-                                    Text("${settings.floatingBubbleExpandWidth}dp")
+                                    Text("${expandWidthDraft.roundToInt()}dp")
                                 }
                             },
                         )
@@ -453,16 +558,17 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
                                     Slider(
-                                        value = settings.floatingBubbleExpandHeight.toFloat(),
-                                        onValueChange = { value ->
+                                        value = expandHeightDraft,
+                                        onValueChange = { value -> expandHeightDraft = value },
+                                        onValueChangeFinished = {
                                             vm.updateSettings(
-                                                settings.copy(floatingBubbleExpandHeight = value.roundToInt())
+                                                settings.copy(floatingBubbleExpandHeight = expandHeightDraft.roundToInt())
                                             )
                                         },
                                         valueRange = 280f..700f,
                                         modifier = Modifier.weight(1f),
                                     )
-                                    Text("${settings.floatingBubbleExpandHeight}dp")
+                                    Text("${expandHeightDraft.roundToInt()}dp")
                                 }
                             },
                         )
@@ -498,3 +604,42 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
         }
     }
 }
+
+/** 相册图片 → 私有目录方形 PNG（约 256px），返回文件路径；失败返回 null */
+private fun copyFloatingBubbleIcon(context: Context, uri: Uri): String? {
+    return runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, bounds)
+        } ?: return null
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= FLOATING_BUBBLE_ICON_SIZE_PX &&
+            bounds.outHeight / (sample * 2) >= FLOATING_BUBBLE_ICON_SIZE_PX
+        ) {
+            sample *= 2
+        }
+        val source = context.contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
+        } ?: return null
+
+        val side = minOf(source.width, source.height)
+        val x = (source.width - side) / 2
+        val y = (source.height - side) / 2
+        val cropped = Bitmap.createBitmap(source, x, y, side, side)
+        val scaled = if (cropped.width == FLOATING_BUBBLE_ICON_SIZE_PX) {
+            cropped
+        } else {
+            Bitmap.createScaledBitmap(cropped, FLOATING_BUBBLE_ICON_SIZE_PX, FLOATING_BUBBLE_ICON_SIZE_PX, true)
+        }
+
+        val file = java.io.File(context.filesDir, "floating_bubble_icon.png")
+        file.outputStream().use { out ->
+            scaled.compress(Bitmap.CompressFormat.PNG, 100, out)
+        }
+        file.absolutePath
+    }.getOrNull()
+}
+
+private const val FLOATING_BUBBLE_ICON_SIZE_PX = 256

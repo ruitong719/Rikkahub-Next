@@ -150,6 +150,8 @@ class SettingsStore(
         val FLOATING_BUBBLE_ENABLED = booleanPreferencesKey("floating_bubble_enabled")
         val FLOATING_BUBBLE_COLOR = stringPreferencesKey("floating_bubble_color")
         val FLOATING_BUBBLE_SIZE = intPreferencesKey("floating_bubble_size")
+        val FLOATING_BUBBLE_OPACITY = intPreferencesKey("floating_bubble_opacity")
+        val FLOATING_BUBBLE_ICON_PATH = stringPreferencesKey("floating_bubble_icon_path")
 
         // 悬浮球展开窗口：宽度/高度（dp），以及待办/实时输出标签开关
         val FLOATING_BUBBLE_EXPAND_WIDTH = intPreferencesKey("floating_bubble_expand_width")
@@ -263,6 +265,8 @@ class SettingsStore(
                 floatingBubbleEnabled = preferences[FLOATING_BUBBLE_ENABLED] ?: false,
                 floatingBubbleColor = preferences[FLOATING_BUBBLE_COLOR]?.toLongOrNull() ?: 0xFF4F8EF7,
                 floatingBubbleSize = preferences[FLOATING_BUBBLE_SIZE] ?: 48,
+                floatingBubbleOpacity = preferences[FLOATING_BUBBLE_OPACITY] ?: 100,
+                floatingBubbleIconPath = preferences[FLOATING_BUBBLE_ICON_PATH],
                 floatingBubbleExpandWidth = preferences[FLOATING_BUBBLE_EXPAND_WIDTH] ?: 300,
                 floatingBubbleExpandHeight = preferences[FLOATING_BUBBLE_EXPAND_HEIGHT] ?: 420,
                 floatingBubbleShowTodoTab = preferences[FLOATING_BUBBLE_SHOW_TODO_TAB] ?: true,
@@ -425,6 +429,10 @@ class SettingsStore(
             preferences[FLOATING_BUBBLE_ENABLED] = settings.floatingBubbleEnabled
             preferences[FLOATING_BUBBLE_COLOR] = settings.floatingBubbleColor.toString()
             preferences[FLOATING_BUBBLE_SIZE] = settings.floatingBubbleSize
+            preferences[FLOATING_BUBBLE_OPACITY] = settings.floatingBubbleOpacity
+            settings.floatingBubbleIconPath?.let { path ->
+                preferences[FLOATING_BUBBLE_ICON_PATH] = path
+            } ?: run { preferences.remove(FLOATING_BUBBLE_ICON_PATH) }
             preferences[FLOATING_BUBBLE_EXPAND_WIDTH] = settings.floatingBubbleExpandWidth
             preferences[FLOATING_BUBBLE_EXPAND_HEIGHT] = settings.floatingBubbleExpandHeight
             preferences[FLOATING_BUBBLE_SHOW_TODO_TAB] = settings.floatingBubbleShowTodoTab
@@ -570,6 +578,10 @@ data class Settings(
     // 悬浮球：系统级悬浮窗，可拖动、半隐藏，点击回到软件
     val floatingBubbleEnabled: Boolean = false,
     val floatingBubbleColor: Long = 0xFF4F8EF7,
+    // 悬浮球不透明度百分比（20..100）；贴边半隐藏在此基础上再乘 0.5
+    val floatingBubbleOpacity: Int = 100,
+    // 自定义图标文件路径（应用私有目录内的方形 PNG），null 表示纯色圆球
+    val floatingBubbleIconPath: String? = null,
     val floatingBubbleSize: Int = 48,
     // 悬浮球展开窗口：宽度/高度（dp），以及待办/实时输出标签开关
     val floatingBubbleExpandWidth: Int = 300,

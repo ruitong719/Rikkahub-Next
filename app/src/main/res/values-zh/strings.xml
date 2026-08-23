@@ -1368,6 +1368,11 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_page_floating_bubble_title">悬浮球</string>
   <string name="setting_page_floating_bubble_desc">在所有应用上方显示可拖动的悬浮小球，点击回到软件</string>
   <string name="setting_page_floating_bubble_color">颜色</string>
+  <string name="setting_page_floating_bubble_opacity">悬浮球透明度</string>
+  <string name="setting_page_floating_bubble_custom_icon">自定义图标</string>
+  <string name="setting_page_floating_bubble_custom_icon_desc">选择一张图片作为悬浮球图标，清除后恢复纯色圆球</string>
+  <string name="setting_page_floating_bubble_pick_icon">选择图片</string>
+  <string name="setting_page_floating_bubble_clear_icon">清除图标</string>
   <string name="setting_page_floating_bubble_size">大小</string>
   <string name="setting_page_floating_bubble_permission_title">需要悬浮窗权限</string>
   <string name="setting_page_floating_bubble_permission_desc">开启悬浮球需要"显示在其他应用上层"权限，是否前往系统设置授权？</string>

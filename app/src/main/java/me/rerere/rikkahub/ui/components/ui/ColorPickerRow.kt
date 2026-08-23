@@ -35,6 +35,9 @@ import kotlin.math.roundToInt
 fun ColorPickerRow(
     color: Color,
     onColorChange: (Color) -> Unit,
+    // 滑块松手时回调：拖动过程只走 onColorChange 更新本地预览，
+    // 由调用方决定何时持久化（每帧写 DataStore 会卡顿）
+    onColorChangeFinished: () -> Unit = {},
 ) {
     val hsl = remember(color) {
         FloatArray(3).also { ColorUtils.colorToHSL(color.toArgb(), it) }
@@ -76,6 +79,7 @@ fun ColorPickerRow(
                         onValueChange = {
                             updateColor(it, saturation, lightness)
                         },
+                        onValueChangeFinished = onColorChangeFinished,
                         valueRange = 0f..360f,
                         modifier = Modifier.weight(1f),
                     )
@@ -87,6 +91,7 @@ fun ColorPickerRow(
                         onValueChange = {
                             updateColor(hue, it, lightness)
                         },
+                        onValueChangeFinished = onColorChangeFinished,
                         valueRange = 0f..1f,
                         modifier = Modifier.weight(1f),
                     )
@@ -98,6 +103,7 @@ fun ColorPickerRow(
                         onValueChange = {
                             updateColor(hue, saturation, it)
                         },
+                        onValueChangeFinished = onColorChangeFinished,
                         valueRange = 0f..1f,
                         modifier = Modifier.weight(1f),
                     )
@@ -116,6 +122,8 @@ fun ColorPickerRow(
                     saturation = parsedHsl[1]
                     lightness = parsedHsl[2]
                     onColorChange(Color(ColorUtils.HSLToColor(parsedHsl)))
+                    // 文本输入是低频离散提交，直接视为完成以触发持久化
+                    onColorChangeFinished()
                 }
             },
             label = { Text("HSL") },

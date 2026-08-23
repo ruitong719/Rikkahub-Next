@@ -1371,6 +1371,11 @@
   <string name="setting_page_floating_bubble_title">Floating bubble</string>
   <string name="setting_page_floating_bubble_desc">Show a draggable bubble above all apps. Tap it to return to the app</string>
   <string name="setting_page_floating_bubble_color">Color</string>
+  <string name="setting_page_floating_bubble_opacity">Bubble opacity</string>
+  <string name="setting_page_floating_bubble_custom_icon">Custom icon</string>
+  <string name="setting_page_floating_bubble_custom_icon_desc">Use an image as the bubble icon; clear it for a plain colored circle</string>
+  <string name="setting_page_floating_bubble_pick_icon">Pick image</string>
+  <string name="setting_page_floating_bubble_clear_icon">Clear icon</string>
   <string name="setting_page_floating_bubble_size">Size</string>
   <string name="setting_page_floating_bubble_permission_title">Overlay permission required</string>
   <string name="setting_page_floating_bubble_permission_desc">The floating bubble needs the "display over other apps" permission. Go to settings to grant it?</string>
