@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Size
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.isActive
 import me.rerere.ai.provider.Model
 import me.rerere.ai.ui.UIMessagePart
@@ -97,7 +99,6 @@ private fun rememberReasoningState(reasoning: UIMessagePart.Reasoning): Pair<Rea
         if (loading) {
             if (!state.expandState.expanded && settings.displaySetting.showThinkingContent)
                 state.expandState = ReasoningCardState.Preview
-            scrollState.animateScrollTo(scrollState.maxValue)
         } else {
             if (state.expandState.expanded) {
                 state.expandState = if (settings.displaySetting.autoCloseThinking)
@@ -106,6 +107,18 @@ private fun rememberReasoningState(reasoning: UIMessagePart.Reasoning): Pair<Rea
                     ReasoningCardState.Expanded
             }
         }
+    }
+
+    // 贴底跟随必须监听布局值而非文本变化：effect 在 composition 后、本轮 layout 前执行，
+    // 文本变化时读到的 maxValue 是旧布局的值，会把视口滚到旧底部（即新内容的中间）。
+    // Markdown AST 经后台线程异步 setData，高度增长本就滞后于文本，跟随 maxValue 一并覆盖。
+    LaunchedEffect(loading, state.expandState.expanded) {
+        if (!loading || !state.expandState.expanded) return@LaunchedEffect
+        snapshotFlow { scrollState.maxValue }
+            .distinctUntilChanged()
+            .collect { max ->
+                if (max > 0) scrollState.animateScrollTo(max)
+            }
     }
 
     LaunchedEffect(loading) {

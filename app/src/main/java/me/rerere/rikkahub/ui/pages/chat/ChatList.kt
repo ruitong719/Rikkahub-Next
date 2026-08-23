@@ -55,6 +55,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -276,14 +277,23 @@ private fun ChatListNormal(
     ) {
         // 自动滚动到底部
         if (settings.displaySetting.enableAutoScroll) {
+            // 贴底闩锁：生成期间一旦贴底就持续请求贴底。内容增长发生在两次发射之间时，
+            // isAtBottom() 在新布局上判 false 会错失请求、视口卡在旧位置，闩锁保证不丢；
+            // 用户拖拽（DragInteraction）立即解除，回到底部自动重新闩上。
+            var stickToBottom by remember { mutableStateOf(true) }
             LaunchedEffect(state) {
+                launch {
+                    state.interactionSource.interactions.collect { interaction ->
+                        if (interaction is DragInteraction.Start) stickToBottom = false
+                    }
+                }
                 snapshotFlow { state.layoutInfo.visibleItemsInfo }.collect { visibleItemsInfo ->
-                    // println("is bottom = ${visibleItemsInfo.isAtBottom()}, scroll = ${state.isScrollInProgress}, can_scroll = ${state.canScrollForward}, loading = $loading")
-                    if (!state.isScrollInProgress && loadingState) {
-                        if (visibleItemsInfo.isAtBottom()) {
-                            state.requestScrollToItem(conversationUpdated.messageNodes.lastIndex + 10)
-                            // Log.i(TAG, "ChatList: scroll to ${conversationUpdated.messageNodes.lastIndex}")
-                        }
+                    if (visibleItemsInfo.isAtBottom()) {
+                        stickToBottom = true
+                    }
+                    if (!state.isScrollInProgress && loadingState && stickToBottom) {
+                        state.requestScrollToItem(conversationUpdated.messageNodes.lastIndex + 10)
+                        // Log.i(TAG, "ChatList: scroll to ${conversationUpdated.messageNodes.lastIndex}")
                     }
                 }
             }
