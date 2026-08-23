@@ -1383,6 +1383,12 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_page_floating_bubble_show_live_tab">显示实时输出标签</string>
   <string name="reasoning_max">最大</string>
   <string name="backup_page_import_overwrite_confirm">导入备份会覆盖 App 数据，是否继续</string>
+  <string name="setting_page_client_identity">客户端身份</string>
+  <string name="setting_page_client_identity_desc">为该供应商的请求覆盖默认 Header（如 User-Agent），模拟常见 harness 客户端。命中预设 host 时自动应用，也可在此自定义。</string>
+  <string name="setting_page_client_identity_add_header">添加 Header</string>
+  <string name="setting_page_client_identity_header_name">Header</string>
+  <string name="setting_page_client_identity_header_value">值</string>
+  <string name="setting_page_client_identity_host_hint">%1$s 的请求通常使用「%2$s」身份，已自动应用。</string>
   <string name="setting_page_preferences_network">网络</string>
   <string name="setting_page_preferences_network_desc">User-Agent 和网络请求设置</string>
   <string name="setting_page_preferences_network_user_agent">User-Agent</string>

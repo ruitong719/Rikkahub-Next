@@ -793,3 +793,38 @@ agentic 循环中工具输出写回同一条助手消息，多轮 LLM 输出与�
   `handleTextGenerationResult`，整轮请求时长计入（含 TTFT）
 - **展示层**：tok/s 分母优先取 `generationDurationMs`，为 0（旧消息/流异常
   中断）回退总时长；旁边的总耗时秒数保持原语义不变
+
+---
+
+## J. 客户端身份预设 + OpenCode Zen 接入（2026-08-23）
+
+**背景**：部分服务端按客户端指纹放行/拒绝请求。方案主体借鉴 hermes-agent
+的按 host 分发实践，OpenCode Zen 部分对照 opencode 官方客户端源码实现。
+
+### 客户端身份（Client Identity）
+
+- **预设表** `ClientPresets`：Claude Code（api.kimi.com 必须 claude-code UA，
+  否则 403）、Codex CLI（chatgpt.com 的 CF 白名单按 originator + UA 形态识别，
+  需要 originator: codex_cli_rs 组合）、OpenCode、Gemini CLI、Cherry Studio、
+  Chatbox、curl
+- **按 host 自动注入**：baseUrl 命中预设 host 时自动应用对应身份（零配置）；
+  供应商级自定义身份优先于自动预设，全局 UA 兜底
+- **数据**：`NetworkSetting.providerIdentities`（供应商 UUID → header 表），
+  拦截器用 OkHttp `header()` 替换语义覆盖全局 UA
+- **空 apiKey 通用规则**：匹配到供应商且其 key 为空时整个移除 Authorization——
+  Zen 免费档对任何未知 Bearer 直接 401；顺带修掉其他供应商发送 `Bearer `
+  空值的行为
+- **UI**：供应商详情页新增「客户端身份」卡片（预设 chips / UA 输入 / 自定义
+  header 行编辑）；全局网络设置页 UA 字段挂同一组预设 chips
+
+### OpenCode Zen
+
+- 接入信息来自 opencode 官方仓库：base URL `https://opencode.ai/zen/v1`，
+  OpenAI-compatible；Go 订阅端点为 `/zen/go/v1`
+- 官方客户端 UA 格式 `opencode/{channel}/{version}/{client}`，本仓库当前
+  1.18.21 → `opencode/latest/1.18.21/cli`，另发 `x-opencode-client: cli`；
+  x-opencode-session/request/project 为会话级动态 id，Rikkahub 不发送
+  （hermes 匿名调用验证非必需）
+- 推荐供应商列表新增「OpenCode Zen」条目（免费档 keyless），模型靠
+  GET /models 自动发现；免费目录含 grok-code、big-pickle、kimi-k2.5-free、
+  glm-5-free 等 22 个 cost-0 模型

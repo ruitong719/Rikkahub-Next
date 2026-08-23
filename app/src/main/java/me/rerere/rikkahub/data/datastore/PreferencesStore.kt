@@ -633,6 +633,11 @@ data class NetworkSetting(
     val proxyUrl: String = "",
     val proxyUsername: String = "",
     val proxyPassword: String = "",
+    // 供应商级客户端身份覆盖：key 为 provider Uuid 字符串，value 为要替换的 header
+    // （如 User-Agent / originator）。共享 OkHttpClient 拦截器按请求 host 匹配到
+    // 该供应商时应用，优先于全局 userAgent —— 见 hermes-agent 的按 host 分发实践：
+    // api.kimi.com 要求 claude-code UA、chatgpt.com Codex 后端需要 originator 组合
+    val providerIdentities: Map<String, Map<String, String>> = emptyMap(),
 )
 
 @Serializable

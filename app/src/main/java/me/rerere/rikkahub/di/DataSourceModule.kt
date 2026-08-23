@@ -33,6 +33,8 @@ import me.rerere.rikkahub.data.db.migrations.Migration_14_15
 import me.rerere.rikkahub.data.db.migrations.Migration_15_16
 import me.rerere.rikkahub.data.db.migrations.Migration_27_28
 import me.rerere.rikkahub.data.ai.mcp.McpManager
+import me.rerere.rikkahub.data.network.ClientPresets
+import me.rerere.rikkahub.data.network.ClientPresets.Companion.apiKeyOrNull
 import me.rerere.rikkahub.data.network.SettingsProxySelector
 import me.rerere.rikkahub.data.network.SettingsProxyAuthenticator
 import me.rerere.rikkahub.data.network.SettingsSocks5Authenticator
@@ -209,10 +211,33 @@ val dataSourceModule = module {
                     .addHeader(HttpHeaders.AcceptLanguage, acceptLang)
 
                 if (originalRequest.header(HttpHeaders.UserAgent) == null) {
-                    val userAgent = settingsStore.settingsFlow.value.networkSetting.userAgent
+                    val userAgent = networkSetting.userAgent
                         .trim()
                         .ifEmpty { "RikkaHub-Android/${BuildConfig.VERSION_NAME}" }
                     requestBuilder.addHeader(HttpHeaders.UserAgent, userAgent)
+                }
+
+                // 供应商级客户端身份（hermes-agent 方案）：按请求 host 匹配供应商。
+                // 有自定义身份用之；否则自动应用该 host 的预设（如 opencode.ai → OpenCode）。
+                val requestHost = originalRequest.url.host
+                val matchedProvider = ClientPresets.findProviderByHost(
+                    providers = settingsStore.settingsFlow.value.providers,
+                    host = requestHost,
+                )
+                if (matchedProvider != null) {
+                    val customHeaders = networkSetting.providerIdentities[matchedProvider.id.toString()]
+                    val effectiveHeaders = customHeaders?.takeIf { it.isNotEmpty() }
+                        ?: ClientPresets.findAutoPreset(requestHost)?.toHeaders().orEmpty()
+                    effectiveHeaders.forEach { (name, value) ->
+                        if (name.isNotBlank() && value.isNotBlank()) {
+                            requestBuilder.header(name.trim(), value.trim())
+                        }
+                    }
+                    // 空 apiKey 的供应商不发 Authorization：OpenCode Zen 免费档对任何
+                    // 未知 Bearer 直接 401（含空值），keyless 必须完全去掉该 header
+                    if (matchedProvider.apiKeyOrNull().isBlank()) {
+                        requestBuilder.removeHeader(HttpHeaders.Authorization)
+                    }
                 }
 
                 chain.proceed(requestBuilder.build())

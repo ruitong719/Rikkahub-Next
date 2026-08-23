@@ -104,6 +104,7 @@ import me.rerere.ai.registry.ModelRegistry
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.datastore.NetworkSetting
 import me.rerere.rikkahub.ui.components.ai.ModelAbilityTag
 import me.rerere.rikkahub.ui.components.ai.ModelModalityTag
 import me.rerere.rikkahub.ui.components.ai.ModelSelector
@@ -115,6 +116,7 @@ import me.rerere.rikkahub.ui.components.ui.ShareSheet
 import me.rerere.rikkahub.ui.components.ui.SiliconFlowPowerByIcon
 import me.rerere.rikkahub.ui.components.ui.Tag
 import me.rerere.rikkahub.ui.components.ui.TagType
+import me.rerere.rikkahub.ui.pages.setting.components.ProviderIdentityCard
 import me.rerere.rikkahub.ui.components.ui.rememberShareSheetState
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalToaster
@@ -237,6 +239,19 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel()) {
                 0 -> {
                     SettingProviderConfigPage(
                         provider = provider,
+                        networkSetting = settings.networkSetting,
+                        onUpdateIdentity = { headers ->
+                            val newSettings = settings.copy(
+                                networkSetting = settings.networkSetting.copy(
+                                    providerIdentities = if (headers.isEmpty()) {
+                                        settings.networkSetting.providerIdentities - provider.id.toString()
+                                    } else {
+                                        settings.networkSetting.providerIdentities + (provider.id.toString() to headers)
+                                    }
+                                )
+                            )
+                            vm.updateSettings(newSettings)
+                        },
                         onEdit = {
                             onEdit(it)
                             toaster.show(
@@ -264,6 +279,8 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel()) {
 @Composable
 private fun SettingProviderConfigPage(
     provider: ProviderSetting,
+    networkSetting: NetworkSetting,
+    onUpdateIdentity: (Map<String, String>) -> Unit,
     onEdit: (ProviderSetting) -> Unit,
     onDelete: () -> Unit
 ) {
@@ -283,6 +300,13 @@ private fun SettingProviderConfigPage(
             onEdit = {
                 internalProvider = it
             }
+        )
+
+        // 客户端身份：模拟 harness 客户端（Claude Code / OpenCode 等），按 host 自动或手动套用
+        ProviderIdentityCard(
+            provider = provider,
+            networkSetting = networkSetting,
+            onUpdateIdentity = onUpdateIdentity,
         )
 
         if (internalProvider is ProviderSetting.OpenAI) {
