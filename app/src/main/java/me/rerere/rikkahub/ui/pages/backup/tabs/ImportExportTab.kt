@@ -197,11 +197,11 @@ fun ImportExportTab(
                         MultiChoiceSegmentedButtonRow(
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            BackupScope.entries.forEachIndexed { index, item ->
+                            BackupScope.selectableEntries.forEachIndexed { index, item ->
                                 SegmentedButton(
                                     shape = SegmentedButtonDefaults.itemShape(
                                         index = index,
-                                        count = BackupScope.entries.size
+                                        count = BackupScope.selectableEntries.size
                                     ),
                                     onCheckedChange = { checked ->
                                         val newItems = if (checked) {
@@ -217,6 +217,8 @@ fun ImportExportTab(
                                         when (item) {
                                             BackupScope.DATABASE -> stringResource(R.string.backup_page_chat_records)
                                             BackupScope.ATTACHMENTS -> stringResource(R.string.backup_page_files)
+                                            // Only selectable entries are rendered; keep the branch exhaustive.
+                                            else -> ""
                                         }
                                     )
                                 }
