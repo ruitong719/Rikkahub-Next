@@ -29,10 +29,7 @@ class BackgroundTaskReminderTransformer(
         val workspace = workspaceRepository.getById(workspaceId) ?: return messages
         if (workspace.shellStatus != WorkspaceShellStatus.READY.name) return messages
 
-        val finished = bgManager.listTasks(workspace.root)
-            .filter { it.conversationId == conversationId }
-            .filter { it.status == BgTaskStatus.DONE || it.status == BgTaskStatus.FAILED }
-            .filter { !it.notified }
+        val finished = bgManager.listUnNotifiedFinishedTasks(workspace.root, conversationId)
         if (finished.isEmpty()) return messages
 
         // 标记已提醒 + 截断过大输出（此时任务已完成，输出不会再增长）

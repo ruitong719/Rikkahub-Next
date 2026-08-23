@@ -1318,7 +1318,9 @@
   <string name="bg_task_kill">Kill</string>
   <string name="bg_task_delete">Delete task</string>
   <string name="bg_task_refresh">Refresh</string>
-  <string name="message_queued_toast">Message queued — will be sent when generation finishes. Tap stop to send it now.</string>
+  <string name="message_queued_toast">Message queued — will be sent when generation finishes. Clear the input and tap stop to insert it now.</string>
+  <string name="bg_auto_resume_error_title">Background task auto-resume failed</string>
+  <string name="bg_auto_resume_gave_up">Failed to deliver the background task result after several attempts. Auto-resume has been stopped; send a message manually to see the result.</string>
   <string name="subagent_monitor_sheet_title">Subagents (%1$d enabled)</string>
   <string name="subagent_monitor_empty">No subagents enabled for this assistant</string>
   <string name="subagent_monitor_manage">Manage subagent</string>
@@ -1345,8 +1347,10 @@
   <string name="assistant_page_context_message_limit_desc">When the conversation exceeds this token threshold, earlier messages are compressed into a rolling summary. The model receives the summary plus recent messages, keeping context manageable while preserving key information.</string>
   <string name="assistant_page_context_message_limit_count">Context token threshold: %s</string>
   <string name="assistant_page_context_message_limit_unlimited">Default threshold (32K tokens)</string>
-  <string name="assistant_page_context_message_limit_hint">Enter 0 for the default threshold, a token count like 32000, or a shorthand like 32K / 1M. Minimum is %1$d.</string>
-  <string name="assistant_page_context_message_limit_too_small">The token threshold cannot be lower than %1$d. It has been reset to %1$d.</string>
+  <string name="assistant_page_context_message_limit_hint">Enter 0 for the default threshold, a token count like 32000, or a shorthand like 32K. Range is %1$d to %2$d.</string>
+  <string name="assistant_page_context_message_limit_out_of_range">The token threshold must be between %1$d and %2$d. It has been adjusted.</string>
+  <string name="assistant_page_context_message_preset_default">Default</string>
+  <string name="assistant_page_context_token_estimate">Based on the latest conversation, roughly the last %1$d messages (~%2$d rounds) fall within this threshold.</string>
   <string name="assistant_page_context_message_limit_warning">A lower threshold compresses context more aggressively, which may lose details from earlier conversations. A higher threshold preserves more context but uses more tokens per request.</string>
   <string name="setting_update_reminder_enabled">Update reminders are enabled</string>
   <string name="setting_update_reminder_paused_until">Paused until %1$s</string>

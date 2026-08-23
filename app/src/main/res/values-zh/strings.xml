@@ -1267,8 +1267,10 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="assistant_page_context_message_limit_desc">当对话超出此 Token 阈值时，早期消息将被压缩为滚动摘要。模型接收摘要加最近的对话，在保持上下文可管理的同时保留关键信息。</string>
   <string name="assistant_page_context_message_limit_count">上下文 Token 阈值: %s</string>
   <string name="assistant_page_context_message_limit_unlimited">默认阈值 (32K tokens)</string>
-  <string name="assistant_page_context_message_limit_hint">输入 0 表示默认阈值，支持 32000 或 32K、1M 这样的写法，最小值为 %1$d</string>
-  <string name="assistant_page_context_message_limit_too_small">Token 阈值不能低于 %1$d，已自动重置为 %1$d。</string>
+  <string name="assistant_page_context_message_limit_hint">输入 0 表示默认阈值，支持 32000 或 64K 这样的写法，范围 %1$d ~ %2$d</string>
+  <string name="assistant_page_context_message_limit_out_of_range">Token 阈值需在 %1$d ~ %2$d 之间，已自动调整。</string>
+  <string name="assistant_page_context_message_preset_default">默认</string>
+  <string name="assistant_page_context_token_estimate">按最近一次会话估算 ≈ 携带最近 %1$d 条消息（约 %2$d 轮对话）</string>
   <string name="assistant_page_context_message_limit_warning">较低的阈值会更积极地压缩上下文，可能会丢失早期对话的细节。较高的阈值保留更多上下文，但每次请求会消耗更多 Token。</string>
   <string name="subagents_edit_cat_conversation">最近会话引用</string>
   <string name="subagents_edit_cat_local">本地工具（时间 / 剪贴板 / 日历 / 待办…）</string>
@@ -1332,7 +1334,9 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="bg_task_kill">终止</string>
   <string name="bg_task_delete">删除任务</string>
   <string name="bg_task_refresh">刷新</string>
-  <string name="message_queued_toast">已加入队列，生成结束后自动发送；点打断可立即插入</string>
+  <string name="message_queued_toast">已加入队列，生成结束后自动发送；清空输入后点停止可立即插入</string>
+  <string name="bg_auto_resume_error_title">后台任务自动拉起失败</string>
+  <string name="bg_auto_resume_gave_up">后台任务结果多次自动处理失败，已停止自动拉起，请手动发送消息查看结果。</string>
   <string name="subagent_monitor_sheet_title">子智能体（已启用 %1$d 个）</string>
   <string name="subagent_monitor_empty">当前助手未启用子智能体</string>
   <string name="subagent_monitor_manage">管理子智能体</string>

@@ -1,8 +1,6 @@
 package me.rerere.rikkahub.service
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -77,8 +75,6 @@ class FloatingActivityHub(
     private val _state = MutableStateFlow(FloatingActivityState())
     val state: StateFlow<FloatingActivityState> = _state.asStateFlow()
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-
     // 跟踪当前对话 ID，从 ChatGenerationUpdate/Ended 事件中提取
     private val currentConversationId = MutableStateFlow<Uuid?>(null)
 
@@ -108,7 +104,7 @@ class FloatingActivityHub(
         }
 
         // 订阅当前对话的真实 todos（来自 TodoStore）
-        scope.launch {
+        appScope.launch(Dispatchers.Default) {
             currentConversationId
                 .flatMapLatest { conversationId ->
                     if (conversationId != null) {

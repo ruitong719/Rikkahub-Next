@@ -72,6 +72,20 @@ class WorkspaceBgManager(
 
     // ---------- 任务操作 ----------
 
+    /**
+     * 列出绑定到某对话且尚未提醒的已完成后台任务。
+     * 自动拉起 watcher 与 BackgroundTaskReminderTransformer 共用此判定，
+     * 防止两处的状态过滤条件漂移（如未来新增枚举值只改一处）。
+     */
+    suspend fun listUnNotifiedFinishedTasks(
+        workspaceRoot: String,
+        conversationId: String?,
+    ): List<WorkspaceBgTaskInfo> = listTasks(workspaceRoot).filter {
+        it.conversationId == conversationId &&
+            !it.notified &&
+            (it.status == BgTaskStatus.DONE || it.status == BgTaskStatus.FAILED)
+    }
+
     @OptIn(ExperimentalUuidApi::class)
     suspend fun startTask(
         workspaceRoot: String,

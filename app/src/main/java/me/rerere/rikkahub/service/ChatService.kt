@@ -81,7 +81,6 @@ import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
-import me.rerere.rikkahub.data.files.BgTaskStatus
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.files.WorkspaceBgManager
 import me.rerere.rikkahub.data.model.Conversation
@@ -107,6 +106,12 @@ private const val TAG = "ChatService"
 
 /** 后台任务完成自动拉起的轮询间隔 */
 private const val BG_AUTO_RESUME_POLL_MS = 2_000L
+
+/** 自动拉起连续触发上限：防止模型每轮都开新后台任务，形成无用户输入的自我续跑 */
+private const val BG_AUTO_RESUME_MAX_STREAK = 3
+
+/** 自动拉起连续失败上限：任务始终未被消费说明生成在注入提醒前就失败了，停止重试等用户介入 */
+private const val BG_AUTO_RESUME_MAX_FAILURES = 3
 
 private const val ROLLING_CONTEXT_SUMMARY_PROMPT = """
     Summarize the following conversation excerpt concisely in 2-4 sentences.
@@ -299,7 +304,7 @@ class ChatService(
     }
 
     /** 生成中用户补充消息队列（驱动输入区角标） */
-    fun getQueuedMessagesFlow(conversationId: Uuid): Flow<List<UIMessage>> {
+    fun getQueuedMessagesFlow(conversationId: Uuid): Flow<List<QueuedUserMessage>> {
         val session = sessions[conversationId] ?: return flowOf(emptyList())
         return session.queuedMessages
     }
@@ -358,10 +363,22 @@ class ChatService(
 
         val session = getOrCreateSession(conversationId)
         if (session.isGenerating) {
-            session.enqueue(UIMessage(role = MessageRole.USER, parts = content))
+            // 入队前先做用户输入预处理（正则变量等），保证快路径/flush 与直接发送行为一致
+            val settings = settingsStore.settingsFlow.value
+            val assistant = settings.getAssistantById(session.state.value.assistantId)
+                ?: settings.getCurrentAssistant()
+            session.enqueue(
+                message = UIMessage(
+                    role = MessageRole.USER,
+                    parts = preprocessUserInputParts(content, assistant),
+                ),
+                answer = answer,
+            )
             Log.i(TAG, "sendMessage: queued message for $conversationId while generating")
             return true
         }
+        // 用户主动发送，清零自动拉起限流计数
+        session.resetAutoResumeGuards()
         sendMessageInternal(conversationId, content, answer)
         return false
     }
@@ -387,7 +404,15 @@ class ChatService(
         val queued = session.drainQueue()
         if (queued.isEmpty()) return
         Log.i(TAG, "flushQueuedMessages: sending ${queued.size} queued messages for $conversationId")
-        val job = launchSendUserMessage(conversationId, queued.flatMap { it.parts }, answer = true, waitPrevious = false)
+        // 合并为一条发送：逐条发送会引发 N 连生成；任一条要求生成即触发生成
+        val job = launchSendUserMessage(
+            conversationId = conversationId,
+            content = queued.flatMap { it.message.parts },
+            answer = queued.any { it.answer },
+            waitPrevious = false,
+            // 入队时已做过用户输入预处理，这里跳过避免正则重复应用
+            alreadyProcessed = true,
+        )
         session.setJob(job)
     }
 
@@ -400,6 +425,7 @@ class ChatService(
         content: List<UIMessagePart>,
         answer: Boolean,
         waitPrevious: Boolean,
+        alreadyProcessed: Boolean = false,
     ): Job {
         val session = getOrCreateSession(conversationId)
         val previousJob = session.getJob()
@@ -414,7 +440,7 @@ class ChatService(
                 val settings = settingsStore.settingsFlow.first()
                 val assistant = settings.getAssistantById(currentConversation.assistantId)
                     ?: settings.getCurrentAssistant()
-                val processedContent = preprocessUserInputParts(content, assistant)
+                val processedContent = if (alreadyProcessed) content else preprocessUserInputParts(content, assistant)
 
                 // 添加消息到列表
                 val newConversation = currentConversation.copy(
@@ -513,6 +539,8 @@ class ChatService(
         answer: String? = null,
     ) {
         val session = getOrCreateSession(conversationId)
+        // 用户主动操作（审批继续生成），清零自动拉起限流计数
+        session.resetAutoResumeGuards()
         session.getJob()?.cancel()
 
         val job = appScope.launch {
@@ -679,7 +707,11 @@ class ChatService(
                 requestMessageStartIndex = requestStartIndex,
                 onPollQueuedMessages = {
                     // 生成循环每轮调用 LLM 前取出队列（快路径），插入对话让 LLM 尽快看到用户补充
-                    sessions[conversationId]?.drainQueue() ?: emptyList()
+                    sessions[conversationId]?.drainQueue()?.map { it.message } ?: emptyList()
+                },
+                onRequeueQueuedMessages = { messages ->
+                    // 插入失败（如被打断）时按原序回滚到队首，避免排队消息丢失
+                    sessions[conversationId]?.requeueFront(messages)
                 },
                 inputTransformers = buildList {
                     addAll(inputTransformers)
@@ -848,8 +880,10 @@ class ChatService(
      * 任务一完成就自动触发一次生成，无需用户发消息。提醒内容由
      * [BackgroundTaskReminderTransformer] 在生成前注入并标记 notified。
      *
-     * 只拉起**活跃会话**（聊天页打开中）且当前没有生成、没有挂起审批的对话；
-     * 与 sendMessage 一样通过 session.setJob 登记生成任务，用户主动发消息会取消本次拉起（用户优先）。
+     * 只拉起**活跃会话**（聊天页打开中，refCount > 0）且当前没有生成、没有挂起审批的对话；
+     * 通过 [ConversationSession.beginGenerationIfIdle] 预留式登记生成任务，与用户发送互斥（用户优先）。
+     * 连续触发/连续失败都有上限（BG_AUTO_RESUME_MAX_STREAK / BG_AUTO_RESUME_MAX_FAILURES），
+     * 用户主动发消息或审批时清零。
      */
     private fun startBgTaskAutoResumeWatcher() {
         appScope.launch {
@@ -865,6 +899,8 @@ class ChatService(
         for (conversationId in sessions.keys) {
             val session = sessions[conversationId] ?: continue
             if (session.isGenerating) continue
+            // 只拉起活跃会话；页面已关闭的留给下次生成前的提醒注入兜底，避免无人观看的后台生成
+            if (!session.hasReferences()) continue
 
             val conversation = session.state.value
             if (conversation.messageNodes.isEmpty()) continue
@@ -881,29 +917,50 @@ class ChatService(
             val workspace = workspaceRepository.getById(workspaceId) ?: continue
             if (workspace.shellStatus != WorkspaceShellStatus.READY.name) continue
 
-            val hasFinishedTask = workspaceBgManager.listTasks(workspace.root)
-                .any {
-                    it.conversationId == conversationId.toString() &&
-                        !it.notified &&
-                        it.status != BgTaskStatus.RUNNING
-                }
-            if (!hasFinishedTask) continue
+            val finishedTasks = workspaceBgManager.listUnNotifiedFinishedTasks(
+                workspace.root,
+                conversationId.toString(),
+            )
+            if (finishedTasks.isEmpty()) continue
 
-            // 上面的挂起点之间可能已有用户消息/审批触发生成，再查一次避免重复拉起
-            if (session.isGenerating) continue
+            // 连续自动拉起达到上限：停止自我续跑，等用户介入
+            if (session.autoResumeStreak >= BG_AUTO_RESUME_MAX_STREAK) continue
 
             Log.i(TAG, "bg auto-resume: conversation $conversationId has finished task, triggering generation")
-            val job = appScope.launch {
-                try {
-                    handleMessageComplete(conversationId)
-                    _generationDoneFlow.emit(conversationId)
-                } catch (e: Exception) {
-                    addError(e, conversationId, title = context.getString(R.string.error_title_send_message))
-                } finally {
-                    flushQueuedMessages(conversationId)
+            // 预留式登记：与并发的用户发送互斥避免双生成；被抢占则跳过本轮
+            session.beginGenerationIfIdle {
+                session.onAutoResumeTriggered()
+                appScope.launch {
+                    try {
+                        handleMessageComplete(conversationId)
+                        _generationDoneFlow.emit(conversationId)
+                    } catch (e: Exception) {
+                        addError(e, conversationId, title = context.getString(R.string.bg_auto_resume_error_title))
+                    } finally {
+                        // 按结果判断：任务仍未被消费说明生成在提醒注入前就失败了，计入连续失败，
+                        // 达到上限后停止重试并报错提示用户手动查看
+                        val taskIds = finishedTasks.map { it.taskId }.toSet()
+                        val stillPending = workspaceBgManager
+                            .listUnNotifiedFinishedTasks(workspace.root, conversationId.toString())
+                            .any { it.taskId in taskIds }
+                        if (stillPending) {
+                            session.onAutoResumeAttemptFailed()
+                            if (session.autoResumeFailures >= BG_AUTO_RESUME_MAX_FAILURES) {
+                                addError(
+                                    error = IllegalStateException(
+                                        context.getString(R.string.bg_auto_resume_gave_up)
+                                    ),
+                                    conversationId = conversationId,
+                                    title = context.getString(R.string.bg_auto_resume_error_title),
+                                )
+                            }
+                        } else {
+                            session.onAutoResumeConsumed()
+                        }
+                        flushQueuedMessages(conversationId)
+                    }
                 }
             }
-            session.setJob(job)
         }
     }
 

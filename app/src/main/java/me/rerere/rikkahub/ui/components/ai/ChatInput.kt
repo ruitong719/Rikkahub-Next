@@ -176,10 +176,8 @@ fun ChatInput(
     fun sendMessage() {
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
-        // 生成中按钮是"两次点击"机制：第一次点击（发送样式）= 入队；
-        // 入队后按钮切换为打断样式，第二次点击 = 打断并发送队列。
-        // 生成中无输入或队列非空时按钮即为打断样式，点击 = 打断。
-        if (loading && (queuedCount > 0 || state.isEmpty())) {
+        // 生成中：有输入则入队（不打断生成），无输入则为打断；按钮图标状态与此逻辑一致
+        if (loading && state.isEmpty()) {
             onCancelClick()
         } else {
             onSendClick()
@@ -492,9 +490,9 @@ fun ChatInput(
                                         }
                                     )
                             ) {
-                                // 两次点击机制：生成中且（队列非空 或 无输入）→ 打断样式；
-                                // 否则为发送/入队样式。同一按钮位，状态切换。
-                                val showInterrupt = loading && (queuedCount > 0 || state.isEmpty())
+                                // 生成中且无输入 → 打断样式；有输入保持发送样式（点击入队）。
+                                // 图标必须如实反映单击行为，避免"想入队却触发打断"的误操作。
+                                val showInterrupt = loading && state.isEmpty()
                                 val containerColor = when {
                                     showInterrupt -> MaterialTheme.colorScheme.errorContainer
                                     state.isEmpty() -> MaterialTheme.colorScheme.surfaceContainerHigh

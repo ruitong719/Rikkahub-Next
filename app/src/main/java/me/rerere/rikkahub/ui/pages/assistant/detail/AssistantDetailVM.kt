@@ -22,7 +22,9 @@ import me.rerere.rikkahub.data.files.SkillMetadata
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantMemory
 import me.rerere.rikkahub.data.model.Avatar
+import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.Tag
+import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import kotlin.uuid.Uuid
@@ -36,15 +38,24 @@ class AssistantDetailVM(
     private val filesManager: FilesManager,
     private val skillManager: SkillManager,
     private val workspaceRepository: WorkspaceRepository,
+    private val conversationRepository: ConversationRepository,
 ) : ViewModel() {
     private val assistantId = Uuid.parse(id)
 
     private val _skills = MutableStateFlow<List<SkillMetadata>>(emptyList())
     val skills = _skills.asStateFlow()
 
+    // 该助手最近一次会话, 用于 Token 阈值处"≈ 携带多少条消息"的估算展示
+    private val _recentConversation = MutableStateFlow<Conversation?>(null)
+    val recentConversation: StateFlow<Conversation?> = _recentConversation.asStateFlow()
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             _skills.value = skillManager.listSkills()
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            _recentConversation.value =
+                conversationRepository.getRecentConversations(assistantId, limit = 1).firstOrNull()
         }
     }
 

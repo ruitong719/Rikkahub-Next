@@ -92,6 +92,8 @@ class GenerationHandler(
          * 返回的消息会立即追加并 emit（UI/持久化与工具结果同链路）。
          */
         onPollQueuedMessages: () -> List<UIMessage> = { emptyList() },
+        /** 队列消息插入失败（如生成被取消、emit 未完成持久化）时回调，把消息放回队列避免丢失 */
+        onRequeueQueuedMessages: (List<UIMessage>) -> Unit = {},
     ): Flow<GenerationChunk> = flow {
         val provider = model.findProvider(settings.providers) ?: error("Provider not found")
         val providerImpl = providerManager.getProviderByType(provider)
@@ -105,8 +107,14 @@ class GenerationHandler(
             val queued = onPollQueuedMessages()
             if (queued.isNotEmpty()) {
                 Log.i(TAG, "streamText: inserting ${queued.size} queued messages before step #$stepIndex")
-                messages = messages + queued
-                emit(GenerationChunk.Messages(messages))
+                try {
+                    messages = messages + queued
+                    // emit 会挂起到订阅方持久化完成，期间被取消则消息尚未入库，需回滚入队
+                    emit(GenerationChunk.Messages(messages))
+                } catch (e: Exception) {
+                    onRequeueQueuedMessages(queued)
+                    throw e
+                }
             }
 
             val toolsInternal = buildList {

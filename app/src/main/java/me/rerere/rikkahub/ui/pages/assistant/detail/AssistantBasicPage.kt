@@ -2,6 +2,8 @@ package me.rerere.rikkahub.ui.pages.assistant.detail
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
@@ -42,7 +45,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.ai.provider.ModelType
+import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.context.DEFAULT_ROLLING_CONTEXT_THRESHOLD_TOKENS
+import me.rerere.rikkahub.data.ai.context.MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS
+import me.rerere.rikkahub.data.ai.context.estimateContextTokens
+import me.rerere.rikkahub.data.ai.context.effectiveRollingContextThreshold
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.ui.components.ai.ModelSelector
@@ -383,7 +391,7 @@ internal fun AssistantBasicContent(
                 }
             ) {
                 var tokenThresholdInput by remember(assistant.id) {
-                    mutableStateOf(assistant.rollingContextCompressionThresholdTokens.toString())
+                    mutableStateOf(formatThresholdInput(assistant.rollingContextCompressionThresholdTokens))
                 }
                 var tokenThresholdFocused by remember(assistant.id) {
                     mutableStateOf(false)
@@ -396,11 +404,11 @@ internal fun AssistantBasicContent(
                 fun commitTokenThresholdInput() {
                     val parsed = parseTokenThresholdInput(tokenThresholdInput)
                     if (parsed == null) {
-                        tokenThresholdInput = assistant.rollingContextCompressionThresholdTokens.toString()
+                        tokenThresholdInput = formatThresholdInput(assistant.rollingContextCompressionThresholdTokens)
                         return
                     }
                     val normalized = normalizeTokenThreshold(parsed)
-                    tokenThresholdInput = normalized.toString()
+                    tokenThresholdInput = formatThresholdInput(normalized)
                     if (normalized != assistant.rollingContextCompressionThresholdTokens) {
                         onUpdate(
                             assistant.copy(
@@ -413,6 +421,16 @@ internal fun AssistantBasicContent(
                     }
                 }
 
+                TokenThresholdPresetChips(
+                    currentTokens = assistant.rollingContextCompressionThresholdTokens,
+                    onSelect = { preset ->
+                        onUpdate(
+                            assistant.copy(rollingContextCompressionThresholdTokens = preset)
+                        )
+                        tokenThresholdInput = formatThresholdInput(preset)
+                    },
+                )
+
                 val parsedTokenThreshold = parseTokenThresholdInput(tokenThresholdInput)
                 OutlinedTextField(
                     value = tokenThresholdInput,
@@ -420,7 +438,10 @@ internal fun AssistantBasicContent(
                         if (input.all { it.isDigit() || it in "KkMm." || it == ' ' }) {
                             tokenThresholdInput = input
                             parseTokenThresholdInput(input)
-                                ?.takeIf { it == 0 || it >= MIN_CONTEXT_TOKEN_THRESHOLD }
+                                ?.takeIf {
+                                    it == 0 ||
+                                        (it >= MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS && it <= MAX_CONTEXT_TOKEN_THRESHOLD)
+                                }
                                 ?.takeIf { it != assistant.rollingContextCompressionThresholdTokens }
                                 ?.let { next ->
                                     onUpdate(
@@ -448,16 +469,44 @@ internal fun AssistantBasicContent(
                     ),
                     singleLine = true,
                     isError = tokenThresholdInput.isNotBlank() &&
-                        (parsedTokenThreshold == null || parsedTokenThreshold in 1 until MIN_CONTEXT_TOKEN_THRESHOLD),
+                        (parsedTokenThreshold == null ||
+                            parsedTokenThreshold in 1 until MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS ||
+                            parsedTokenThreshold > MAX_CONTEXT_TOKEN_THRESHOLD),
                     supportingText = {
                         Text(
                             stringResource(
                                 R.string.assistant_page_context_message_limit_hint,
-                                MIN_CONTEXT_TOKEN_THRESHOLD
+                                MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS,
+                                MAX_CONTEXT_TOKEN_THRESHOLD
                             )
                         )
                     }
                 )
+
+                // 按最近一次会话的消息长度估算阈值实际能携带的对话量
+                val recentConversation by vm.recentConversation.collectAsStateWithLifecycle()
+                val carriedVolume = remember(
+                    recentConversation,
+                    assistant.rollingContextCompressionThresholdTokens
+                ) {
+                    estimateCarriedMessages(
+                        messages = recentConversation?.currentMessages.orEmpty(),
+                        thresholdTokens = effectiveRollingContextThreshold(
+                            assistant.rollingContextCompressionThresholdTokens
+                        ),
+                    )
+                }
+                if (carriedVolume != null) {
+                    Text(
+                        text = stringResource(
+                            R.string.assistant_page_context_token_estimate,
+                            carriedVolume.first,
+                            carriedVolume.second,
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.75f),
+                    )
+                }
 
                 if (showTokenThresholdDialog) {
                     AlertDialog(
@@ -468,8 +517,9 @@ internal fun AssistantBasicContent(
                         text = {
                             Text(
                                 stringResource(
-                                    R.string.assistant_page_context_message_limit_too_small,
-                                    MIN_CONTEXT_TOKEN_THRESHOLD
+                                    R.string.assistant_page_context_message_limit_out_of_range,
+                                    MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS,
+                                    MAX_CONTEXT_TOKEN_THRESHOLD
                                 )
                             )
                         },
@@ -654,19 +704,24 @@ internal fun AssistantBasicContent(
     }
 }
 
-/**
- * 上下文 Token 阈值的最小值
- *
- * 低于此值时截断点几乎每轮都在移动, 提示词缓存命中率跌破 90%,
- * 且保留的上下文通常达不到可缓存的最小长度, 限制本身失去意义
- */
-private const val MIN_CONTEXT_TOKEN_THRESHOLD = 4_000
+/** 阈值输入上限, 与预设档位最大值一致 */
+private const val MAX_CONTEXT_TOKEN_THRESHOLD = 512_000
+
+/** 阈值预设档位 (token), 0 表示默认阈值 */
+private val TOKEN_THRESHOLD_PRESETS = intArrayOf(0, 64_000, 128_000, 256_000, 512_000)
 
 /**
- * 把输入值规范化: 0(默认) 保留, 低于最小值的正数重置为 [MIN_CONTEXT_TOKEN_THRESHOLD]
+ * 把输入值规范化: 0(默认) 保留, 其余收拢到 [MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS] ~ [MAX_CONTEXT_TOKEN_THRESHOLD]
+ *
+ * 下限依据: 低于此值时截断点几乎每轮都在移动, 提示词缓存命中率跌破 90%,
+ * 且保留的上下文通常达不到可缓存的最小长度, 限制本身失去意义
  */
-internal fun normalizeTokenThreshold(value: Int): Int =
-    if (value in 1 until MIN_CONTEXT_TOKEN_THRESHOLD) MIN_CONTEXT_TOKEN_THRESHOLD else value
+internal fun normalizeTokenThreshold(value: Int): Int = when {
+    value == 0 -> 0
+    value < MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS -> MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS
+    value > MAX_CONTEXT_TOKEN_THRESHOLD -> MAX_CONTEXT_TOKEN_THRESHOLD
+    else -> value
+}
 
 /**
  * 解析 Token 阈值输入, 支持纯数字 (32000) 与 K/M 后缀 (32K, 1.5M) 两种写法
@@ -692,4 +747,54 @@ private fun formatTokenThreshold(tokens: Int): String = when {
     tokens % 1_000_000 == 0 -> "${tokens / 1_000_000}M"
     tokens % 1_000 == 0 -> "${tokens / 1_000}K"
     else -> tokens.toString()
+}
+
+/** 输入框展示用格式化; 0 表示默认阈值, 必须保持可解析回 0 */
+private fun formatThresholdInput(tokens: Int): String =
+    if (tokens <= 0) "0" else formatTokenThreshold(tokens)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TokenThresholdPresetChips(
+    currentTokens: Int,
+    onSelect: (Int) -> Unit,
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        TOKEN_THRESHOLD_PRESETS.forEach { preset ->
+            FilterChip(
+                selected = currentTokens == preset,
+                onClick = { onSelect(preset) },
+                label = {
+                    Text(
+                        text = if (preset == 0) {
+                            stringResource(R.string.assistant_page_context_message_preset_default)
+                        } else {
+                            formatTokenThreshold(preset)
+                        }
+                    )
+                },
+            )
+        }
+    }
+}
+
+/**
+ * 按最近会话的平均消息长度估算阈值可携带的消息量
+ *
+ * @return 消息条数 to 对话轮数 (一轮 ≈ 用户+助手两条), 无会话数据时返回 null
+ */
+private fun estimateCarriedMessages(
+    messages: List<UIMessage>,
+    thresholdTokens: Int,
+): Pair<Int, Int>? {
+    if (messages.isEmpty()) return null
+    val totalTokens = estimateContextTokens(messages)
+    if (totalTokens <= 0) return null
+    val avgPerMessage = totalTokens.toFloat() / messages.size
+    val messageCount = (thresholdTokens / avgPerMessage).roundToInt().coerceAtLeast(1)
+    val roundCount = (messageCount / 2f).roundToInt().coerceAtLeast(1)
+    return messageCount to roundCount
 }

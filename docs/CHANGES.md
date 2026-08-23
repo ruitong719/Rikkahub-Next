@@ -603,3 +603,66 @@ collectAsStateWithLifecycle/Koin 注册）逐一确认存在。待真机构建�
 - 打断立即发送：入队后点打断 → 停止当前生成并立即发送队列
 - 入队后生成自然结束 → 队列自动发送
 - 审批流 / 重新生成 / 用户主动发送与队列的竞态
+
+---
+
+## D. Review 修正批次：Token 阈值控件 + 消息队列/自动拉起加固
+
+### 1. 上下文 Token 阈值控件：预设档位 + 对话量换算
+
+- **预设档位 chips**：默认 / 64K / 128K / 256K / 512K 一键选择（FlowRow +
+  FilterChip），自定义输入框保留（K/M 简写解析不变）
+- **引入上限** `MAX_CONTEXT_TOKEN_THRESHOLD = 512K`：`normalizeTokenThreshold`
+  收拢到 [4K, 512K]，此前无上限（"999M" 会原样入库）；超范围弹窗提示已自动调整
+  （`assistant_page_context_message_limit_out_of_range` 取代 `_too_small`）
+- **携带量换算行**：按该助手最近一次会话的真实消息长度（`estimateContextTokens`）
+  估算阈值 ≈ 携带最近 N 条消息（约 M 轮对话）；`AssistantDetailVM` 新增
+  `recentConversation`（复用 DAO 现成的 limit=1 查询）。机制不变：存储仍是
+  token 阈值，滚动摘要逻辑零改动
+- 最小值常量改用 `RollingContext.kt` 的 `MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS`，
+  消除两处定义的漂移风险；输入框展示统一走 `formatThresholdInput`
+  （0 显示 "0"，其余 "64K"/"1M" 形式，保证可解析回环）
+
+### 2. 后台任务自动拉起加固
+
+- **只拉起活跃会话**：补上 `refCount > 0` 检查与注释对齐。页面关闭后的未提醒
+  任务留给下次生成前的提醒注入兜底，不再出现无人观看的后台生成或
+  重开聊天页即凭旧任务自动生成
+- **失败退避**：拉起结束后按结果判断——任务仍未被消费（生成在提醒注入前就
+  失败，如 provider 解析失败）计一次连续失败，达 3 次停止重试并报错提示手动
+  查看。原实现在这类前置错误上会每 2s 无限重试（刷错误列表 + 反复计费调用）
+- **自我续跑上限**：连续自动拉起 ≥3 次暂停，防止模型每轮都开新后台任务形成
+  无用户输入的自我续跑；用户发消息/审批时计数清零（计数器内聚
+  `ConversationSession.autoResumeStreak / autoResumeFailures`）
+- **判定收敛**：新增 `WorkspaceBgManager.listUnNotifiedFinishedTasks`，watcher
+  与提醒 transformer 共用 DONE/FAILED && !notified 判定，防状态枚举加值时
+  两处过滤条件漂移
+- **竞态修复**：`ConversationSession.beginGenerationIfIdle` 预留式登记
+  （占位 Job 保证预留到真实登记之间 `isGenerating` 为真），消除 watcher
+  二次空闲检查与 setJob 之间被用户发送穿插导致的双生成窗口
+
+### 3. 生成中消息队列修正
+
+- **插入失败回滚**：快路径 emit 失败（被打断等，此时消息尚未持久化）→
+  新回调 `onRequeueQueuedMessages` 把消息按原序放回队首
+  （`requeueFront`），消除"toast 已入队但消息静默消失"的丢失窗口
+- **快路径/flush 行为一致**：入队前先做 `preprocessUserInputParts`
+  （正则变量替换）；flush 跳过二次预处理（`launchSendUserMessage` 新增
+  `alreadyProcessed`）；队列元素改为 `QueuedUserMessage(message, answer)`，
+  flush 按任一条要求生成就触发（保留长按"发送但不回答"的意图）；
+  多条合并为一条发送维持不变（逐条会引发 N 连生成）
+- **交互去陷阱**：打断条件从"队列非空 或 无输入"收窄为仅"无输入"——
+  有新输入时点击一律入队（原实现在队列非空时会无声丢弃刚输入的文字并
+  直接打断），图标始终如实反映单击行为；Toast 文案同步更新
+
+### 4. 清理
+
+- `FloatingActivityHub` 待办订阅改用注入的 `appScope`，移除自建且从不
+  取消的 CoroutineScope；移除 ChatService 失效的 `BgTaskStatus` import
+
+### 验证
+
+kotlinc 语法级检查通过；`:app:compileDebugKotlin` BUILD SUCCESSFUL。
+待真机回归：档位切换与换算行数值合理性、超限自动调整弹窗、
+自动拉起限流（连续失败 / 连续续跑）、打断时排队消息回滚、
+入队消息的正则变量替换生效。

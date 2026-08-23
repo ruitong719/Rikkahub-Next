@@ -17,6 +17,12 @@ import kotlin.uuid.Uuid
 private const val TAG = "ConversationSession"
 private const val IDLE_TIMEOUT_MS = 5_000L
 
+/** 生成中排队的用户消息；[answer] 记录入队时的发送意图，flush 时决定是否触发生成 */
+data class QueuedUserMessage(
+    val message: UIMessage,
+    val answer: Boolean,
+)
+
 class ConversationSession(
     val id: Uuid,
     initial: Conversation,
@@ -38,23 +44,61 @@ class ConversationSession(
     val isGenerating: Boolean get() = _generationJob.value?.isActive == true
     val isInUse: Boolean get() = refCount.get() > 0 || isGenerating
 
-    // 生成中用户补充消息队列（LLM 输出期间入队，生成循环间隙插入对话或结束后兜底发送）
-    private val _queuedMessages = MutableStateFlow<List<UIMessage>>(emptyList())
-    val queuedMessages: StateFlow<List<UIMessage>> = _queuedMessages.asStateFlow()
+    // 自动拉起限流：连续触发次数防模型开新后台任务自我续跑，连续失败次数防无效重试；用户主动操作时重置
+    @Volatile
+    var autoResumeStreak: Int = 0
+        private set
+
+    @Volatile
+    var autoResumeFailures: Int = 0
+        private set
+
+    fun onAutoResumeTriggered() {
+        autoResumeStreak++
+    }
+
+    fun onAutoResumeAttemptFailed() {
+        autoResumeFailures++
+    }
+
+    fun onAutoResumeConsumed() {
+        autoResumeFailures = 0
+    }
+
+    fun resetAutoResumeGuards() {
+        autoResumeStreak = 0
+        autoResumeFailures = 0
+    }
+
+    /** 生成中用户补充消息队列（LLM 输出期间入队，生成循环间隙插入对话或结束后兜底发送） */
+    private val _queuedMessages = MutableStateFlow<List<QueuedUserMessage>>(emptyList())
+    val queuedMessages: StateFlow<List<QueuedUserMessage>> = _queuedMessages.asStateFlow()
     val queuedCount: Int get() = _queuedMessages.value.size
 
-    fun enqueue(message: UIMessage) {
-        _queuedMessages.update { it + message }
+    /** 是否仍有页面引用（聊天页打开中），自动拉起只处理活跃会话 */
+    fun hasReferences(): Boolean = refCount.get() > 0
+
+    fun enqueue(message: UIMessage, answer: Boolean = true) {
+        _queuedMessages.update { it + QueuedUserMessage(message, answer) }
     }
 
     /** 取出并清空队列（原子），供生成循环/结束时插入对话 */
-    fun drainQueue(): List<UIMessage> {
-        var drained: List<UIMessage> = emptyList()
+    fun drainQueue(): List<QueuedUserMessage> {
+        var drained: List<QueuedUserMessage> = emptyList()
         _queuedMessages.update { current ->
             drained = current
             emptyList()
         }
         return drained
+    }
+
+    /**
+     * 把消息按原序放回队首。供生成循环插入失败（如被打断）时回滚，
+     * 避免排队消息既不在队列也不在会话中；回滚场景按普通发送处理（answer=true）。
+     */
+    fun requeueFront(messages: List<UIMessage>) {
+        if (messages.isEmpty()) return
+        _queuedMessages.update { messages.map { QueuedUserMessage(it, answer = true) } + it }
     }
 
     // 空闲检查任务
@@ -90,8 +134,33 @@ class ConversationSession(
         }
     }
 
-    fun setJob(job: Job?) {
+    // 生成槽位锁：登记/预留互斥，消除"检查空闲 + 登记"与并发发起者之间的竞态窗口
+    private val slotLock = Any()
+
+    fun setJob(job: Job?) = synchronized(slotLock) {
         _generationJob.value?.cancel()
+        attachGenerationJob(job)
+    }
+
+    /**
+     * 预留式开始生成：原子确认当前无活跃任务后才调用 [start] 创建并登记任务，
+     * 已有活跃任务时返回 null 且不调用 [start]。
+     * 占位 Job 保证预留到真实登记之间 isGenerating 为真，挡住并发的用户发送/其他拉起。
+     */
+    fun beginGenerationIfIdle(start: () -> Job): Job? = synchronized(slotLock) {
+        if (_generationJob.value?.isActive == true) return null
+        val placeholder = Job()
+        _generationJob.value = placeholder
+        try {
+            val job = start()
+            attachGenerationJob(job)
+            job
+        } finally {
+            placeholder.cancel()
+        }
+    }
+
+    private fun attachGenerationJob(job: Job?) {
         _generationJob.value = job
         job?.invokeOnCompletion {
             // 仅当当前登记的仍是该 job 时才清空：
