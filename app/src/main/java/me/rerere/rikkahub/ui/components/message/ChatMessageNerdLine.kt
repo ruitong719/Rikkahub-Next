@@ -87,7 +87,11 @@ fun ChatMessageNerdLine(
                             message.createdAt.toJavaLocalDateTime(),
                             message.finishedAt!!.toJavaLocalDateTime()
                         )
-                        val tps = usage.completionTokens.toFloat() / duration.toMillis() * 1000
+                        // tok/s 只算纯吐字时长（agentic 多轮累加、不含工具执行）；
+                        // 旧消息没有该数据，回退到总时长
+                        val generationMs = message.generationDurationMs
+                            .takeIf { it > 0 } ?: duration.toMillis()
+                        val tps = usage.completionTokens.toFloat() / generationMs * 1000
                         val seconds = (duration.toMillis() / 1000f).toFixed(1)
                         StatsItem(
                             icon = {

@@ -61,6 +61,9 @@ class StreamChunkHandler(private val model: Model? = null) {
     private val imagePartIndexes = mutableMapOf<String, Int>()
     private val serverToolInputBuffers = mutableMapOf<String, StringBuilder>()
 
+    // 本轮流式输出首个事件到达时刻：用于统计纯吐字时长（不含连接建立与首包延迟）
+    private var firstChunkAtMs: Long? = null
+
     /**
      * 将一个 [chunk] 合并进消息列表末尾的助手消息，并返回新的消息列表。
      *
@@ -68,6 +71,9 @@ class StreamChunkHandler(private val model: Model? = null) {
      */
     fun handle(messages: List<UIMessage>, chunk: StreamChunk): List<UIMessage> {
         require(messages.isNotEmpty()) { "messages must not be empty" }
+        if (firstChunkAtMs == null) {
+            firstChunkAtMs = Clock.System.now().toEpochMilliseconds()
+        }
 
         val targetMessages = if (messages.last().role != MessageRole.ASSISTANT) {
             messages + UIMessage(modelId = model?.id, role = MessageRole.ASSISTANT, parts = emptyList())
@@ -285,14 +291,21 @@ class StreamChunkHandler(private val model: Model? = null) {
             is StreamChunk.ImageEnd -> this.also { imagePartIndexes.remove(chunk.id) }
             is StreamChunk.Annotations -> copy(annotations = (annotations + chunk.annotations).distinct())
             is StreamChunk.Usage -> copy(usage = usage.merge(chunk.usage))
-            is StreamChunk.Finish -> copy(
-                finishedAt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-            ).finishReasoning().also {
-                // Finish 同时结束尚未显式结束的 reasoning，并释放本次响应流的索引状态。
-                textPartIndexes.clear()
-                reasoningPartIndexes.clear()
-                imagePartIndexes.clear()
-                serverToolInputBuffers.clear()
+            is StreamChunk.Finish -> {
+                // 累加本轮纯吐字时长到消息（agentic 循环中同一消息会被多轮流复用）
+                val roundDurationMs = firstChunkAtMs
+                    ?.let { start -> (Clock.System.now().toEpochMilliseconds() - start).coerceAtLeast(0L) }
+                    ?: 0L
+                copy(
+                    finishedAt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()),
+                    generationDurationMs = generationDurationMs + roundDurationMs,
+                ).finishReasoning().also {
+                    // Finish 同时结束尚未显式结束的 reasoning，并释放本次响应流的索引状态。
+                    textPartIndexes.clear()
+                    reasoningPartIndexes.clear()
+                    imagePartIndexes.clear()
+                    serverToolInputBuffers.clear()
+                }
             }
         }
     }
@@ -318,12 +331,17 @@ private fun mergeMetadata(old: JsonObject?, new: JsonObject?): JsonObject? = whe
 fun List<UIMessage>.handleTextGenerationResult(
     result: TextGenerationResult,
     model: Model? = null,
+    generationStartMillis: Long? = null,
 ): List<UIMessage> {
     require(isNotEmpty()) { "messages must not be empty" }
+    // 非流式没有首包时刻，调用方传入请求起点时以整轮请求时长计
+    val roundDurationMs = generationStartMillis
+        ?.let { start -> (Clock.System.now().toEpochMilliseconds() - start).coerceAtLeast(0L) }
     val incoming = result.message.copy(
         modelId = model?.id,
         usage = result.usage,
         finishedAt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()),
+        generationDurationMs = roundDurationMs ?: result.message.generationDurationMs,
     ).finishReasoning()
     return if (last().role != incoming.role) {
         this + incoming
@@ -331,6 +349,7 @@ fun List<UIMessage>.handleTextGenerationResult(
         dropLast(1) + last().appendMessage(incoming).copy(
             modelId = model?.id ?: last().modelId,
             usage = last().usage.merge(result.usage ?: TokenUsage()),
+            generationDurationMs = last().generationDurationMs + incoming.generationDurationMs,
             finishedAt = incoming.finishedAt,
         ).finishReasoning()
     }

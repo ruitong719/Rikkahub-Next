@@ -21,6 +21,9 @@ data class UIMessage(
     val createdAt: LocalDateTime = Clock.System.now()
         .toLocalDateTime(TimeZone.currentSystemDefault()),
     val finishedAt: LocalDateTime? = null,
+    // 纯 LLM 输出累计时长(ms)：agentic 多轮各自计时后累加，不含工具执行等间隙。
+    // 0 表示未知（旧消息/流异常中断），展示层回退到 createdAt..finishedAt 总时长
+    val generationDurationMs: Long = 0,
     val modelId: Uuid? = null,
     val usage: TokenUsage? = null,
     val translation: String? = null

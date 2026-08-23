@@ -469,12 +469,18 @@ class GenerationHandler(
                 onUpdateMessages(messages)
             }
         } else {
+            // 非流式拿不到首包时刻，整轮请求时长计入纯生成时长（不含工具执行间隙）
+            val generationStart = System.currentTimeMillis()
             val result = providerImpl.generateText(
                 providerSetting = provider,
                 messages = internalMessages,
                 params = params,
             )
-            messages = messages.handleTextGenerationResult(result = result, model = model)
+            messages = messages.handleTextGenerationResult(
+                result = result,
+                model = model,
+                generationStartMillis = generationStart,
+            )
             onUpdateMessages(messages)
         }
     }
