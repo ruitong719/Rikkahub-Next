@@ -6,7 +6,7 @@
 ## 当前状态
 
 - **基线**：merge-base `0c52b62b`（上游 2.4.9，v1.00 迭代时整体 merge）
-- **已同步至**：`c167c70e`（2026-08-21）—— 上游 `master` 全部提交处理完毕，无待办
+- **已同步至**：`986b9c39`（2026-08-23）—— 上游 `master` 全部提交处理完毕，无待办
 - **对账方法**：`git cherry HEAD upstream/master`（patch-id 等价判定）+ fork 历史逐条核对；
   cherry-pick 均保留原作者署名
 
@@ -30,6 +30,27 @@
 | 14 | `8b3a1f84` | feat: 适配小米 MiMo 思考参数（#1751） | 已合入 | `3a52630c` |
 | 15 | `91b81fef` | chore: 更新模型图标（gemma/kimi/qwen） | 已合入 | `6e3993dd`，零冲突 |
 | 16 | `c167c70e` | feat: ModelRegistry 支持注册模型上下文长度 | 已合入 | `a882ce60` |
+| 17 | `7a93c92a` | feat(backup): 本地备份支持选择内容并调整为首页 tab | 已合入（适配） | `a8ed4ee7` |
+| 18 | `f557cef5` | feat(backup): 本地备份导入前增加覆盖确认 | 已合入 | `ab127800` |
+| 19 | `54b3ba79` | fix: 修复更新检查频繁调用的问题 | 已合入（适配） | `9a57d7b9` |
+| 20 | `02a0c81c` | chore: 更新依赖（huge-icons 1.4 / haze beta01） | 已合入 | `9e9afd94` |
+| 21 | `986b9c39` | feat: 新增网络配置页 支持配置 user agent 和 代理 | 已合入 | `f55e67ea` |
+| 22 | `3509406b` | fix: 代理测试消息改用 LocalResources | 已合入 | `0d621367` |
+| 23 | `b270766f` | chore: bump to 2.4.11 | 已合入（语义） | fork 自行 bump：179 / 2.4.11 |
+
+## #17–#21 批次说明（2026-08-23）
+
+- **#17 备份项选择**：fork 无 S3（已删），tab 排列为 本地/WebDAV/提醒；上游新增的
+  `localBackupItems` VM 状态移植到 fork 的 `BackupScope` 类型体系
+  （`DATABASE`/`ATTACHMENTS`），替换原先写死的 `BackupScope.selectableEntries`
+- **#19 更新检查去频**：上游把 `checkUpdate()` 冷流改为 AppScope 内 `Lazily`
+  共享 StateFlow；fork 额外有自定义更新地址设置项，故共享流按 `updateUrl`
+  `distinctUntilChanged + flatMapLatest` 组装——地址变化自动重新检查，
+  其余场景全进程只发一次请求
+- **#21 网络配置页**：`NetworkSetting`（userAgent/proxyUrl/proxyUsername/proxyPassword）
+  持久化为独立 DataStore key；代理支持 HTTP/SOCKS5 与鉴权，代理设置变化时
+  `connectionPool.evictAll()`；UA 注入在共享 OkHttpClient 拦截器，留空回退
+  `RikkaHub-Android/<version>`
 
 ## 特殊处理说明
 
