@@ -392,6 +392,7 @@ fun ChatInput(
                                 }
                                 var bgTaskRefreshTick by remember(assistantWorkspaceId) { mutableStateOf(0) }
                                 var showBgTaskSheet by remember { mutableStateOf(false) }
+                                var selectedBgTask by remember { mutableStateOf<WorkspaceBgTaskInfo?>(null) }
                                 val bgTaskScope = rememberCoroutineScope()
 
                                 LaunchedEffect(assistantWorkspaceId, bgTaskRefreshTick) {
@@ -410,6 +411,7 @@ fun ChatInput(
                                     if (showBgTaskSheet) {
                                         BackgroundTaskSheet(
                                             tasks = bgTasks,
+                                            onTaskClick = { selectedBgTask = it },
                                             onKill = { taskId ->
                                                 bgTaskScope.launch {
                                                     runCatching { workspaceBgManager.killTask(bgTaskRoot, taskId) }
@@ -430,6 +432,16 @@ fun ChatInput(
                                         runningCount = bgTasks.count { it.status == BgTaskStatus.RUNNING },
                                         totalCount = bgTasks.size,
                                         onClick = { showBgTaskSheet = true },
+                                    )
+                                }
+
+                                // 任务输出详情：独立于列表 sheet 的生命周期，列表清空后仍可回看
+                                selectedBgTask?.let { selected ->
+                                    BackgroundTaskOutputSheet(
+                                        task = selected,
+                                        workspaceRoot = bgTaskRoot,
+                                        bgManager = workspaceBgManager,
+                                        onDismiss = { selectedBgTask = null },
                                     )
                                 }
                             }

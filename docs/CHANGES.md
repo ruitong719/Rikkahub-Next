@@ -666,3 +666,18 @@ kotlinc 语法级检查通过；`:app:compileDebugKotlin` BUILD SUCCESSFUL。
 待真机回归：档位切换与换算行数值合理性、超限自动调整弹窗、
 自动拉起限流（连续失败 / 连续续跑）、打断时排队消息回滚、
 入队消息的正则变量替换生效。
+
+---
+
+## E. 后台任务点击查看实时输出
+
+- **入口**：后台任务列表（BackgroundTaskSheet）的行整体可点击，
+  打开 `BackgroundTaskOutputSheet` 输出详情
+- **实时刷新**：运行中的任务每 1s 轮询 `WorkspaceBgManager.output()`
+  （stdout.log 尾部窗口：500 行 / 64KB），新输出到达自动吸底；
+  轮询中同步刷新 taskInfo，任务结束即停轮询、允许自由回看
+- **展示**：命令标题 + 状态色（运行中/失败/完成）+ 短 ID + "实时输出中…"提示；
+  stdout.log 超过 64KB 时显示"仅显示尾部"提示；等宽小字号渲染，
+  高度上限 420dp 内滚动
+- 详情 sheet 独立于列表面板生命周期：列表清空/关闭后仍可回看最后一次打开的任务；
+  输出只读，kill/delete 仍在列表行操作

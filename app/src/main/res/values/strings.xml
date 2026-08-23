@@ -1315,6 +1315,9 @@
   <string name="bg_task_status_running">Running</string>
   <string name="bg_task_status_done">Done</string>
   <string name="bg_task_status_failed">Failed</string>
+  <string name="bg_task_output_live">Live output…</string>
+  <string name="bg_task_output_empty">No output yet</string>
+  <string name="bg_task_output_truncated">Output is large; showing tail only</string>
   <string name="bg_task_kill">Kill</string>
   <string name="bg_task_delete">Delete task</string>
   <string name="bg_task_refresh">Refresh</string>
