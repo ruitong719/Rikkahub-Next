@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.data.network
 
-import me.rerere.rikkahub.data.datastore.ProviderSetting
+import me.rerere.ai.provider.ProviderSetting
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
  * 客户端身份预设：模拟常见 harness/客户端访问 API。
@@ -22,91 +23,91 @@ data class ClientPreset(
 ) {
     /** 组合出完整的 header 表（含 User-Agent），供一键套用 */
     fun toHeaders(): Map<String, String> = buildMap {
-        put(USER_AGENT_HEADER, userAgent)
+        put(ClientPresets.USER_AGENT_HEADER, userAgent)
         putAll(headers)
     }
+}
 
-    companion object {
-        const val USER_AGENT_HEADER = "User-Agent"
+/**
+ * 客户端身份预设注册表：预设清单、常量与按 host 的匹配/读取逻辑。
+ */
+object ClientPresets {
+    const val USER_AGENT_HEADER = "User-Agent"
 
-        val ALL = listOf(
-            ClientPreset(
-                name = "Claude Code",
-                userAgent = "claude-code/0.1.0",
-                matchHosts = listOf("api.kimi.com"),
-            ),
-            ClientPreset(
-                name = "Codex CLI",
-                userAgent = "codex_cli_rs/0.46.0 (Linux; arm64)",
-                headers = mapOf("originator" to "codex_cli_rs"),
-                matchHosts = listOf("chatgpt.com"),
-            ),
-            // opencode 官方格式：opencode/{channel}/{version}/{client}
-            // 见 packages/opencode/src/installation/index.ts userAgent()
-            ClientPreset(
-                name = "OpenCode",
-                userAgent = "opencode/latest/1.18.21/cli",
-                headers = mapOf("x-opencode-client" to "cli"),
-                matchHosts = listOf("opencode.ai"),
-            ),
-            ClientPreset(
-                name = "Gemini CLI",
-                userAgent = "GeminiCLI/v19.4.0 (linux; arm64)",
-            ),
-            ClientPreset(
-                name = "Cherry Studio",
-                userAgent = "CherryStudio/1.5.6",
-            ),
-            ClientPreset(
-                name = "Chatbox",
-                userAgent = "Chatbox/1.16.0",
-            ),
-            ClientPreset(
-                name = "curl",
-                userAgent = "curl/8.5.0",
-            ),
-        )
+    val ALL = listOf(
+        ClientPreset(
+            name = "Claude Code",
+            userAgent = "claude-code/0.1.0",
+            matchHosts = listOf("api.kimi.com"),
+        ),
+        ClientPreset(
+            name = "Codex CLI",
+            userAgent = "codex_cli_rs/0.46.0 (Linux; arm64)",
+            headers = mapOf("originator" to "codex_cli_rs"),
+            matchHosts = listOf("chatgpt.com"),
+        ),
+        // opencode 官方格式：opencode/{channel}/{version}/{client}
+        // 见 packages/opencode/src/installation/index.ts userAgent()
+        ClientPreset(
+            name = "OpenCode",
+            userAgent = "opencode/latest/1.18.21/cli",
+            headers = mapOf("x-opencode-client" to "cli"),
+            matchHosts = listOf("opencode.ai"),
+        ),
+        ClientPreset(
+            name = "Gemini CLI",
+            userAgent = "GeminiCLI/v19.4.0 (linux; arm64)",
+        ),
+        ClientPreset(
+            name = "Cherry Studio",
+            userAgent = "CherryStudio/1.5.6",
+        ),
+        ClientPreset(
+            name = "Chatbox",
+            userAgent = "Chatbox/1.16.0",
+        ),
+        ClientPreset(
+            name = "curl",
+            userAgent = "curl/8.5.0",
+        ),
+    )
 
-        /**
-         * 按请求 host 匹配应自动应用的预设（hermes-agent 的按 host 分发方案）。
-         * 仅当该供应商没有自定义身份时生效。
-         */
-        fun findAutoPreset(host: String): ClientPreset? {
-            return ALL.firstOrNull { host in it.matchHosts }
+    /**
+     * 按请求 host 匹配应自动应用的预设（hermes-agent 的按 host 分发方案）。
+     * 仅当该供应商没有自定义身份时生效。
+     */
+    fun findAutoPreset(host: String): ClientPreset? {
+        return ALL.firstOrNull { host in it.matchHosts }
+    }
+
+    /**
+     * 按请求 host 匹配供应商（取第一个 baseUrl host 相同者）。
+     */
+    fun findProviderByHost(
+        providers: List<ProviderSetting>,
+        host: String,
+    ): ProviderSetting? {
+        return providers.firstOrNull { provider ->
+            providerHost(provider) == host
         }
+    }
 
-        /**
-         * 按请求 host 匹配供应商（取第一个 baseUrl host 相同者）。
-         */
-        fun findProviderByHost(
-            providers: List<ProviderSetting>,
-            host: String,
-        ): ProviderSetting? {
-            return providers.firstOrNull { provider ->
-                providerHost(provider) == host
-            }
-        }
+    fun providerHost(provider: ProviderSetting): String? {
+        return runCatching { provider.baseUrl().toHttpUrlOrNull()?.host }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+    }
 
-        fun providerHost(provider: ProviderSetting): String? {
-            return runCatching { toHttpUrlOrNull(provider.baseUrl())?.host }
-                .getOrNull()
-                ?.takeIf { it.isNotBlank() }
-        }
+    private fun ProviderSetting.baseUrl(): String = when (this) {
+        is ProviderSetting.OpenAI -> baseUrl
+        is ProviderSetting.Google -> baseUrl
+        is ProviderSetting.Claude -> baseUrl
+    }
 
-        private fun ProviderSetting.baseUrl(): String = when (this) {
-            is ProviderSetting.OpenAI -> baseUrl
-            is ProviderSetting.Google -> baseUrl
-            is ProviderSetting.Claude -> baseUrl
-        }
-
-        /** 供应商配置的 API key（各子类型独立声明，此处统一读取） */
-        fun ProviderSetting.apiKeyOrNull(): String = when (this) {
-            is ProviderSetting.OpenAI -> apiKey
-            is ProviderSetting.Google -> apiKey
-            is ProviderSetting.Claude -> apiKey
-        }
-
-        private fun toHttpUrlOrNull(url: String): okhttp3.HttpUrl? =
-            okhttp3.HttpUrl.Companion.toHttpUrlOrNull(url)
+    /** 供应商配置的 API key（各子类型独立声明，此处统一读取） */
+    fun ProviderSetting.apiKeyOrNull(): String = when (this) {
+        is ProviderSetting.OpenAI -> apiKey
+        is ProviderSetting.Google -> apiKey
+        is ProviderSetting.Claude -> apiKey
     }
 }

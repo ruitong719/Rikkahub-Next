@@ -34,7 +34,7 @@ import me.rerere.rikkahub.data.db.migrations.Migration_15_16
 import me.rerere.rikkahub.data.db.migrations.Migration_27_28
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.network.ClientPresets
-import me.rerere.rikkahub.data.network.ClientPresets.Companion.apiKeyOrNull
+import me.rerere.rikkahub.data.network.ClientPresets.apiKeyOrNull
 import me.rerere.rikkahub.data.network.SettingsProxySelector
 import me.rerere.rikkahub.data.network.SettingsProxyAuthenticator
 import me.rerere.rikkahub.data.network.SettingsSocks5Authenticator

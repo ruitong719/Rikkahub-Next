@@ -28,7 +28,7 @@ import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.Delete02
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.NetworkSetting
-import me.rerere.rikkahub.data.datastore.ProviderSetting
+import me.rerere.ai.provider.ProviderSetting
 import me.rerere.rikkahub.data.network.ClientPreset
 import me.rerere.rikkahub.data.network.ClientPresets
 import me.rerere.rikkahub.ui.components.ui.CardGroup
