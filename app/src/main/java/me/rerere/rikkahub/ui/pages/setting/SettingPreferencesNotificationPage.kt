@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -25,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -63,6 +66,20 @@ fun SettingPreferencesNotificationPage(vm: SettingVM = koinViewModel()) {
     val updateChecksEnabled =
         displaySetting.updateCheckDisabledUntilEpochMillis <= System.currentTimeMillis()
 
+    // 关闭自动检查时"暂停更新"项置灰（CardGroup 的 item 工厂不是 composable，颜色需在此计算）
+    val pausedItemColors = if (displaySetting.disableUpdateCheck) {
+        ListItemDefaults.colors(
+            containerColor = Color.Transparent,
+            headlineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            supportingColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            trailingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            overlineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            leadingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+        )
+    } else {
+        null
+    }
+
     val permissionState = rememberPermissionState(
         permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) setOf(
             PermissionNotification
@@ -96,21 +113,42 @@ fun SettingPreferencesNotificationPage(vm: SettingVM = koinViewModel()) {
                     modifier = Modifier.padding(horizontal = 8.dp),
                 ) {
                     item(
-                        onClick = {
-                            selectedUpdatePauseDays = UPDATE_PAUSE_DAY_OPTIONS.first()
-                            showUpdatePauseDialog = true
+                        headlineContent = { Text(stringResource(R.string.setting_update_check_disabled_title)) },
+                        supportingContent = { Text(stringResource(R.string.setting_update_check_disabled_desc)) },
+                        trailingContent = {
+                            Switch(
+                                checked = displaySetting.disableUpdateCheck,
+                                onCheckedChange = {
+                                    updateDisplaySetting(displaySetting.copy(disableUpdateCheck = it))
+                                }
+                            )
                         },
+                    )
+                    // 暂停更新：永久关闭时置灰不可用（disableUpdateCheck 优先于暂停时长）
+                    item(
+                        onClick = if (displaySetting.disableUpdateCheck) {
+                            null
+                        } else {
+                            {
+                                selectedUpdatePauseDays = UPDATE_PAUSE_DAY_OPTIONS.first()
+                                showUpdatePauseDialog = true
+                            }
+                        },
+                        colors = pausedItemColors,
                         headlineContent = { Text(stringResource(R.string.setting_display_page_show_updates_title)) },
                         supportingContent = {
                             Text(
-                                if (updateChecksEnabled) {
-                                    stringResource(R.string.setting_update_reminder_enabled)
-                                } else {
-                                    stringResource(
-                                        R.string.setting_update_reminder_paused_until,
-                                        Instant.ofEpochMilli(displaySetting.updateCheckDisabledUntilEpochMillis)
-                                            .toLocalDateTime(),
-                                    )
+                                when {
+                                    displaySetting.disableUpdateCheck ->
+                                        stringResource(R.string.setting_update_check_disabled_state)
+                                    updateChecksEnabled ->
+                                        stringResource(R.string.setting_update_reminder_enabled)
+                                    else ->
+                                        stringResource(
+                                            R.string.setting_update_reminder_paused_until,
+                                            Instant.ofEpochMilli(displaySetting.updateCheckDisabledUntilEpochMillis)
+                                                .toLocalDateTime(),
+                                        )
                                 }
                             )
                         },

@@ -1356,6 +1356,9 @@
   <string name="assistant_page_context_token_estimate">Based on the latest conversation, roughly the last %1$d messages (~%2$d rounds) fall within this threshold.</string>
   <string name="assistant_page_context_message_limit_warning">A lower threshold compresses context more aggressively, which may lose details from earlier conversations. A higher threshold preserves more context but uses more tokens per request.</string>
   <string name="setting_update_reminder_enabled">Update reminders are enabled</string>
+  <string name="setting_update_check_disabled_title">Disable update check</string>
+  <string name="setting_update_check_disabled_desc">Stop checking for new versions entirely; the pause option below becomes unavailable</string>
+  <string name="setting_update_check_disabled_state">Update check disabled</string>
   <string name="setting_update_reminder_paused_until">Paused until %1$s</string>
   <string name="setting_update_reminder_pause_title">Pause update reminders</string>
   <string name="setting_update_reminder_pause_description">Choose how long to pause update reminders. They will resume automatically.</string>

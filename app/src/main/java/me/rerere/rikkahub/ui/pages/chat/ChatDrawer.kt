@@ -162,12 +162,13 @@ fun ChatDrawerContent(
     // Menu popup 状态
     var showMenuPopup by remember { mutableStateOf(false) }
 
+    val updateCheckDisabled = settings.displaySetting.disableUpdateCheck
     val updateCheckDisabledUntil = settings.displaySetting.updateCheckDisabledUntilEpochMillis
-    var updateChecksEnabled by remember(updateCheckDisabledUntil) {
-        mutableStateOf(updateCheckDisabledUntil <= System.currentTimeMillis())
+    var updateChecksEnabled by remember(updateCheckDisabled, updateCheckDisabledUntil) {
+        mutableStateOf(!updateCheckDisabled && updateCheckDisabledUntil <= System.currentTimeMillis())
     }
-    LaunchedEffect(updateCheckDisabledUntil) {
-        while (true) {
+    LaunchedEffect(updateCheckDisabled, updateCheckDisabledUntil) {
+        while (!updateCheckDisabled) {
             val remaining = updateCheckDisabledUntil - System.currentTimeMillis()
             if (remaining <= 0) {
                 updateChecksEnabled = true

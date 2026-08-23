@@ -681,3 +681,20 @@ kotlinc 语法级检查通过；`:app:compileDebugKotlin` BUILD SUCCESSFUL。
   高度上限 420dp 内滚动
 - 详情 sheet 独立于列表面板生命周期：列表清空/关闭后仍可回看最后一次打开的任务；
   输出只读，kill/delete 仍在列表行操作
+
+---
+
+## F. 恢复「不检查更新」开关（与暂停检查并列）
+
+**背景**：`9215976e` 曾加入 `DisplaySetting.showUpdates` 永久关闭更新显示的开关，
+`5b390510` 将其替换为"暂停至某日"机制后该能力丢失。本次以开关形式恢复并升级：
+
+- **数据层**：`DisplaySetting.disableUpdateCheck: Boolean = false`，
+  与 `updateCheckDisabledUntilEpochMillis` 并存；永久关闭优先于临时暂停
+- **检查闸门（两处）**：`ChatVM.updateState` 与 `ChatDrawer` 的 UpdateCard
+  均在 `disableUpdateCheck=true` 时不再触发/展示
+- **设置页（通知偏好）**：新增"不检查更新"开关；开启时下方"暂停更新"项
+  置灰不可点（onClick 置空 + 38% alpha），描述文案切换为"已关闭自动检查"
+- 实现注意：CardGroup 的 `item {}` 工厂非 composable 上下文，置灰的
+  ListItemColors 需在页面 composable 中预计算；本项目 material3 版本
+  使用旧参数名（headlineColor/supportingColor/trailingIconColor）

@@ -180,6 +180,7 @@ class ChatVM(
     val updateState = settingsStore.settingsFlow
         .map { settings ->
             !settings.init &&
+                !settings.displaySetting.disableUpdateCheck &&
                 settings.displaySetting.updateCheckDisabledUntilEpochMillis <= System.currentTimeMillis()
         }
         .distinctUntilChanged()

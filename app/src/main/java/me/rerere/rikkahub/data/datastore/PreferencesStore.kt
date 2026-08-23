@@ -615,6 +615,8 @@ data class DisplaySetting(
     val showTokenUsage: Boolean = true,
     val showThinkingContent: Boolean = true,
     val autoCloseThinking: Boolean = true,
+    // 完全关闭更新检查：优先于暂停时长，开启时设置页的"暂停检查"项置灰
+    val disableUpdateCheck: Boolean = false,
     val updateCheckDisabledUntilEpochMillis: Long = 0L,
     val showMessageJumper: Boolean = true,
     val messageJumperOnLeft: Boolean = false,
