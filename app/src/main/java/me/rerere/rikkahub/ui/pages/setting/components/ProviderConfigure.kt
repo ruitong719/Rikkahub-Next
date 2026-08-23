@@ -55,20 +55,19 @@ fun ProviderConfigure(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier
     ) {
-        if (!provider.builtIn) {
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                ProviderSetting.Types.forEachIndexed { index, type ->
-                    SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(
-                            index = index,
-                            count = ProviderSetting.Types.size
-                        ),
-                        // 显示本地化类型名而非内部类名（simpleName 是 Kotlin 类名，无本地化）
-                        label = { Text(providerTypeLabel(type)) },
-                        selected = provider::class == type,
-                        onClick = { onEdit(provider.convertTo(type)) }
-                    )
-                }
+        // 协议类型切换：内置供应商同样可改（convertTo 保留 apiKey 等配置）
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            ProviderSetting.Types.forEachIndexed { index, type ->
+                SegmentedButton(
+                    shape = SegmentedButtonDefaults.itemShape(
+                        index = index,
+                        count = ProviderSetting.Types.size
+                    ),
+                    // 显示本地化类型名而非内部类名（simpleName 是 Kotlin 类名，无本地化）
+                    label = { Text(providerTypeLabel(type)) },
+                    selected = provider::class == type,
+                    onClick = { onEdit(provider.convertTo(type)) }
+                )
             }
         }
 
@@ -253,7 +252,6 @@ private fun ProviderConfigureOpenAI(
             onValueChange = { onEdit(provider.copy(chatCompletionsPath = it.trim())) },
             label = { Text(stringResource(R.string.setting_provider_page_api_path)) },
             modifier = Modifier.fillMaxWidth(),
-            enabled = !provider.builtIn,
         )
     }
 

@@ -741,3 +741,26 @@ kotlinc 语法级检查通过；`:app:compileDebugKotlin` BUILD SUCCESSFUL。
 
 - 暂停显示后若进程被杀（服务 START_NOT_STICKY），下次启动悬浮球直接恢复；
 - 查看暂停期间任务被删除等极端时序沿用 runCatching 兜底。
+
+---
+
+## H. 助手与供应商全部可删除/可编辑
+
+**背景**：内置助手（DEFAULT_ASSISTANTS_IDS）不显示删除入口；内置供应商
+（builtIn）隐藏删除按钮、协议切换被禁用、API 路径输入框置灰。且即使绕过
+UI 删除，设置加载器每次读取都会把缺失的默认项重新补回——双重保护导致
+"永远删不掉"。
+
+### 改动
+
+- **加载器**：Settings 新增 `deletedAssistantIds` / `deletedProviderIds`
+  集合，自动补回默认项时跳过用户显式删除过的 ID；助手列表为空时兜底补一个
+  全新助手（getCurrentAssistant 空列表会崩，不允许真空）
+- **助手**：删除入口不再按白名单隐藏；`removeAssistant` 记录被删内置 ID，
+  并在删除当前选中助手时把指针移到剩余助手的第一个；删光后自动补一个全新
+  默认助手
+- **供应商**：删除按钮对 builtIn 同样显示，删除时记录 ID 防止复活；
+  协议类型切换（OpenAI/Gemini/Claude）对内置供应商开放；API 路径输入框
+  不再因 builtIn 置灰
+- 内置供应商的名称/描述/图标仍由加载器同步覆盖（保持上游预设更新能力），
+  可编辑的是连接配置本身

@@ -60,7 +60,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.hugeicons.stroke.MoreVertical
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
-import me.rerere.rikkahub.data.datastore.DEFAULT_ASSISTANTS_IDS
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantMemory
@@ -524,24 +523,22 @@ private fun AssistantActionSheet(
                 Text(stringResource(R.string.assistant_page_clone))
             }
 
-            // 删除选项（仅非默认助手显示）
-            if (assistant.id !in DEFAULT_ASSISTANTS_IDS) {
-                ListItem(
-                    leadingContent = {
-                        Icon(
-                            imageVector = HugeIcons.Delete01,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    },
-                    modifier = Modifier.onClick { showDeleteDialog = true },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                ) {
-                    Text(
-                        stringResource(R.string.assistant_page_delete),
-                        color = MaterialTheme.colorScheme.error
+            // 删除选项：所有助手均可删除（内置助手删除后不再自动补回）
+            ListItem(
+                leadingContent = {
+                    Icon(
+                        imageVector = HugeIcons.Delete01,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
                     )
-                }
+                },
+                modifier = Modifier.onClick { showDeleteDialog = true },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+            ) {
+                Text(
+                    stringResource(R.string.assistant_page_delete),
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         }
     }

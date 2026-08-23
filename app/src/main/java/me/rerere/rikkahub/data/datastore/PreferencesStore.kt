@@ -274,9 +274,13 @@ class SettingsStore(
             )
         }
         .map {
-            var providers = it.providers.ifEmpty { DEFAULT_PROVIDERS }.toMutableList()
+            // 内置助手/供应商在缺失时会自动补回，但用户显式删除过的不补（见 deleted*Ids）
+            val deletedProviderIds = it.deletedProviderIds
+            var providers = it.providers.toMutableList()
             DEFAULT_PROVIDERS.forEach { defaultProvider ->
-                if (providers.none { it.id == defaultProvider.id }) {
+                if (defaultProvider.id.toString() !in deletedProviderIds &&
+                    providers.none { it.id == defaultProvider.id }
+                ) {
                     providers.add(defaultProvider.copyProvider())
                 }
             }
@@ -290,11 +294,18 @@ class SettingsStore(
                     )
                 } else provider
             }.toMutableList()
-            val assistants = it.assistants.ifEmpty { DEFAULT_ASSISTANTS }.toMutableList()
+            val deletedAssistantIds = it.deletedAssistantIds
+            val assistants = it.assistants.toMutableList()
             DEFAULT_ASSISTANTS.forEach { defaultAssistant ->
-                if (assistants.none { it.id == defaultAssistant.id }) {
+                if (defaultAssistant.id.toString() !in deletedAssistantIds &&
+                    assistants.none { it.id == defaultAssistant.id }
+                ) {
                     assistants.add(defaultAssistant.copy())
                 }
+            }
+            // 防御：正常流程删除最后一个助手时会立即补新的，这里兜底不允许空列表
+            if (assistants.isEmpty()) {
+                assistants.add(Assistant())
             }
             val ttsProviders = it.ttsProviders.ifEmpty { DEFAULT_TTS_PROVIDERS }.toMutableList()
             DEFAULT_TTS_PROVIDERS.forEach { defaultTTSProvider ->
@@ -556,6 +567,9 @@ data class Settings(
     val assistantId: Uuid = DEFAULT_ASSISTANT_ID,
     val providers: List<ProviderSetting> = DEFAULT_PROVIDERS,
     val assistants: List<Assistant> = DEFAULT_ASSISTANTS,
+    // 用户显式删除过的内置助手/供应商 ID：加载设置时不再自动补回
+    val deletedAssistantIds: Set<String> = emptySet(),
+    val deletedProviderIds: Set<String> = emptySet(),
     val subagents: List<SubAgent> = DEFAULT_SUBAGENTS,
     val assistantTags: List<Tag> = emptyList(),
     val searchServices: List<SearchServiceOptions> = listOf(SearchServiceOptions.DEFAULT),

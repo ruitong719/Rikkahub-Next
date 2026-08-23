@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import me.rerere.rikkahub.data.datastore.DEFAULT_ASSISTANTS_IDS
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.files.FilesManager
@@ -46,9 +47,25 @@ class AssistantVM(
             cleanupAssistantFiles(assistant)
 
             val settings = settings.value
+            val remaining = settings.assistants.filter { it.id != assistant.id }
+            // 允许删除包括内置在内的所有助手：删到最后一个时补一个全新的默认助手
+            val newAssistants = remaining.ifEmpty { listOf(Assistant()) }
             settingsStore.update(
                 settings.copy(
-                    assistants = settings.assistants.filter { it.id != assistant.id }
+                    assistants = newAssistants,
+                    // 记录被删的内置助手 ID，加载设置时不再自动补回
+                    deletedAssistantIds =
+                        if (assistant.id in DEFAULT_ASSISTANTS_IDS) {
+                            settings.deletedAssistantIds + assistant.id.toString()
+                        } else {
+                            settings.deletedAssistantIds
+                        },
+                    // 删除的是当前选中的助手时，指针移到剩余助手的第一个
+                    assistantId = if (settings.assistantId == assistant.id) {
+                        newAssistants.first().id
+                    } else {
+                        settings.assistantId
+                    },
                 )
             )
             memoryRepository.deleteMemoriesOfAssistant(assistant.id.toString())
