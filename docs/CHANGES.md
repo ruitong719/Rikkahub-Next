@@ -772,3 +772,24 @@ UI 删除，设置加载器每次读取都会把缺失的默认项重新补回�
   进程有效，**重启应用后被删项全部复活**。现新增 DataStore key
   （`deleted_assistant_ids` / `deleted_provider_ids`，stringSet），读取与
   写入双向打通；WebDAV 备份恢复走 `settingsStore.update()`，自动覆盖。
+
+---
+
+## I. tok/s 只按纯吐字时长计算（2026-08-23）
+
+**问题**：NerdLine 的 tok/s = completionTokens / (finishedAt − createdAt)。
+agentic 循环中工具输出写回同一条助手消息，多轮 LLM 输出与工具执行时间全部
+落入 createdAt..finishedAt 区间——只要带一次工具调用，分母就被执行时间稀释，
+速率严重偏低。
+
+### 改动
+
+- **UIMessage** 新增 `generationDurationMs`（持久化字段，旧消息为 0）：
+  纯 LLM 输出累计时长，agentic 多轮各自计时后累加，不含工具执行与轮次间隔
+- **流式路径**：`StreamChunkHandler` 在首个 chunk 到达时打点（排除连接建立
+  与 TTFT），`Finish` 时把本轮窗口累加进消息；handler 每轮独立实例，
+  工具执行期间不计时
+- **非流式路径**：拿不到首包时刻，由 `generateInternal` 记请求起点传入
+  `handleTextGenerationResult`，整轮请求时长计入（含 TTFT）
+- **展示层**：tok/s 分母优先取 `generationDurationMs`，为 0（旧消息/流异常
+  中断）回退总时长；旁边的总耗时秒数保持原语义不变
