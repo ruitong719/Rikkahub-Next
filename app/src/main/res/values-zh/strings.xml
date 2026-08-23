@@ -1384,11 +1384,10 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="reasoning_max">最大</string>
   <string name="backup_page_import_overwrite_confirm">导入备份会覆盖 App 数据，是否继续</string>
   <string name="setting_page_client_identity">客户端身份</string>
-  <string name="setting_page_client_identity_desc">为该供应商的请求覆盖默认 Header（如 User-Agent），模拟常见 harness 客户端。命中预设 host 时自动应用，也可在此自定义。</string>
-  <string name="setting_page_client_identity_add_header">添加 Header</string>
-  <string name="setting_page_client_identity_header_name">Header</string>
-  <string name="setting_page_client_identity_header_value">值</string>
-  <string name="setting_page_client_identity_host_hint">%1$s 的请求通常使用「%2$s」身份，已自动应用。</string>
+  <string name="setting_page_client_identity_desc">默认使用 RikkaHub 标识发起请求。勾选启用后选择客户端预设，用该客户端的指纹覆写请求 Header（如 User-Agent）。</string>
+  <string name="setting_page_client_identity_none">不覆写</string>
+  <string name="setting_page_client_identity_enabled_hint">已启用：%1$s</string>
+  <string name="setting_page_client_identity_disabled_hint">未启用，使用 RikkaHub 默认标识</string>
   <string name="setting_page_preferences_network">网络</string>
   <string name="setting_page_preferences_network_desc">User-Agent 和网络请求设置</string>
   <string name="setting_page_preferences_network_user_agent">User-Agent</string>

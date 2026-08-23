@@ -218,19 +218,27 @@ val dataSourceModule = module {
                 }
 
                 // 供应商级客户端身份（hermes-agent 方案）：按请求 host 匹配供应商。
-                // 有自定义身份用之；否则自动应用该 host 的预设（如 opencode.ai → OpenCode）。
+                // 默认不覆写任何 header（使用 RikkaHub 默认标识）；仅当该供应商显式
+                // 启用了客户端身份且已选择预设时才应用覆写 —— 避免长期伪装被服务端
+                // 识别（部分端点几轮对话后对指纹不一致的流量报错）。
                 val requestHost = originalRequest.url.host
                 val matchedProvider = ClientPresets.findProviderByHost(
                     providers = settingsStore.settingsFlow.value.providers,
                     host = requestHost,
                 )
                 if (matchedProvider != null) {
-                    val customHeaders = networkSetting.providerIdentities[matchedProvider.id.toString()]
-                    val effectiveHeaders = customHeaders?.takeIf { it.isNotEmpty() }
-                        ?: ClientPresets.findAutoPreset(requestHost)?.toHeaders().orEmpty()
-                    effectiveHeaders.forEach { (name, value) ->
-                        if (name.isNotBlank() && value.isNotBlank()) {
-                            requestBuilder.header(name.trim(), value.trim())
+                    val providerId = matchedProvider.id.toString()
+                    val identityEnabled = providerId in networkSetting.providerIdentityEnabledIds
+                    val identity = networkSetting.providerIdentities[providerId].orEmpty()
+                    if (identityEnabled && identity.isNotEmpty()) {
+                        // 伪装客户端身份时清理 RikkaHub 归属标识（如 openrouter 流量
+                        // 携带的 X-Title / HTTP-Referer），避免同时暴露真实客户端
+                        requestBuilder.removeHeader("X-Title")
+                        requestBuilder.removeHeader("HTTP-Referer")
+                        identity.forEach { (name, value) ->
+                            if (name.isNotBlank() && value.isNotBlank()) {
+                                requestBuilder.header(name.trim(), value.trim())
+                            }
                         }
                     }
                     // 空 apiKey 的供应商不发 Authorization：OpenCode Zen 免费档对任何

@@ -1397,10 +1397,9 @@
   <string name="setting_page_floating_bubble_show_live_tab">Show live output tab</string>
   <string name="backup_page_import_overwrite_confirm">Importing a backup will overwrite app data. Continue?</string>
   <string name="setting_page_client_identity">Client Identity</string>
-  <string name="setting_page_client_identity_desc">Override default request headers (e.g. User-Agent) for this provider to simulate common harness clients. Host-matched presets apply automatically and can be customized here.</string>
-  <string name="setting_page_client_identity_add_header">Add header</string>
-  <string name="setting_page_client_identity_header_name">Header</string>
-  <string name="setting_page_client_identity_header_value">Value</string>
-  <string name="setting_page_client_identity_host_hint">%1$s requests typically use the "%2$s" identity; it is applied automatically.</string>
+  <string name="setting_page_client_identity_desc">By default, requests use the RikkaHub identity. Enable the switch and pick a client preset to override request headers (e.g. User-Agent) with that client\'s fingerprint.</string>
+  <string name="setting_page_client_identity_none">No override</string>
+  <string name="setting_page_client_identity_enabled_hint">Enabled: %1$s</string>
+  <string name="setting_page_client_identity_disabled_hint">Disabled — using RikkaHub default identity</string>
 </resources>
 

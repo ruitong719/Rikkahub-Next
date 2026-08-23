@@ -252,6 +252,18 @@ fun SettingProviderDetailPage(id: Uuid, vm: SettingVM = koinViewModel()) {
                             )
                             vm.updateSettings(newSettings)
                         },
+                        onUpdateEnabled = { enabled ->
+                            val newSettings = settings.copy(
+                                networkSetting = settings.networkSetting.copy(
+                                    providerIdentityEnabledIds = if (enabled) {
+                                        settings.networkSetting.providerIdentityEnabledIds + provider.id.toString()
+                                    } else {
+                                        settings.networkSetting.providerIdentityEnabledIds - provider.id.toString()
+                                    }
+                                )
+                            )
+                            vm.updateSettings(newSettings)
+                        },
                         onEdit = {
                             onEdit(it)
                             toaster.show(
@@ -281,6 +293,7 @@ private fun SettingProviderConfigPage(
     provider: ProviderSetting,
     networkSetting: NetworkSetting,
     onUpdateIdentity: (Map<String, String>) -> Unit,
+    onUpdateEnabled: (Boolean) -> Unit,
     onEdit: (ProviderSetting) -> Unit,
     onDelete: () -> Unit
 ) {
@@ -302,11 +315,12 @@ private fun SettingProviderConfigPage(
             }
         )
 
-        // 客户端身份：模拟 harness 客户端（Claude Code / OpenCode 等），按 host 自动或手动套用
+        // 客户端身份：模拟 harness 客户端（Claude Code / OpenCode 等），勾选启用后选择预设套用
         ProviderIdentityCard(
             provider = provider,
             networkSetting = networkSetting,
             onUpdateIdentity = onUpdateIdentity,
+            onUpdateEnabled = onUpdateEnabled,
         )
 
         if (internalProvider is ProviderSetting.OpenAI) {

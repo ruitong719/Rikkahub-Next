@@ -1199,11 +1199,10 @@
   <string name="reasoning_max">最大</string>
   <string name="backup_page_import_overwrite_confirm">匯入備份將覆寫應用程式資料。是否繼續？</string>
   <string name="setting_page_client_identity">用戶端身分</string>
-  <string name="setting_page_client_identity_desc">為該供應商的請求覆寫預設 Header（如 User-Agent），模擬常見 harness 用戶端。命中預設 host 時自動套用，也可在此自訂。</string>
-  <string name="setting_page_client_identity_add_header">新增 Header</string>
-  <string name="setting_page_client_identity_header_name">Header</string>
-  <string name="setting_page_client_identity_header_value">值</string>
-  <string name="setting_page_client_identity_host_hint">%1$s 的請求通常使用「%2$s」身分，已自動套用。</string>
+  <string name="setting_page_client_identity_desc">預設使用 RikkaHub 標識發起請求。勾選啟用後選擇用戶端預設，用該用戶端的指紋覆寫請求 Header（如 User-Agent）。</string>
+  <string name="setting_page_client_identity_none">不覆寫</string>
+  <string name="setting_page_client_identity_enabled_hint">已啟用：%1$s</string>
+  <string name="setting_page_client_identity_disabled_hint">未啟用，使用 RikkaHub 預設標識</string>
   <string name="setting_page_preferences_network">網路</string>
   <string name="setting_page_preferences_network_desc">User-Agent 和網路請求設定</string>
   <string name="setting_page_preferences_network_user_agent">User-Agent</string>

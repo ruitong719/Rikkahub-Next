@@ -638,6 +638,9 @@ data class NetworkSetting(
     // 该供应商时应用，优先于全局 userAgent —— 见 hermes-agent 的按 host 分发实践：
     // api.kimi.com 要求 claude-code UA、chatgpt.com Codex 后端需要 originator 组合
     val providerIdentities: Map<String, Map<String, String>> = emptyMap(),
+    // 显式启用客户端身份覆写的 provider id 集合：未启用时不覆写任何 header（默认
+    // 使用 RikkaHub 标识），启用且选中了预设时才应用 providerIdentities 的覆写
+    val providerIdentityEnabledIds: Set<String> = emptySet(),
 )
 
 @Serializable
