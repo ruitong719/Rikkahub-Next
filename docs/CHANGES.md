@@ -764,3 +764,11 @@ UI 删除，设置加载器每次读取都会把缺失的默认项重新补回�
   不再因 builtIn 置灰
 - 内置供应商的名称/描述/图标仍由加载器同步覆盖（保持上游预设更新能力），
   可编辑的是连接配置本身
+
+### 修复（2026-08-22）
+
+- `deletedAssistantIds` / `deletedProviderIds` 此前只存在于内存中的 Settings
+  对象：`update()` 没有写盘、冷启动读取也没有读回，导致删除内置项仅在当前
+  进程有效，**重启应用后被删项全部复活**。现新增 DataStore key
+  （`deleted_assistant_ids` / `deleted_provider_ids`，stringSet），读取与
+  写入双向打通；WebDAV 备份恢复走 `settingsStore.update()`，自动覆盖。

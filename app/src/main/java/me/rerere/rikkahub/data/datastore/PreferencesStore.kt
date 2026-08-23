@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.pebbletemplates.pebble.PebbleEngine
 import kotlinx.coroutines.flow.catch
@@ -106,6 +107,10 @@ class SettingsStore(
         val SELECT_ASSISTANT = stringPreferencesKey("select_assistant")
         val ASSISTANTS = stringPreferencesKey("assistants")
         val ASSISTANT_TAGS = stringPreferencesKey("assistant_tags")
+
+        // 用户显式删除过的内置助手/供应商 ID，防止加载时自动补回复活
+        val DELETED_ASSISTANT_IDS = stringSetPreferencesKey("deleted_assistant_ids")
+        val DELETED_PROVIDER_IDS = stringSetPreferencesKey("deleted_provider_ids")
 
         // Subagent
         val SUBAGENTS = stringPreferencesKey("subagents")
@@ -211,6 +216,8 @@ class SettingsStore(
                 } ?: emptyList(),
                 providers = JsonInstant.decodeFromString(preferences[PROVIDERS] ?: "[]"),
                 assistants = JsonInstant.decodeFromString(preferences[ASSISTANTS] ?: "[]"),
+                deletedAssistantIds = preferences[DELETED_ASSISTANT_IDS] ?: emptySet(),
+                deletedProviderIds = preferences[DELETED_PROVIDER_IDS] ?: emptySet(),
                 subagents = preferences[SUBAGENTS]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: DEFAULT_SUBAGENTS,
@@ -409,6 +416,8 @@ class SettingsStore(
 
             preferences[ASSISTANTS] = JsonInstant.encodeToString(settings.assistants)
             preferences[SELECT_ASSISTANT] = settings.assistantId.toString()
+            preferences[DELETED_ASSISTANT_IDS] = settings.deletedAssistantIds
+            preferences[DELETED_PROVIDER_IDS] = settings.deletedProviderIds
             preferences[ASSISTANT_TAGS] = JsonInstant.encodeToString(settings.assistantTags)
             preferences[SUBAGENTS] = JsonInstant.encodeToString(settings.subagents)
 
