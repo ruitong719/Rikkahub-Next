@@ -31,6 +31,12 @@ import com.petterp.floatingx.assist.FxScopeType
 import com.petterp.floatingx.listener.IFxTouchListener
 import com.petterp.floatingx.listener.control.IFxAppControl
 import com.petterp.floatingx.view.IFxInternalHelper
+import coil3.BitmapImage
+import coil3.ImageLoader
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.svg.SvgDecoder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -41,7 +47,9 @@ import me.rerere.rikkahub.FLOATING_BUBBLE_NOTIFICATION_CHANNEL_ID
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.RouteActivity
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.model.IconSource
 import me.rerere.rikkahub.ui.floating.FloatingExpandWindow
+import me.rerere.rikkahub.utils.svgToDataUri
 import org.koin.android.ext.android.inject
 import java.io.File
 
@@ -99,6 +107,19 @@ class FloatingBubbleService : Service() {
     private var bubbleSizeDp = 48
     private var bubbleBaseAlpha = 1f
     private var lastIconPath: String? = null
+
+    // 新版图标来源（SVG/URL/Emoji），与 lastIconPath 一起构成回退链的变更检测
+    private var lastIcon: IconSource? = null
+
+    // 服务内独立的图片加载器：不依赖 Compose 侧单例初始化（服务可能先于 Activity 启动）
+    private val iconImageLoader: ImageLoader by lazy {
+        ImageLoader.Builder(this)
+            .components {
+                add(SvgDecoder.Factory(scaleToDensity = true))
+                add(OkHttpNetworkFetcherFactory())
+            }
+            .build()
+    }
 
     // 交互状态
     private var isHalfHidden = false
@@ -300,11 +321,15 @@ class FloatingBubbleService : Service() {
                 applyBubbleAlpha()
                 bubbleView?.setBubbleColor(bubbleColor)
                 bubbleView?.setBubbleSize(dp2px(bubbleSizeDp).toInt())
+                val icon = settings.floatingBubbleIcon
                 val iconPath = settings.floatingBubbleIconPath
-                if (iconPath != lastIconPath) {
+                if (icon != lastIcon || iconPath != lastIconPath) {
+                    lastIcon = icon
                     lastIconPath = iconPath
                     serviceScope.launch(Dispatchers.IO) {
-                        val bitmap = iconPath?.let { loadBubbleIcon(File(it)) }
+                        // 新版来源优先，失败或为空时回退旧的本地 PNG，再回退纯色圆球
+                        val bitmap = resolveBubbleIcon(icon)
+                            ?: iconPath?.let { loadBubbleIcon(File(it)) }
                         mainHandler.post { bubbleView?.setIconBitmap(bitmap) }
                     }
                 }
@@ -393,7 +418,63 @@ class FloatingBubbleService : Service() {
 
     private fun dp2px(dp: Int): Float = dp * resources.displayMetrics.density
 
-    /** 解码自定义图标并居中裁成方形（采样到 ~[ICON_TARGET_SIZE_PX]），失败返回 null */
+    /** 新版图标来源（SVG 源码 / 图片 URL / Emoji）转方形位图；失败返回 null 走回退链 */
+    private suspend fun resolveBubbleIcon(source: IconSource?): Bitmap? {
+        if (source == null) return null
+        return runCatching {
+            when (source) {
+                is IconSource.Emoji -> drawEmojiBitmap(source.emoji, ICON_TARGET_SIZE_PX)
+                else -> {
+                    val data = when (source) {
+                        is IconSource.Svg -> svgToDataUri(source.code)
+                        is IconSource.Url -> source.url
+                        else -> return@runCatching null
+                    }
+                    val request = ImageRequest.Builder(this)
+                        .data(data)
+                        .size(ICON_TARGET_SIZE_PX, ICON_TARGET_SIZE_PX)
+                        .build()
+                    val result = iconImageLoader.execute(request)
+                    val image = (result as? SuccessResult)?.image ?: return@runCatching null
+                    image.toSquareBitmap(ICON_TARGET_SIZE_PX)
+                }
+            }
+        }.getOrNull()
+    }
+
+    private fun coil3.Image.toSquareBitmap(sizePx: Int): Bitmap {
+        (this as? BitmapImage)?.bitmap?.let { src ->
+            // 已是位图：居中裁方
+            val side = minOf(src.width, src.height)
+            val x = (src.width - side) / 2
+            val y = (src.height - side) / 2
+            return Bitmap.createBitmap(src, x, y, side, side)
+        }
+        // SVG 等：按等比缩放居中绘制到方形画布
+        val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val w = width.coerceAtLeast(1).toFloat()
+        val h = height.coerceAtLeast(1).toFloat()
+        val scale = minOf(sizePx / w, sizePx / h)
+        canvas.translate((sizePx - w * scale) / 2f, (sizePx - h * scale) / 2f)
+        canvas.scale(scale, scale)
+        draw(canvas)
+        return bmp
+    }
+
+    private fun drawEmojiBitmap(emoji: String, sizePx: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = sizePx * 0.62f
+            textAlign = Paint.Align.CENTER
+        }
+        val baselineY = sizePx / 2f - (paint.descent() + paint.ascent()) / 2f
+        canvas.drawText(emoji, sizePx / 2f, baselineY, paint)
+        return bmp
+    }
+
+    /** 解码旧版自定义图标 PNG 并居中裁成方形（采样到 ~[ICON_TARGET_SIZE_PX]），失败返回 null */
     private fun loadBubbleIcon(file: File): Bitmap? = runCatching {
         if (!file.isFile) return@runCatching null
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }

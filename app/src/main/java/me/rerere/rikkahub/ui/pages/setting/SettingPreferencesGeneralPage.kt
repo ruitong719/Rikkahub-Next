@@ -2,20 +2,17 @@ package me.rerere.rikkahub.ui.pages.setting
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -24,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -43,8 +41,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.Edit03
 import me.rerere.hugeicons.stroke.Eraser
-import me.rerere.hugeicons.stroke.Image02
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -58,6 +56,8 @@ import me.rerere.rikkahub.service.FloatingBubbleService
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.components.ui.ColorPickerRow
+import me.rerere.rikkahub.ui.components.ui.IconSourceEditor
+import me.rerere.rikkahub.ui.components.ui.IconSourceImage
 import me.rerere.rikkahub.ui.hooks.rememberSharedPreferenceBoolean
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
@@ -350,14 +350,7 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                 var expandHeightDraft by remember(settings.floatingBubbleExpandHeight) {
                     mutableStateOf(settings.floatingBubbleExpandHeight.toFloat())
                 }
-                val bubbleIconPickerLauncher = rememberLauncherForActivityResult(
-                    ActivityResultContracts.PickVisualMedia()
-                ) { uri ->
-                    uri ?: return@rememberLauncherForActivityResult
-                    copyFloatingBubbleIcon(bubbleContext, uri)?.let { path ->
-                        vm.updateSettings(settings.copy(floatingBubbleIconPath = path))
-                    }
-                }
+                var showBubbleIconEditor by remember { mutableStateOf(false) }
                 val lifecycleOwner = LocalLifecycleOwner.current
                 DisposableEffect(lifecycleOwner, settings.floatingBubbleEnabled) {
                     val observer = LifecycleEventObserver { _, event ->
@@ -474,25 +467,27 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 ) {
-                                    IconButton(
-                                        onClick = {
-                                            bubbleIconPickerLauncher.launch(
-                                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                            )
+                                    // 当前图标预览（SVG/URL/Emoji）；旧 PNG 路径无轻量预览，留空占位
+                                    Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                                        settings.floatingBubbleIcon?.let {
+                                            IconSourceImage(source = it)
                                         }
-                                    ) {
+                                    }
+                                    IconButton(onClick = { showBubbleIconEditor = true }) {
                                         Icon(
-                                            imageVector = HugeIcons.Image02,
+                                            imageVector = HugeIcons.Edit03,
                                             contentDescription = stringResource(R.string.setting_page_floating_bubble_pick_icon)
                                         )
                                     }
-                                    if (settings.floatingBubbleIconPath != null) {
+                                    if (settings.floatingBubbleIcon != null || settings.floatingBubbleIconPath != null) {
                                         IconButton(
                                             onClick = {
                                                 settings.floatingBubbleIconPath?.let { path ->
                                                     runCatching { File(path).delete() }
                                                 }
-                                                vm.updateSettings(settings.copy(floatingBubbleIconPath = null))
+                                                vm.updateSettings(
+                                                    settings.copy(floatingBubbleIcon = null, floatingBubbleIconPath = null)
+                                                )
                                             }
                                         ) {
                                             Icon(
@@ -600,46 +595,29 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                         },
                     )
                 }
+                if (showBubbleIconEditor) {
+                    ModalBottomSheet(onDismissRequest = { showBubbleIconEditor = false }) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .padding(bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text("悬浮球图标", style = MaterialTheme.typography.titleMedium)
+                            IconSourceEditor(
+                                initial = settings.floatingBubbleIcon,
+                                onSave = { source ->
+                                    vm.updateSettings(settings.copy(floatingBubbleIcon = source))
+                                    showBubbleIconEditor = false
+                                },
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-/** 相册图片 → 私有目录方形 PNG（约 256px），返回文件路径；失败返回 null */
-private fun copyFloatingBubbleIcon(context: Context, uri: Uri): String? {
-    return runCatching {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, bounds)
-        } ?: return null
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
-        var sample = 1
-        while (bounds.outWidth / (sample * 2) >= FLOATING_BUBBLE_ICON_SIZE_PX &&
-            bounds.outHeight / (sample * 2) >= FLOATING_BUBBLE_ICON_SIZE_PX
-        ) {
-            sample *= 2
-        }
-        val source = context.contentResolver.openInputStream(uri)?.use {
-            BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
-        } ?: return null
-
-        val side = minOf(source.width, source.height)
-        val x = (source.width - side) / 2
-        val y = (source.height - side) / 2
-        val cropped = Bitmap.createBitmap(source, x, y, side, side)
-        val scaled = if (cropped.width == FLOATING_BUBBLE_ICON_SIZE_PX) {
-            cropped
-        } else {
-            Bitmap.createScaledBitmap(cropped, FLOATING_BUBBLE_ICON_SIZE_PX, FLOATING_BUBBLE_ICON_SIZE_PX, true)
-        }
-
-        val file = java.io.File(context.filesDir, "floating_bubble_icon.png")
-        file.outputStream().use { out ->
-            scaled.compress(Bitmap.CompressFormat.PNG, 100, out)
-        }
-        file.absolutePath
-    }.getOrNull()
-}
-
-private const val FLOATING_BUBBLE_ICON_SIZE_PX = 256
