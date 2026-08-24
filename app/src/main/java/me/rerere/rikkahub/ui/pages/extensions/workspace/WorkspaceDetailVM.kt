@@ -28,6 +28,7 @@ class WorkspaceDetailVM(
     private val id: String,
     private val repository: WorkspaceRepository,
     private val mountManager: WorkspaceMountManager,
+    private val terminalSessionManager: WorkspaceTerminalSessionManager,
 ) : ViewModel() {
     private val _state = MutableStateFlow(WorkspaceDetailState())
     val state = _state.asStateFlow()
@@ -259,6 +260,7 @@ class WorkspaceDetailVM(
             val workspace = state.value.workspace ?: return@launch
             _installProgress.value = RootfsInstallProgress(stage = RootfsInstallStage.DOWNLOADING)
             try {
+                terminalSessionManager.closeWorkspace(workspace.root)
                 repository.installRootfs(workspace.id, url) { progress ->
                     _installProgress.value = progress
                 }
