@@ -700,6 +700,7 @@ class ChatService(
                 processingStatus = session.processingStatus,
                 messages = currentMessages,
                 assistant = assistant,
+                conversationId = conversationId,
                 conversationSystemPrompt = conversation.customSystemPrompt,
                 workspaceCwd = conversation.workspaceCwd,
                 memories = memories,

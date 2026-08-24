@@ -81,6 +81,7 @@ class GenerationHandler(
         maxSteps: Int = 256,
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         conversationSystemPrompt: String? = null,
+        conversationId: Uuid? = null,
         conversationModeInjectionIds: Set<Uuid> = emptySet(),
         conversationLorebookIds: Set<Uuid> = emptySet(),
         workspaceCwd: String? = null,
@@ -183,6 +184,7 @@ class GenerationHandler(
                     stream = assistant.streamOutput,
                     processingStatus = processingStatus,
                     conversationSystemPrompt = conversationSystemPrompt,
+                    conversationId = conversationId,
                     workspaceCwd = workspaceCwd,
                     rollingContextSummary = rollingContextSummary,
                     requestMessageStartIndex = requestMessageStartIndex,
@@ -385,6 +387,7 @@ class GenerationHandler(
         stream: Boolean,
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         conversationSystemPrompt: String? = null,
+        conversationId: Uuid? = null,
         workspaceCwd: String? = null,
         rollingContextSummary: String? = null,
         requestMessageStartIndex: Int = 0,
@@ -456,7 +459,8 @@ class GenerationHandler(
             customBody = buildList {
                 addAll(assistant.customBodies)
                 addAll(model.customBodies)
-            }
+            },
+            sessionId = conversationId?.toString(),
         )
         if (stream) {
             val streamChunkHandler = StreamChunkHandler(model)
