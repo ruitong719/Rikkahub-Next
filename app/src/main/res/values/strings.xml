@@ -1401,5 +1401,10 @@
   <string name="setting_page_client_identity_none">No override</string>
   <string name="setting_page_client_identity_enabled_hint">Enabled: %1$s</string>
   <string name="setting_page_client_identity_disabled_hint">Disabled — using RikkaHub default identity</string>
+  <string name="setting_provider_page_test_non_streaming">Non-streaming</string>
+  <string name="setting_provider_page_test_streaming">Streaming</string>
+  <string name="setting_provider_page_test_tool_call">Tool Call</string>
+  <string name="setting_provider_page_test_tool_called">Called: %1$s  Args: %2$s</string>
+  <string name="setting_provider_page_test_tool_not_called">Tool not called, response: %s</string>
 </resources>
 
