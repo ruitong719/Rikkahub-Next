@@ -828,3 +828,55 @@ agentic 循环中工具输出写回同一条助手消息，多轮 LLM 输出与�
 - 推荐供应商列表新增「OpenCode Zen」条目（免费档 keyless），模型靠
   GET /models 自动发现；免费目录含 grok-code、big-pickle、kimi-k2.5-free、
   glm-5-free 等 22 个 cost-0 模型
+
+---
+
+## K. 自定义图标映射 + 悬浮球图标来源重构（2026-08-23）
+
+**背景**：内置图标预设（`AIIconMatcher` 正则表）未命中的供应商/模型只能显示
+首字母；悬浮球自定义图标只有相册选图一条路且无预览。统一引入
+SVG 源码 / 图片 URL / Emoji 三种图标来源。
+
+### 自定义 AI 图标映射
+
+- **数据模型** `CustomAIIcon(pattern, exactMatch, source)`，source 为 sealed
+  `IconSource.Svg/Url/Emoji`（data/model/CustomAIIcon.kt）
+- **存储**：Settings 新字段 `customAiIcons`，DataStore key `custom_ai_icons`；
+  备份导出的是整个 Settings JSON，随 `settings.json` 自动进出 WebDAV 与本地备份，
+  旧备份缺字段反序列化取默认空列表，双向兼容
+- **匹配**：`matchCustomAIIcon()` 纯函数——精确条目优先，包含匹配不区分大小写、
+  取最长关键词；优先级为 内置预设 > 自定义映射 > TextAvatar 首字母；
+  JVM 单测覆盖（AIIconMatcherTest）
+- **渲染**：仅改 `AutoAIIcon` 组件内部（koinInject SettingsStore 收集），
+  ModelList/供应商设置/聊天气泡/搜索/TTS/导出等 8 处调用点零改动生效；
+  SVG 转 base64 data URI 走 coil SvgDecoder（不套 CSS 染色，保留原色）
+- **设置页**：`Screen.SettingCustomIcons` → 设置主页「模型与服务」分组新入口；
+  列表管理 + 底部弹层编辑（关键词/精确开关/来源三选一/实时预览/校验）
+
+### 悬浮球图标来源重构
+
+- Settings 新字段 `floatingBubbleIcon: IconSource?`（key `floating_bubble_icon`），
+  旧 `floatingBubbleIconPath`（相册 PNG）保留为回退链一环：新来源 > 旧 PNG > 纯色圆球
+- 服务端渲染（FloatingBubbleService）：服务内独立 ImageLoader（SvgDecoder +
+  OkHttp fetcher，不依赖 Compose 单例初始化时序）；coil 结果 drawable 光栅化为
+  方形位图，Emoji 用 Canvas 直接绘制
+- 设置 UI：相册选图按钮替换为「编辑」入口 + 共用 `IconSourceEditor`
+  （SVG 粘贴/URL/Emoji 三选一 + 预览），清除按钮同时清新旧两代配置
+
+### 共用组件
+
+- `ui/components/ui/IconSourceEditor.kt`：来源类型切换 + 输入 + 校验 + 实时预览，
+  映射设置页与悬浮球设置共用；`IconSourceImage` 支持尺寸参数供多处预览
+- **Web 端** `/ai-icon?name=`：同样查映射表——SVG 直接回源码文本、URL 回 302、
+  Emoji 回内联 SVG，与端内优先级一致
+
+### 悬浮球展开窗口：命令行限高 + 运行统计行
+
+- **命令行两行截断**：`CommandLine`（待办页进行中命令 + 实时输出页全部
+  function_call 行）加 `maxLines=2 + Ellipsis`，长 shell 命令不再把上方内容顶出视口
+- **统计行**：标签行与内容区之间新增一行——耗时秒数 / 输出 k token /
+  工具调用次数 / tok/s，口径同聊天页 NerdLine（tok/s 用纯吐字时长
+  `generationDurationMs`，不含工具执行间隙）
+- **数据来源**：`FloatingActivityHub` 新增跨轮次累加器（RunAccumulator），
+  agentic 多轮的 usage/工具数按消息 id 变更逐轮折叠；生成中每 500ms 刷新秒表，
+  结束后冻结显示

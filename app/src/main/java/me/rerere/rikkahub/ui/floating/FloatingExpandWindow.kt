@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,6 +48,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -70,6 +72,9 @@ import me.rerere.rikkahub.service.FloatingActivityHub
 import me.rerere.rikkahub.service.FloatingActivityState
 import me.rerere.rikkahub.service.TerminalCommand
 import me.rerere.rikkahub.service.TodoStoreItem
+import kotlinx.coroutines.delay
+import android.os.SystemClock
+import me.rerere.rikkahub.utils.toFixed
 
 /**
  * 悬浮球展开窗口：一个可通过 WindowManager 显示在任意应用之上的 Compose 悬浮窗。
@@ -335,51 +340,103 @@ private fun ExpandWindowBody(
 ) {
     var selectedTab by remember { mutableIntStateOf(if (showTodoTab) 0 else 1) }
 
-    if (!showTodoTab && !showLiveTab) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "标签已全部关闭",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    Column(modifier = Modifier.fillMaxSize()) {
+        when {
+            showTodoTab && showLiveTab -> {
+                PrimaryTabRow(selectedTabIndex = selectedTab) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("待办") },
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("实时输出") },
+                    )
+                }
+            }
+
+            showTodoTab -> selectedTab = 0
+            showLiveTab -> selectedTab = 1
         }
-        return
-    }
 
-    if (showTodoTab && showLiveTab) {
-        PrimaryTabRow(selectedTabIndex = selectedTab) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text("待办") },
-            )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text("实时输出") },
-            )
+        RunStatsRow(state = state)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+        val scrollState = rememberScrollState()
+        val contentModifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .padding(12.dp)
+
+        if (!showTodoTab && !showLiveTab) {
+            Box(
+                modifier = contentModifier,
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "标签已全部关闭",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else if (selectedTab == 0) {
+            TodoContent(state.realTodos, state.terminalCommands, scrollState, contentModifier)
+        } else {
+            LiveOutputContent(state, scrollState, contentModifier)
         }
-    } else if (showTodoTab) {
-        selectedTab = 0
-    } else {
-        selectedTab = 1
+    }
+}
+
+/**
+ * 运行统计行：耗时 / 输出 token / 工具调用次数 / tok/s。
+ * tok/s 口径同聊天页 NerdLine（纯吐字时长，不含工具执行间隙）；
+ * 生成进行中每 500ms 刷新一次让秒表跳动，结束后冻结显示。
+ */
+@Composable
+private fun RunStatsRow(state: FloatingActivityState) {
+    var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = SystemClock.elapsedRealtime()
+            delay(500)
+        }
     }
 
-    val scrollState = rememberScrollState()
-    val contentModifier = Modifier
-        .fillMaxSize()
-        .padding(12.dp)
-
-    if (selectedTab == 0) {
-        TodoContent(state.realTodos, state.terminalCommands, scrollState, contentModifier)
+    val elapsedSec = if (state.generatingSinceElapsedMs > 0) {
+        (now - state.generatingSinceElapsedMs) / 1000f
     } else {
-        LiveOutputContent(state, scrollState, contentModifier)
+        state.elapsedMs / 1000f
     }
+    val tps = if (state.generationMs > 0) {
+        state.outputTokens.toFloat() / state.generationMs * 1000f
+    } else {
+        0f
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StatsText(text = "${elapsedSec.toFixed(1)}s")
+        StatsText(text = "${(state.outputTokens / 1000f).toFixed(1)}k tok")
+        StatsText(text = "工具 ${state.toolCallCount} 次")
+        StatsText(text = "${tps.toFixed(1)} tok/s")
+    }
+}
+
+@Composable
+private fun StatsText(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+    )
 }
 
 @Composable
@@ -529,6 +586,9 @@ private fun CommandLine(command: String) {
         )
         Text(
             text = command,
+            // shell 命令可能很多行，限两行省略，避免把上方内容顶出视口
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodySmall,
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.primary,

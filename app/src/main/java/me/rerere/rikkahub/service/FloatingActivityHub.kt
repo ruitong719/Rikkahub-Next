@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.service
 
+import android.os.SystemClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +43,12 @@ data class FloatingActivityState(
     val reasoning: String = "",
     val realTodos: List<TodoStoreItem> = emptyList(),
     val terminalCommands: List<TerminalCommand> = emptyList(),
+    // 运行统计（展开窗口统计行）：跨 agentic 轮次累计，生成结束后冻结
+    val generatingSinceElapsedMs: Long = 0L,
+    val elapsedMs: Long = 0L,
+    val outputTokens: Int = 0,
+    val generationMs: Long = 0L,
+    val toolCallCount: Int = 0,
 ) {
     val hasContent: Boolean
         get() = liveText.isNotBlank() || reasoning.isNotBlank() ||
@@ -78,6 +85,32 @@ class FloatingActivityHub(
     // 跟踪当前对话 ID，从 ChatGenerationUpdate/Ended 事件中提取
     private val currentConversationId = MutableStateFlow<Uuid?>(null)
 
+    // 单次生成运行（可含多轮工具调用）的跨轮次统计累加器：
+    // 流式更新里 lastMessage 是当前轮的消息，usage/tool 数按轮折叠进累计值
+    private class RunAccumulator {
+        var startedAtElapsedMs: Long = 0L
+        var prevTokens = 0
+        var prevTools = 0
+        var prevGenMs = 0L
+        var lastMsgId: Uuid? = null
+        var lastMsgTokens = 0
+        var lastMsgTools = 0
+        var lastMsgGenMs = 0L
+
+        fun reset(now: Long) {
+            startedAtElapsedMs = now
+            prevTokens = 0
+            prevTools = 0
+            prevGenMs = 0L
+            lastMsgId = null
+            lastMsgTokens = 0
+            lastMsgTools = 0
+            lastMsgGenMs = 0L
+        }
+    }
+
+    private val accumulator = RunAccumulator()
+
     init {
         // 订阅生成事件，更新 AI 活动状态
         appScope.launch(Dispatchers.Default) {
@@ -85,6 +118,26 @@ class FloatingActivityHub(
                 when (event) {
                     is AppEvent.ChatGenerationUpdate -> {
                         currentConversationId.value = event.conversationId
+                        val message = event.lastMessage
+                        // 从空闲进入新一轮：重置累加器并开始计时
+                        if (!_state.value.isGenerating) {
+                            accumulator.reset(SystemClock.elapsedRealtime())
+                        }
+                        // 消息 id 变化说明进入下一轮，把上一条消息的定格值折进累计
+                        if (accumulator.lastMsgId != message.id) {
+                            accumulator.prevTokens += accumulator.lastMsgTokens
+                            accumulator.prevTools += accumulator.lastMsgTools
+                            accumulator.prevGenMs += accumulator.lastMsgGenMs
+                            accumulator.lastMsgId = message.id
+                            accumulator.lastMsgTokens = 0
+                            accumulator.lastMsgTools = 0
+                            accumulator.lastMsgGenMs = 0L
+                        }
+                        accumulator.lastMsgTokens =
+                            maxOf(accumulator.lastMsgTokens, message.usage?.completionTokens ?: 0)
+                        accumulator.lastMsgTools = maxOf(accumulator.lastMsgTools, message.getTools().size)
+                        accumulator.lastMsgGenMs = maxOf(accumulator.lastMsgGenMs, message.generationDurationMs)
+
                         _state.value = _state.value.copy(
                             isGenerating = true,
                             senderName = event.senderName,
@@ -92,12 +145,29 @@ class FloatingActivityHub(
                             liveText = extractLiveText(event.lastMessage),
                             reasoning = extractReasoning(event.lastMessage),
                             terminalCommands = extractTerminalCommands(event.lastMessage.parts),
+                            generatingSinceElapsedMs = accumulator.startedAtElapsedMs,
+                            elapsedMs = 0L,
+                            outputTokens = accumulator.prevTokens + accumulator.lastMsgTokens,
+                            generationMs = accumulator.prevGenMs + accumulator.lastMsgGenMs,
+                            toolCallCount = accumulator.prevTools + accumulator.lastMsgTools,
                         )
                     }
+
                     is AppEvent.ChatGenerationEnded -> {
                         currentConversationId.value = event.conversationId
-                        _state.value = _state.value.copy(isGenerating = false, status = "")
+                        val startedAt = _state.value.generatingSinceElapsedMs
+                        _state.value = _state.value.copy(
+                            isGenerating = false,
+                            status = "",
+                            generatingSinceElapsedMs = 0L,
+                            elapsedMs = if (startedAt > 0) {
+                                SystemClock.elapsedRealtime() - startedAt
+                            } else {
+                                _state.value.elapsedMs
+                            },
+                        )
                     }
+
                     else -> {}
                 }
             }
