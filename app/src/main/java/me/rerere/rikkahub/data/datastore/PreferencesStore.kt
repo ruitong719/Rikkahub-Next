@@ -39,6 +39,8 @@ import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV3Migration
 import me.rerere.rikkahub.data.files.WorkspaceMountConfig
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
+import me.rerere.rikkahub.data.model.CustomAIIcon
+import me.rerere.rikkahub.data.model.IconSource
 import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.data.model.DEFAULT_SUBAGENTS
 import me.rerere.rikkahub.data.model.SubAgent
@@ -158,6 +160,11 @@ class SettingsStore(
         val FLOATING_BUBBLE_SIZE = intPreferencesKey("floating_bubble_size")
         val FLOATING_BUBBLE_OPACITY = intPreferencesKey("floating_bubble_opacity")
         val FLOATING_BUBBLE_ICON_PATH = stringPreferencesKey("floating_bubble_icon_path")
+        // 悬浮球自定义图标来源（SVG/URL/Emoji）；为空时回退旧 ICON_PATH 或纯色圆球
+        val FLOATING_BUBBLE_ICON = stringPreferencesKey("floating_bubble_icon")
+
+        // 自定义 AI 图标映射（供应商/模型名 -> 图标），内置预设未命中时生效
+        val CUSTOM_AI_ICONS = stringPreferencesKey("custom_ai_icons")
 
         // 悬浮球展开窗口：宽度/高度（dp），以及待办/实时输出标签开关
         val FLOATING_BUBBLE_EXPAND_WIDTH = intPreferencesKey("floating_bubble_expand_width")
@@ -259,6 +266,9 @@ class SettingsStore(
                 quickMessages = preferences[QUICK_MESSAGES]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
+                customAiIcons = preferences[CUSTOM_AI_ICONS]?.let {
+                    JsonInstant.decodeFromString(it)
+                } ?: emptyList(),
                 webServerEnabled = preferences[WEB_SERVER_ENABLED] == true,
                 webServerPort = preferences[WEB_SERVER_PORT] ?: 8080,
                 webServerJwtEnabled = preferences[WEB_SERVER_JWT_ENABLED] == true,
@@ -276,6 +286,9 @@ class SettingsStore(
                 floatingBubbleSize = preferences[FLOATING_BUBBLE_SIZE] ?: 48,
                 floatingBubbleOpacity = preferences[FLOATING_BUBBLE_OPACITY] ?: 100,
                 floatingBubbleIconPath = preferences[FLOATING_BUBBLE_ICON_PATH],
+                floatingBubbleIcon = preferences[FLOATING_BUBBLE_ICON]?.let { json ->
+                    runCatching { JsonInstant.decodeFromString<IconSource>(json) }.getOrNull()
+                },
                 floatingBubbleExpandWidth = preferences[FLOATING_BUBBLE_EXPAND_WIDTH] ?: 300,
                 floatingBubbleExpandHeight = preferences[FLOATING_BUBBLE_EXPAND_HEIGHT] ?: 420,
                 floatingBubbleShowTodoTab = preferences[FLOATING_BUBBLE_SHOW_TODO_TAB] ?: true,
@@ -460,6 +473,10 @@ class SettingsStore(
             preferences[FLOATING_BUBBLE_EXPAND_HEIGHT] = settings.floatingBubbleExpandHeight
             preferences[FLOATING_BUBBLE_SHOW_TODO_TAB] = settings.floatingBubbleShowTodoTab
             preferences[FLOATING_BUBBLE_SHOW_LIVE_TAB] = settings.floatingBubbleShowLiveTab
+            settings.floatingBubbleIcon?.let {
+                preferences[FLOATING_BUBBLE_ICON] = JsonInstant.encodeToString(it)
+            } ?: run { preferences.remove(FLOATING_BUBBLE_ICON) }
+            preferences[CUSTOM_AI_ICONS] = JsonInstant.encodeToString(settings.customAiIcons)
         }
     }
 
@@ -597,6 +614,8 @@ data class Settings(
     val asrProviders: List<ASRProviderSetting> = emptyList(),
     val selectedASRProviderId: Uuid? = null,
     val quickMessages: List<QuickMessage> = emptyList(),
+    // 自定义 AI 图标映射（供应商/模型名 -> 图标），未命中内置预设时生效；随 Settings JSON 整体进出备份
+    val customAiIcons: List<CustomAIIcon> = emptyList(),
     val webServerEnabled: Boolean = false,
     val webServerPort: Int = 8080,
     val webServerJwtEnabled: Boolean = false,
@@ -607,8 +626,10 @@ data class Settings(
     val floatingBubbleColor: Long = 0xFF4F8EF7,
     // 悬浮球不透明度百分比（20..100）；贴边半隐藏在此基础上再乘 0.5
     val floatingBubbleOpacity: Int = 100,
-    // 自定义图标文件路径（应用私有目录内的方形 PNG），null 表示纯色圆球
+    // 自定义图标文件路径（应用私有目录内的方形 PNG），null 表示纯色圆球（旧方案，仅作回退）
     val floatingBubbleIconPath: String? = null,
+    // 悬浮球自定义图标来源（SVG/URL/Emoji）；null 时回退旧 floatingBubbleIconPath 或纯色圆球
+    val floatingBubbleIcon: IconSource? = null,
     val floatingBubbleSize: Int = 48,
     // 悬浮球展开窗口：宽度/高度（dp），以及待办/实时输出标签开关
     val floatingBubbleExpandWidth: Int = 300,

@@ -5,14 +5,18 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.server.response.header
 import io.ktor.server.response.respondOutputStream
+import io.ktor.server.response.respondRedirect
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.route
+import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.model.IconSource
 import me.rerere.rikkahub.utils.computeAIIconByName
+import me.rerere.rikkahub.utils.matchCustomAIIcon
 import me.rerere.rikkahub.web.BadRequestException
 
-fun Route.aiIconRoutes(context: Context) {
+fun Route.aiIconRoutes(context: Context, settingsStore: SettingsStore) {
     route("/ai-icon") {
         get {
             val name = call.request.queryParameters["name"]?.trim()
@@ -35,6 +39,33 @@ fun Route.aiIconRoutes(context: Context) {
                 }.onSuccess {
                     return@get
                 }
+            }
+
+            // 预设未命中：查自定义映射（SVG 直接回源码 / URL 302 重定向 / Emoji 内联 SVG）
+            val custom = matchCustomAIIcon(name, settingsStore.settingsFlow.value.customAiIcons)?.source
+            when (custom) {
+                is IconSource.Svg -> {
+                    call.response.header(HttpHeaders.CacheControl, "public, max-age=3600")
+                    call.respondText(text = custom.code, contentType = ContentType.Image.SVG)
+                    return@get
+                }
+
+                is IconSource.Url -> {
+                    call.response.header(HttpHeaders.CacheControl, "no-store")
+                    call.respondRedirect(custom.url)
+                    return@get
+                }
+
+                is IconSource.Emoji -> {
+                    call.response.header(HttpHeaders.CacheControl, "public, max-age=3600")
+                    call.respondText(
+                        text = buildEmojiSvg(custom.emoji),
+                        contentType = ContentType.Image.SVG,
+                    )
+                    return@get
+                }
+
+                null -> {}
             }
 
             call.response.header(HttpHeaders.CacheControl, "public, max-age=3600")
@@ -69,6 +100,18 @@ private fun buildFallbackSvg(name: String): String {
         <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
           <rect x="0" y="0" width="64" height="64" rx="32" fill="#E9EAEE"/>
           <text x="32" y="36" font-family="system-ui, sans-serif" font-size="24" font-weight="600" text-anchor="middle" fill="#4E5969">$escapedText</text>
+        </svg>
+    """.trimIndent()
+}
+
+private fun buildEmojiSvg(emoji: String): String {
+    val escaped = emoji
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    return """
+        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+          <text x="32" y="34" font-size="44" text-anchor="middle" dominant-baseline="central">$escaped</text>
         </svg>
     """.trimIndent()
 }

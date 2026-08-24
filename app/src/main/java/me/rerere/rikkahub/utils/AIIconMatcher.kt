@@ -1,6 +1,23 @@
 package me.rerere.rikkahub.utils
 
+import me.rerere.rikkahub.data.model.CustomAIIcon
+
 private val iconCache = mutableMapOf<String, String>()
+
+/**
+ * 自定义图标映射匹配：预设（computeAIIconByName）未命中时调用。
+ * 精确匹配条目优先；包含匹配取最长关键词，保证结果确定性。
+ */
+fun matchCustomAIIcon(name: String, icons: List<CustomAIIcon>): CustomAIIcon? {
+    if (icons.isEmpty()) return null
+    val target = name.trim().lowercase()
+    if (target.isEmpty()) return null
+    icons.firstOrNull { it.exactMatch && it.pattern.trim().lowercase() == target }
+        ?.let { return it }
+    return icons
+        .filter { !it.exactMatch && target.contains(it.pattern.trim().lowercase()) }
+        .maxByOrNull { it.pattern.length }
+}
 
 // https://lobehub.com/zh/icons
 fun computeAIIconByName(name: String): String? {
