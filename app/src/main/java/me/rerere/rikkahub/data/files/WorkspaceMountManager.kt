@@ -4,16 +4,22 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.workspace.WorkspaceBindMount
 import java.io.File
+import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -74,6 +80,41 @@ class WorkspaceMountManager(
                 null
             }
         }
+
+    /**
+     * 挂载点自动同步循环（替代已删除的 workspace_mount_sync 工具）。
+     *
+     * 每个周期先 PUSH 再 PULL：先把工作区侧改动刷到手机（避免被随后的 pull 覆盖），
+     * 再吸收手机侧新增。间隔实时读设置（0=暂停），单次失败只记日志不中断循环。
+     */
+    fun startAutoSyncLoop(scope: CoroutineScope) {
+        if (autoSyncJob?.isActive == true) return
+        autoSyncJob = scope.launch(Dispatchers.IO) {
+            while (isActive) {
+                val intervalSeconds = settingsStore.settingsFlow.value.workspaceAutoSyncIntervalSeconds
+                if (intervalSeconds > 0) {
+                    syncAllMounts()
+                    delay(intervalSeconds.coerceAtLeast(MIN_AUTO_SYNC_SECONDS).seconds)
+                } else {
+                    // 关闭时低频轮询设置, 保持改回非零值后无需重启即生效
+                    delay(AUTO_SYNC_OFF_POLL_SECONDS.seconds)
+                }
+            }
+        }
+    }
+
+    private var autoSyncJob: Job? = null
+
+    suspend fun syncAllMounts() {
+        listMounts().forEach { config ->
+            runCatching { push(config) }.onFailure { e ->
+                Log.w(TAG, "autoSync push failed for ${config.name}: ${e.message}")
+            }
+            runCatching { pull(config) }.onFailure { e ->
+                Log.w(TAG, "autoSync pull failed for ${config.name}: ${e.message}")
+            }
+        }
+    }
 
     @OptIn(ExperimentalUuidApi::class)
     suspend fun addMount(name: String, treeUri: Uri): WorkspaceMountConfig {
@@ -255,5 +296,11 @@ val input = context.contentResolver.openInputStream(child.uri)
         private val MOUNT_NAME_REGEX = Regex("[a-zA-Z0-9._-]+")
         private const val COPY_BUFFER_BYTES = 64 * 1024
         private const val TAG = "WorkspaceMountManager"
+
+        /** 自动同步间隔下限(秒), 防止误配成高频空转 */
+        private const val MIN_AUTO_SYNC_SECONDS = 15
+
+        /** 自动同步关闭时轮询设置的间隔(秒) */
+        private const val AUTO_SYNC_OFF_POLL_SECONDS = 30L
     }
 }

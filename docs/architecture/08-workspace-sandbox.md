@@ -117,7 +117,10 @@ LINUX 区（WorkspaceStorageArea）提供 rootfs 内只读列举/读取辅助。
 ## 8. SAF 挂载（app/data/files/WorkspaceMountManager.kt）
 
 - 手机 SAF 树 URI ↔ 工作区 `/mnt/<name>`；SAF 无法直接进 proot，先物化到 `filesDir/mnt/<mountId>/` 缓存
-- 快照式**手动**双向同步 PULL/PUSH（size+mtime 增量；push 不删手机文件）；配置存 settings.workspaceMounts
+- 快照式双向同步 PULL/PUSH（size+mtime 增量；push 不删手机文件）；配置存 settings.workspaceMounts
+- **后台自动同步**（2026-08-26 起，替代已删除的 mount 工具）：startAutoSyncLoop 由
+  App 启动拉起，每周期先 PUSH 再 PULL；间隔 settings.workspaceAutoSyncIntervalSeconds
+  （0=关闭/30/60/300，默认 60s），运行时读值即改即生效；设置页挂载卡片可选手动同步
 - 启动自动 pullAllAtStartup（RikkaHubApp 清理阶段调用）；activeBindMounts() 注入每次 shell 执行
 
 ## 9. 导出到手机（WorkspacePhoneExporter.kt）

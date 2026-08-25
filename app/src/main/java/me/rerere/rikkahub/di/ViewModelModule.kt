@@ -75,6 +75,7 @@ val viewModelModule = module {
             repository = get(),
             mountManager = get(),
             terminalSessionManager = get(),
+            settingsStore = get(),
         )
     }
     viewModelOf(::FavoriteVM)

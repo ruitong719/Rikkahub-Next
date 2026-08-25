@@ -86,6 +86,7 @@ class RikkaHubApp : Application() {
 
         // materialize phone SAF mount caches so /mnt/<name> works right after launch
         refreshMountedPhoneDirs()
+        startMountAutoSync()
 
         // check workspace integrity (mark workspaces with missing files as broken after backup restore)
         checkWorkspaceIntegrity()
@@ -147,6 +148,11 @@ class RikkaHubApp : Application() {
                 Log.e(TAG, "refreshMountedPhoneDirs failed", it)
             }
         }
+    }
+
+    /** 挂载点后台自动同步循环：间隔由 workspaceAutoSyncIntervalSeconds 控制（0=关闭） */
+    private fun startMountAutoSync() {
+        get<WorkspaceMountManager>().startAutoSyncLoop(get<AppScope>())
     }
 
     private fun checkWorkspaceIntegrity() {

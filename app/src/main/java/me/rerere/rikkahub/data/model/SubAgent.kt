@@ -44,13 +44,13 @@ data class SubAgent(
  */
 @Serializable
 enum class SubAgentToolCategory {
-    /** 只读：workspace_read_file / get_time_info */
+    /** 只读：read / get_time_info */
     READ,
 
-    /** 写入：workspace_write_file / workspace_edit_file / todo_* */
+    /** 写入：write / edit / todo_* */
     WRITE,
 
-    /** 执行：workspace_shell */
+    /** 执行：bash */
     SHELL,
 }
 

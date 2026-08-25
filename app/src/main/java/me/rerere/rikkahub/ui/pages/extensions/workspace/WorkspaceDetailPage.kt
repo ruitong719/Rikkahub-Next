@@ -165,6 +165,7 @@ fun WorkspaceDetailPage(id: String) {
     }
     val mounts by vm.mounts.collectAsStateWithLifecycle()
     val mountMessage by vm.mountMessage.collectAsStateWithLifecycle()
+    val autoSyncInterval by vm.autoSyncIntervalSeconds.collectAsStateWithLifecycle()
 
     if (showMountNameDialog) {
         var name by remember { mutableStateOf("") }
@@ -272,6 +273,8 @@ fun WorkspaceDetailPage(id: String) {
                     onClearExportTarget = vm::clearExportTargetUri,
                     mounts = mounts,
                     mountMessage = mountMessage,
+                    autoSyncIntervalSeconds = autoSyncInterval,
+                    onAutoSyncIntervalChange = vm::updateAutoSyncInterval,
                     onAddMount = { showMountNameDialog = true },
                     onRemoveMount = vm::removeMount,
                     onSyncMount = vm::syncMount,
@@ -404,6 +407,8 @@ private fun WorkspaceBasicPage(
     onClearExportTarget: () -> Unit,
     mounts: List<WorkspaceMountConfig>,
     mountMessage: String?,
+    autoSyncIntervalSeconds: Int,
+    onAutoSyncIntervalChange: (Int) -> Unit,
     onAddMount: () -> Unit,
     onRemoveMount: (String) -> Unit,
     onSyncMount: (String, SyncDirection) -> Unit,
@@ -495,6 +500,8 @@ private fun WorkspaceBasicPage(
             WorkspaceMountCard(
                 mounts = mounts,
                 message = mountMessage,
+                autoSyncIntervalSeconds = autoSyncIntervalSeconds,
+                onAutoSyncIntervalChange = onAutoSyncIntervalChange,
                 onAdd = onAddMount,
                 onRemove = onRemoveMount,
                 onSync = onSyncMount,
@@ -589,6 +596,8 @@ private fun WorkspaceExportTargetCard(
 private fun WorkspaceMountCard(
     mounts: List<WorkspaceMountConfig>,
     message: String?,
+    autoSyncIntervalSeconds: Int,
+    onAutoSyncIntervalChange: (Int) -> Unit,
     onAdd: () -> Unit,
     onRemove: (String) -> Unit,
     onSync: (String, SyncDirection) -> Unit,
@@ -613,6 +622,30 @@ private fun WorkspaceMountCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+
+            // 自动同步间隔：push->pull 周期由 WorkspaceMountManager 后台循环执行
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = stringResource(R.string.workspace_mount_auto_sync),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    val options = listOf(0, 30, 60, 300)
+                    val labels = listOf(
+                        stringResource(R.string.workspace_mount_auto_sync_off),
+                        "30s", "1min", "5min",
+                    )
+                    options.forEachIndexed { index, seconds ->
+                        SegmentedButton(
+                            selected = autoSyncIntervalSeconds == seconds,
+                            onClick = { onAutoSyncIntervalChange(seconds) },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                        ) {
+                            Text(labels[index])
+                        }
+                    }
+                }
             }
 
             if (mounts.isEmpty()) {
@@ -855,13 +888,11 @@ private fun ToolPromptEditDialog(
 
 @Composable
 private fun workspaceToolApprovalItems() = listOf(
-    "workspace_read_file" to stringResource(R.string.workspace_detail_tool_read_file),
-    "workspace_write_file" to stringResource(R.string.workspace_detail_tool_write_file),
-    "workspace_edit_file" to stringResource(R.string.workspace_detail_tool_edit_file),
-    "workspace_shell" to stringResource(R.string.workspace_detail_tool_shell),
+    "read" to stringResource(R.string.workspace_detail_tool_read_file),
+    "write" to stringResource(R.string.workspace_detail_tool_write_file),
+    "edit" to stringResource(R.string.workspace_detail_tool_edit_file),
+    "bash" to stringResource(R.string.workspace_detail_tool_shell),
     "workspace_export_to_phone" to stringResource(R.string.workspace_detail_tool_export),
-    "workspace_mount_list" to stringResource(R.string.workspace_detail_tool_mount_list),
-    "workspace_mount_sync" to stringResource(R.string.workspace_detail_tool_mount_sync),
     "workspace_bg_start" to stringResource(R.string.workspace_detail_tool_bg_start),
     "workspace_bg_status" to stringResource(R.string.workspace_detail_tool_bg_status),
     "workspace_bg_output" to stringResource(R.string.workspace_detail_tool_bg_output),

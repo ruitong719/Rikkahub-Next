@@ -936,3 +936,49 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
   重试未做
 
 
+
+---
+
+## N. 权限三模式 + 工具对齐 opencode + 挂载自动同步（2026-08-26）
+
+从 opencode 移植 plan/build/yolo 权限模式，工具名与描述对齐 opencode，
+挂载点改为后台自动同步（删除 mount 工具）。
+
+### 1. 会话级权限模式（plan / build / yolo）
+
+- `Conversation.permissionMode`（`PermissionMode.PLAN/BUILD/YOLO`，默认 BUILD），
+  `ConversationEntity.permission_mode` 列，DB v29→30 AutoMigration
+- **PLAN**：变更类工具（write/edit/bash/export/bg_start/bg_kill/backup/calendar_create）
+  执行时直接返回只读错误不弹审批；subagent 工具整体下线；
+  `PlanModeTransformer` 注入 `<plan_mode>` 系统提示引导「调研→出计划」
+- **BUILD**：现状行为
+- **YOLO**：全部工具跳过审批（含 subagent 派发与 MCP）
+- 统一改写点：`PermissionModePolicy.apply(tools, mode)`（ChatService 装配后套用）
+- UI：ChatInput 底栏 subagent 图标右侧新增模式按钮（Eye/Wrench01/Zap 图标，
+  PLAN=secondary、YOLO=error 着色），点击弹出三选菜单；Web API
+  `POST /conversations/{id}/permission-mode` + DTO 字段
+
+### 2. workspace 工具对齐 opencode
+
+- 改名：`workspace_read_file→read`、`workspace_write_file→write`、
+  `workspace_edit_file→edit`、`workspace_shell→bash`；其余 9 个基础设施工具保留前缀
+- 已持久化的按工作区审批覆盖经 `LEGACY_TOOL_NAME_ALIASES` 运行时兜底，旧配置不失效；
+  历史消息渲染在 WorkspaceToolUIs/ChatMessageEditedFiles 新旧名双匹配
+- 描述对齐 opencode 守则式风格（read-before-edit、行号前缀勿带入 old_text、
+  bash 仅用于终端操作等）；`<workspace>` 系统块同步更新
+- read 功能增强（借鉴 opencode read.ts）：`offset/limit` 行级分页 + 行号前缀
+  `N: content` + 续读提示；目录路径返回条目列表；文件不存在时给同目录
+  did-you-mean 建议；二进制嗅探拒绝（NUL/不可打印>30%）
+- edit 增强：替换器级联补两级 whitespace_normalized / escape_normalized
+  （借鉴 opencode edit.ts），并加失配保护——模糊匹配跨度远大于 old_text 时拒改
+
+### 3. 挂载改造：删工具 + 后台自动同步
+
+- 删除 `workspace_mount_list` / `workspace_mount_sync` 工具及三张联动表条目；
+  设置页手动同步按钮保留
+- `/mnt/<name>` 说明 + 动态挂载点列表注入 `<workspace>` 系统块
+  （快照语义：改动经下一同步周期落手机，双向同时改同一文件后者胜）
+- 自动同步循环（WorkspaceMountManager.startAutoSyncLoop，App 启动拉起）：
+  每周期先 PUSH 再 PULL（先刷本地产出再吸收手机侧新增）；
+  间隔设置项 `Settings.workspaceAutoSyncIntervalSeconds`（关闭/30s/1min/5min，
+  默认 1min），工作区详情页挂载卡片 SegmentedButton 选择，运行时读值即改即生效

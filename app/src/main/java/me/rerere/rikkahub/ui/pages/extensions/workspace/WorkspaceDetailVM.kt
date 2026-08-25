@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.getAndUpdate
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -17,6 +18,7 @@ import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.files.SyncDirection
 import me.rerere.rikkahub.data.files.WorkspaceMountConfig
 import me.rerere.rikkahub.data.files.WorkspaceMountManager
+import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.workspace.RootfsInstallProgress
 import me.rerere.workspace.RootfsInstallStage
@@ -29,6 +31,7 @@ class WorkspaceDetailVM(
     private val repository: WorkspaceRepository,
     private val mountManager: WorkspaceMountManager,
     private val terminalSessionManager: WorkspaceTerminalSessionManager,
+    private val settingsStore: SettingsStore,
 ) : ViewModel() {
     private val _state = MutableStateFlow(WorkspaceDetailState())
     val state = _state.asStateFlow()
@@ -44,6 +47,21 @@ class WorkspaceDetailVM(
 
     private val _mountMessage = MutableStateFlow<String?>(null)
     val mountMessage = _mountMessage.asStateFlow()
+
+    /** 挂载点自动同步间隔（秒），0=关闭 */
+    val autoSyncIntervalSeconds = settingsStore.settingsFlow
+        .map { it.workspaceAutoSyncIntervalSeconds }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = settingsStore.settingsFlow.value.workspaceAutoSyncIntervalSeconds,
+        )
+
+    fun updateAutoSyncInterval(seconds: Int) {
+        viewModelScope.launch {
+            settingsStore.update { it.copy(workspaceAutoSyncIntervalSeconds = seconds) }
+        }
+    }
 
     val mounts = mountManager.mountsFlow().stateIn(
         scope = viewModelScope,
