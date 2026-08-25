@@ -1,10 +1,12 @@
 package me.rerere.rikkahub.ui.components.ai
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -21,9 +23,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -160,6 +164,7 @@ fun ChatInput(
     val focusManager = LocalFocusManager.current
 
     val containerShape = MaterialTheme.shapes.largeIncreased
+    val imeVisible = WindowInsets.isImeVisible
 
     fun sendMessage() {
         focusManager.clearFocus(force = true)
@@ -247,293 +252,330 @@ fun ChatInput(
                     TextInputRow(
                         state = state,
                         completionProviders = completionProviders,
-                        onSendMessage = { sendMessage() }
+                        onSendMessage = { sendMessage() },
+                        trailingContent = {
+                            if (imeVisible && !asrState.isRecording) {
+                                SendButton(
+                                    loading = loading,
+                                    empty = state.isEmpty(),
+                                    queuedCount = queuedCount,
+                                    onClick = { sendMessage() },
+                                    onLongClick = { sendMessageWithoutAnswer() },
+                                )
+                            }
+                        },
                     )
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
+                AnimatedVisibility(
+                    visible = !imeVisible,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut(),
+                ) {
+
                         Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            // Model Picker
-                            ModelSelector(
-                                modelId = assistant.chatModelId ?: settings.chatModelId,
-                                providers = settings.providers,
-                                onSelect = {
-                                    onUpdateChatModel(it)
-                                },
-                                type = ModelType.CHAT,
-                                onlyIcon = true,
-                                modifier = Modifier,
-                            )
-
-                            // Search
-                            val enableSearchMsg = stringResource(R.string.web_search_enabled)
-                            val disableSearchMsg = stringResource(R.string.web_search_disabled)
-                            val chatModel = settings.getCurrentChatModel()
-                            if (settings.displaySetting.showWebSearchButton) {
-                                SearchPickerButton(
-                                    enableSearch = enableSearch,
-                                    settings = settings,
-                                    onUpdateSearchMode = { mode ->
-                                        onUpdateSearchMode(mode)
-                                        val enabled = mode != SearchMode.OFF
-                                        toaster.show(
-                                            message = if (enabled) enableSearchMsg else disableSearchMsg,
-                                            duration = 1.seconds,
-                                            type = if (enabled) {
-                                                ToastType.Success
-                                            } else {
-                                                ToastType.Normal
-                                            }
-                                        )
-                                    },
-                                    onUpdateSearchService = onUpdateSearchService,
-                                    model = chatModel,
-                                )
-                            }
-
-                            // Reasoning
-                            val model = settings.getCurrentChatModel()
-                            if (settings.displaySetting.showReasoningButton &&
-                                model?.abilities?.contains(ModelAbility.REASONING) == true
-                            ) {
-                                ReasoningButton(
-                                    reasoningLevel = assistant.reasoningLevel,
-                                    onUpdateReasoningLevel = {
-                                        onUpdateAssistant(assistant.copy(reasoningLevel = it))
-                                    },
-                                    onlyIcon = true,
-                                )
-                            }
-
-                            // Todo（思考深度之后）：仅当助手启用了 Todo 本地工具且偏好设置未关闭时显示
-                            if (settings.displaySetting.showTodoButton &&
-                                assistant.localTools.contains(LocalToolOption.Todo)
-                            ) {
-                                var showTodoSheet by remember { mutableStateOf(false) }
-                                if (showTodoSheet) {
-                                    TodoSheet(
-                                        todos = todos,
-                                        onDismiss = { showTodoSheet = false },
-                                        onClearTodos = onClearTodos,
-                                    )
-                                }
-                                TodoStatusButton(
-                                    activeCount = todos.count { !it.completed },
-                                    onClick = { showTodoSheet = true },
-                                )
-                            }
-
-                            // Subagent 监看：当前助手启用了 subagent 且偏好设置未关闭时显示
-                            if (settings.displaySetting.showSubAgentButton &&
-                                assistant.subagentIds.isNotEmpty()
-                            ) {
-                                var showSubAgentMonitor by remember { mutableStateOf(false) }
-                                val enabledSubAgents = settings.subagents.filter {
-                                    it.id in assistant.subagentIds
-                                }
-                                // 角标 = 正在被调用的 subagent 数量（有调用才显示）
-                                val runningSubAgents = remember(enabledSubAgents, messages) {
-                                    countRunningSubAgents(enabledSubAgents, messages)
-                                }
-                                if (showSubAgentMonitor) {
-                                    val navController = LocalNavController.current
-                                    SubAgentMonitorSheet(
-                                        subAgents = enabledSubAgents,
-                                        messages = messages,
-                                        onDismiss = { showSubAgentMonitor = false },
-                                        onOpenTrace = { id ->
-                                            showSubAgentMonitor = false
-                                            navController.navigate(Screen.SubAgentTrace(id))
-                                        },
-                                        onManage = { id ->
-                                            showSubAgentMonitor = false
-                                            navController.navigate(Screen.SubAgentEdit(id))
-                                        },
-                                    )
-                                }
-                                SubAgentMonitorButton(
-                                    runningCount = runningSubAgents,
-                                    onClick = { showSubAgentMonitor = true },
-                                )
-                            }
-
-                            // 后台任务监看：仅当助手绑定工作区且存在后台任务时显示（4s 轮询）
-                            val assistantWorkspaceId = assistant.workspaceId?.toString()
-                            if (assistantWorkspaceId != null) {
-                                val workspaceBgManager = koinInject<WorkspaceBgManager>()
-                                val workspaceRepository = koinInject<WorkspaceRepository>()
-                                var bgTaskRoot by remember(assistantWorkspaceId) {
-                                    mutableStateOf(assistantWorkspaceId)
-                                }
-                                var bgTasks by remember(assistantWorkspaceId) {
-                                    mutableStateOf<List<WorkspaceBgTaskInfo>>(emptyList())
-                                }
-                                var bgTaskRefreshTick by remember(assistantWorkspaceId) { mutableStateOf(0) }
-                                var showBgTaskSheet by remember { mutableStateOf(false) }
-                                var selectedBgTask by remember { mutableStateOf<WorkspaceBgTaskInfo?>(null) }
-                                val bgTaskScope = rememberCoroutineScope()
-
-                                LaunchedEffect(assistantWorkspaceId, bgTaskRefreshTick) {
-                                    while (true) {
-                                        runCatching {
-                                            val root = workspaceRepository.getById(assistantWorkspaceId)
-                                                ?.root ?: assistantWorkspaceId
-                                            bgTaskRoot = root
-                                            bgTasks = workspaceBgManager.listTasks(root)
-                                        }
-                                        delay(4_000)
-                                    }
-                                }
-
-                                if (bgTasks.isNotEmpty()) {
-                                    if (showBgTaskSheet) {
-                                        BackgroundTaskSheet(
-                                            tasks = bgTasks,
-                                            onTaskClick = { selectedBgTask = it },
-                                            onKill = { taskId ->
-                                                bgTaskScope.launch {
-                                                    runCatching { workspaceBgManager.killTask(bgTaskRoot, taskId) }
-                                                }
-                                            },
-                                            onDelete = { taskId ->
-                                                // 立即从本地列表移除（删除是异步的，避免等轮询才有反应）
-                                                bgTasks = bgTasks.filterNot { it.taskId == taskId }
-                                                bgTaskScope.launch {
-                                                    runCatching { workspaceBgManager.deleteTask(bgTaskRoot, taskId) }
-                                                }
-                                            },
-                                            onRefresh = { bgTaskRefreshTick++ },
-                                            onDismiss = { showBgTaskSheet = false },
-                                        )
-                                    }
-                                    BackgroundTaskButton(
-                                        runningCount = bgTasks.count { it.status == BgTaskStatus.RUNNING },
-                                        totalCount = bgTasks.size,
-                                        onClick = { showBgTaskSheet = true },
-                                    )
-                                }
-
-                                // 任务输出详情：独立于列表 sheet 的生命周期，列表清空后仍可回看
-                                selectedBgTask?.let { selected ->
-                                    BackgroundTaskOutputSheet(
-                                        task = selected,
-                                        workspaceRoot = bgTaskRoot,
-                                        bgManager = workspaceBgManager,
-                                        onDismiss = { selectedBgTask = null },
-                                    )
-                                }
-                            }
-
-                        }
-
-                        ActionIconButton(
-                            onClick = onMoreClick
-                        ) {
-                            Icon(
-                                imageVector = HugeIcons.Add01,
-                                contentDescription = stringResource(R.string.more_options)
-                            )
-                        }
-
-                        if (asrState.isAvailable || asrState.isRecording) {
-                            AsrButton(
-                                state = asrState,
-                                onClick = {
-                                    when (asrState.status) {
-                                        ASRStatus.Listening -> asr.stop()
-                                        ASRStatus.Idle, ASRStatus.Error -> {
-                                            if (!asrPermission.allRequiredPermissionsGranted) {
-                                                asrPermission.requestPermissions()
-                                            } else {
-                                                asrBaseText = state.textContent.text.toString()
-                                                asr.start { transcript ->
-                                                    val spacer =
-                                                        if (asrBaseText.isBlank() || transcript.isBlank()) "" else " "
-                                                    state.setMessageText(asrBaseText + spacer + transcript)
-                                                }
-                                            }
-                                        }
-
-                                        ASRStatus.Connecting, ASRStatus.Stopping -> {}
-                                    }
-                                }
-                            )
-                        }
-
-                        AnimatedVisibility(
-                            visible = !asrState.isRecording,
-                            enter = fadeIn() + scaleIn(),
-                            exit = fadeOut() + scaleOut(),
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
+                            Row(
                                 modifier = Modifier
-                                    .size(30.dp)
-                                    .testTag("chat_send_button")
-                                    .clip(CircleShape)
-                                    .combinedClickable(
-                                        enabled = loading || !state.isEmpty(),
-                                        onClick = {
-                                            sendMessage()
-                                        }, onLongClick = {
-                                            sendMessageWithoutAnswer()
-                                        }
-                                    )
+                                    .weight(1f)
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
-                                // 生成中且无输入 → 打断样式；有输入保持发送样式（点击入队）。
-                                // 图标必须如实反映单击行为，避免"想入队却触发打断"的误操作。
-                                val showInterrupt = loading && state.isEmpty()
-                                val containerColor = when {
-                                    showInterrupt -> MaterialTheme.colorScheme.errorContainer
-                                    state.isEmpty() -> MaterialTheme.colorScheme.surfaceContainerHigh
-                                    else -> MaterialTheme.colorScheme.primary
-                                }
-                                val contentColor = when {
-                                    showInterrupt -> MaterialTheme.colorScheme.onErrorContainer
-                                    state.isEmpty() -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                    else -> MaterialTheme.colorScheme.onPrimary
-                                }
-                                Surface(
-                                    modifier = Modifier.fillMaxSize(),
-                                    shape = CircleShape,
-                                    color = containerColor,
-                                    content = {})
-                                if (loading) {
-                                    KeepScreenOn()
-                                }
-                                // 队列角标：入队后按钮变为打断样式，角标提示"打断 = 发送 N 条"
-                                BadgedBox(
-                                    badge = {
-                                        if (queuedCount > 0) {
-                                            Badge { Text(queuedCount.coerceAtMost(99).toString()) }
-                                        }
+                                // Model Picker
+                                ModelSelector(
+                                    modelId = assistant.chatModelId ?: settings.chatModelId,
+                                    providers = settings.providers,
+                                    onSelect = {
+                                        onUpdateChatModel(it)
                                     },
+                                    type = ModelType.CHAT,
+                                    onlyIcon = true,
+                                    modifier = Modifier,
+                                )
+
+                                // Search
+                                val enableSearchMsg = stringResource(R.string.web_search_enabled)
+                                val disableSearchMsg = stringResource(R.string.web_search_disabled)
+                                val chatModel = settings.getCurrentChatModel()
+                                if (settings.displaySetting.showWebSearchButton) {
+                                    SearchPickerButton(
+                                        enableSearch = enableSearch,
+                                        settings = settings,
+                                        onUpdateSearchMode = { mode ->
+                                            onUpdateSearchMode(mode)
+                                            val enabled = mode != SearchMode.OFF
+                                            toaster.show(
+                                                message = if (enabled) enableSearchMsg else disableSearchMsg,
+                                                duration = 1.seconds,
+                                                type = if (enabled) {
+                                                    ToastType.Success
+                                                } else {
+                                                    ToastType.Normal
+                                                }
+                                            )
+                                        },
+                                        onUpdateSearchService = onUpdateSearchService,
+                                        model = chatModel,
+                                    )
+                                }
+
+                                // Reasoning
+                                val model = settings.getCurrentChatModel()
+                                if (settings.displaySetting.showReasoningButton &&
+                                    model?.abilities?.contains(ModelAbility.REASONING) == true
                                 ) {
-                                    Icon(
-                                        imageVector = if (showInterrupt) HugeIcons.Cancel01 else HugeIcons.ArrowUp02,
-                                        contentDescription = stringResource(
-                                            if (showInterrupt) R.string.stop else R.string.send
-                                        ),
-                                        tint = contentColor,
-                                        modifier = Modifier.size(18.dp)
+                                    ReasoningButton(
+                                        reasoningLevel = assistant.reasoningLevel,
+                                        onUpdateReasoningLevel = {
+                                            onUpdateAssistant(assistant.copy(reasoningLevel = it))
+                                        },
+                                        onlyIcon = true,
+                                    )
+                                }
+
+                                // Todo（思考深度之后）：仅当助手启用了 Todo 本地工具且偏好设置未关闭时显示
+                                if (settings.displaySetting.showTodoButton &&
+                                    assistant.localTools.contains(LocalToolOption.Todo)
+                                ) {
+                                    var showTodoSheet by remember { mutableStateOf(false) }
+                                    if (showTodoSheet) {
+                                        TodoSheet(
+                                            todos = todos,
+                                            onDismiss = { showTodoSheet = false },
+                                            onClearTodos = onClearTodos,
+                                        )
+                                    }
+                                    TodoStatusButton(
+                                        activeCount = todos.count { !it.completed },
+                                        onClick = { showTodoSheet = true },
+                                    )
+                                }
+
+                                // Subagent 监看：当前助手启用了 subagent 且偏好设置未关闭时显示
+                                if (settings.displaySetting.showSubAgentButton &&
+                                    assistant.subagentIds.isNotEmpty()
+                                ) {
+                                    var showSubAgentMonitor by remember { mutableStateOf(false) }
+                                    val enabledSubAgents = settings.subagents.filter {
+                                        it.id in assistant.subagentIds
+                                    }
+                                    // 角标 = 正在被调用的 subagent 数量（有调用才显示）
+                                    val runningSubAgents = remember(enabledSubAgents, messages) {
+                                        countRunningSubAgents(enabledSubAgents, messages)
+                                    }
+                                    if (showSubAgentMonitor) {
+                                        val navController = LocalNavController.current
+                                        SubAgentMonitorSheet(
+                                            subAgents = enabledSubAgents,
+                                            messages = messages,
+                                            onDismiss = { showSubAgentMonitor = false },
+                                            onOpenTrace = { id ->
+                                                showSubAgentMonitor = false
+                                                navController.navigate(Screen.SubAgentTrace(id))
+                                            },
+                                            onManage = { id ->
+                                                showSubAgentMonitor = false
+                                                navController.navigate(Screen.SubAgentEdit(id))
+                                            },
+                                        )
+                                    }
+                                    SubAgentMonitorButton(
+                                        runningCount = runningSubAgents,
+                                        onClick = { showSubAgentMonitor = true },
+                                    )
+                                }
+
+                                // 后台任务监看：仅当助手绑定工作区且存在后台任务时显示（4s 轮询）
+                                val assistantWorkspaceId = assistant.workspaceId?.toString()
+                                if (assistantWorkspaceId != null) {
+                                    val workspaceBgManager = koinInject<WorkspaceBgManager>()
+                                    val workspaceRepository = koinInject<WorkspaceRepository>()
+                                    var bgTaskRoot by remember(assistantWorkspaceId) {
+                                        mutableStateOf(assistantWorkspaceId)
+                                    }
+                                    var bgTasks by remember(assistantWorkspaceId) {
+                                        mutableStateOf<List<WorkspaceBgTaskInfo>>(emptyList())
+                                    }
+                                    var bgTaskRefreshTick by remember(assistantWorkspaceId) { mutableStateOf(0) }
+                                    var showBgTaskSheet by remember { mutableStateOf(false) }
+                                    var selectedBgTask by remember { mutableStateOf<WorkspaceBgTaskInfo?>(null) }
+                                    val bgTaskScope = rememberCoroutineScope()
+
+                                    LaunchedEffect(assistantWorkspaceId, bgTaskRefreshTick) {
+                                        while (true) {
+                                            runCatching {
+                                                val root = workspaceRepository.getById(assistantWorkspaceId)
+                                                    ?.root ?: assistantWorkspaceId
+                                                bgTaskRoot = root
+                                                bgTasks = workspaceBgManager.listTasks(root)
+                                            }
+                                            delay(4_000)
+                                        }
+                                    }
+
+                                    if (bgTasks.isNotEmpty()) {
+                                        if (showBgTaskSheet) {
+                                            BackgroundTaskSheet(
+                                                tasks = bgTasks,
+                                                onTaskClick = { selectedBgTask = it },
+                                                onKill = { taskId ->
+                                                    bgTaskScope.launch {
+                                                        runCatching { workspaceBgManager.killTask(bgTaskRoot, taskId) }
+                                                    }
+                                                },
+                                                onDelete = { taskId ->
+                                                    // 立即从本地列表移除（删除是异步的，避免等轮询才有反应）
+                                                    bgTasks = bgTasks.filterNot { it.taskId == taskId }
+                                                    bgTaskScope.launch {
+                                                        runCatching { workspaceBgManager.deleteTask(bgTaskRoot, taskId) }
+                                                    }
+                                                },
+                                                onRefresh = { bgTaskRefreshTick++ },
+                                                onDismiss = { showBgTaskSheet = false },
+                                            )
+                                        }
+                                        BackgroundTaskButton(
+                                            runningCount = bgTasks.count { it.status == BgTaskStatus.RUNNING },
+                                            totalCount = bgTasks.size,
+                                            onClick = { showBgTaskSheet = true },
+                                        )
+                                    }
+
+                                    // 任务输出详情：独立于列表 sheet 的生命周期，列表清空后仍可回看
+                                    selectedBgTask?.let { selected ->
+                                        BackgroundTaskOutputSheet(
+                                            task = selected,
+                                            workspaceRoot = bgTaskRoot,
+                                            bgManager = workspaceBgManager,
+                                            onDismiss = { selectedBgTask = null },
+                                        )
+                                    }
+                                }
+
+                            }
+
+                            ActionIconButton(
+                                onClick = onMoreClick
+                            ) {
+                                Icon(
+                                    imageVector = HugeIcons.Add01,
+                                    contentDescription = stringResource(R.string.more_options)
+                                )
+                            }
+
+                            if (asrState.isAvailable || asrState.isRecording) {
+                                AsrButton(
+                                    state = asrState,
+                                    onClick = {
+                                        when (asrState.status) {
+                                            ASRStatus.Listening -> asr.stop()
+                                            ASRStatus.Idle, ASRStatus.Error -> {
+                                                if (!asrPermission.allRequiredPermissionsGranted) {
+                                                    asrPermission.requestPermissions()
+                                                } else {
+                                                    asrBaseText = state.textContent.text.toString()
+                                                    asr.start { transcript ->
+                                                        val spacer =
+                                                            if (asrBaseText.isBlank() || transcript.isBlank()) "" else " "
+                                                        state.setMessageText(asrBaseText + spacer + transcript)
+                                                    }
+                                                }
+                                            }
+
+                                            ASRStatus.Connecting, ASRStatus.Stopping -> {}
+                                        }
+                                    }
+                                )
+                            }
+
+                            if (!imeVisible) {
+                                AnimatedVisibility(
+                                    visible = !asrState.isRecording,
+                                    enter = fadeIn() + scaleIn(),
+                                    exit = fadeOut() + scaleOut(),
+                                ) {
+                                    SendButton(
+                                        loading = loading,
+                                        empty = state.isEmpty(),
+                                        queuedCount = queuedCount,
+                                        onClick = { sendMessage() },
+                                        onLongClick = { sendMessageWithoutAnswer() },
                                     )
                                 }
                             }
                         }
-                    }
+                }
+
                 }
             }
 
+        }
+    }
+}
+
+@Composable
+private fun SendButton(
+    loading: Boolean,
+    empty: Boolean,
+    queuedCount: Int,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(30.dp)
+            .testTag("chat_send_button")
+            .clip(CircleShape)
+            .combinedClickable(
+                enabled = loading || !empty,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
+    ) {
+        // 生成中且无输入 → 打断样式；有输入保持发送样式（点击入队）。
+        // 图标必须如实反映单击行为，避免"想入队却触发打断"的误操作。
+        val showInterrupt = loading && empty
+        val containerColor = when {
+            showInterrupt -> MaterialTheme.colorScheme.errorContainer
+            empty -> MaterialTheme.colorScheme.surfaceContainerHigh
+            else -> MaterialTheme.colorScheme.primary
+        }
+        val contentColor = when {
+            showInterrupt -> MaterialTheme.colorScheme.onErrorContainer
+            empty -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            else -> MaterialTheme.colorScheme.onPrimary
+        }
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            shape = CircleShape,
+            color = containerColor,
+            content = {},
+        )
+        if (loading) {
+            KeepScreenOn()
+        }
+        // 队列角标：入队后按钮变为打断样式，角标提示"打断 = 发送 N 条"
+        BadgedBox(
+            badge = {
+                if (queuedCount > 0) {
+                    Badge { Text(queuedCount.coerceAtMost(99).toString()) }
+                }
+            },
+        ) {
+            Icon(
+                imageVector = if (showInterrupt) HugeIcons.Cancel01 else HugeIcons.ArrowUp02,
+                contentDescription = stringResource(
+                    if (showInterrupt) R.string.stop else R.string.send
+                ),
+                tint = contentColor,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
@@ -563,6 +605,7 @@ private fun TextInputRow(
     state: ChatInputState,
     completionProviders: List<ChatCompletionProvider>,
     onSendMessage: () -> Unit,
+    trailingContent: @Composable () -> Unit = {},
 ) {
     val settings = LocalSettings.current
     val filesManager: FilesManager = koinInject()
@@ -716,13 +759,19 @@ private fun TextInputRow(
                 unfocusedContainerColor = Color.Transparent,
             ),
             trailingIcon = {
-                if (isFocused) {
-                    IconButton(
-                        onClick = {
-                            isFullScreen = !isFullScreen
-                        }) {
-                        Icon(HugeIcons.Fullscreen, null)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (isFocused) {
+                        IconButton(
+                            onClick = {
+                                isFullScreen = !isFullScreen
+                            }) {
+                            Icon(HugeIcons.Fullscreen, null)
+                        }
                     }
+                    trailingContent()
                 }
             },
             leadingIcon = if (quickMessages.isNotEmpty()) {
