@@ -29,7 +29,7 @@ fun createWorkspaceBackupTool(
     description = buildString {
         append("Create a database-only backup (rikka_hub.db consistent snapshot) as /workspace/backup.zip inside the workspace. ")
         append("Returns the file path. ")
-        append("Use workspace_shell (e.g. unzip -l) to inspect it; the database inside is a consistent snapshot.")
+        append("Use bash (e.g. unzip -l) to inspect it; the database inside is a consistent snapshot.")
     },
     parameters = { InputSchema.Obj(properties = buildJsonObject {}, required = emptyList()) },
     needsApproval = { needsApproval("workspace_create_backup") },
@@ -60,7 +60,7 @@ fun createWorkspaceBackupTool(
                     put("name", "backup.zip")
                     put("sizeBytes", target.length())
                     put("createdAt", System.currentTimeMillis())
-                    put("message", "Backup file created. Use workspace_shell to inspect it.")
+                    put("message", "Backup file created. Use bash to inspect it.")
                 }.toString()
             )
         )

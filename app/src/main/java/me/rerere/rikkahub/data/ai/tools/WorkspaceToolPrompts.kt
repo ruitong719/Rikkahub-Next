@@ -6,15 +6,15 @@ package me.rerere.rikkahub.data.ai.tools
  * 覆盖优先；未覆盖的工具沿用这里的默认值。
  * 注意：这里的文本是 `<workspace>` 提示词块中 "Available tools" 列表的内容，
  * 与各工具的 Tool.description（函数定义，模型经 function calling schema 看到）相互独立。
+ *
+ * 命名对齐 opencode：read/write/edit/bash 为裸名，App 特有基础设施保留 workspace_ 前缀。
  */
 val WORKSPACE_TOOL_NAMES = listOf(
-    "workspace_read_file",
-    "workspace_write_file",
-    "workspace_edit_file",
-    "workspace_shell",
+    "read",
+    "write",
+    "edit",
+    "bash",
     "workspace_export_to_phone",
-    "workspace_mount_list",
-    "workspace_mount_sync",
     "workspace_bg_start",
     "workspace_bg_status",
     "workspace_bg_output",
@@ -24,20 +24,18 @@ val WORKSPACE_TOOL_NAMES = listOf(
 )
 
 val DEFAULT_WORKSPACE_TOOL_PROMPTS: Map<String, String> = mapOf(
-    "workspace_read_file" to
-        "Read a file from the workspace files area (absolute paths inside Rootfs, e.g. /workspace/notes.md).",
-    "workspace_write_file" to
-        "Write a UTF-8 text file into the workspace files area.",
-    "workspace_edit_file" to
-        "Make precise edits to an existing file (old_text/new_text; whitespace-tolerant matching).",
-    "workspace_shell" to
-        "Run a shell command in the workspace Rootfs (the files area is mounted at /workspace).",
+    "read" to
+        "Read a file or directory from the workspace files area (absolute paths inside Rootfs). " +
+        "Returns line-numbered content with offset/limit paging; directories are listed instead.",
+    "write" to
+        "Write a UTF-8 text file into the workspace files area. Prefer edit for existing files.",
+    "edit" to
+        "Make precise string replacements in an existing file (old_text/new_text; whitespace-tolerant fallbacks).",
+    "bash" to
+        "Run a shell command inside the workspace PRoot Linux environment (files area mounted at /workspace). " +
+        "For terminal operations only; use read/write/edit for file contents.",
     "workspace_export_to_phone" to
-        "Export a file or folder from the workspace to the phone directory the user configured.",
-    "workspace_mount_list" to
-        "List phone directories mounted into the workspace at /mnt/<name>.",
-    "workspace_mount_sync" to
-        "Manually sync a mounted phone directory (pull from phone or push workspace changes to phone).",
+        "Export a file or folder from the workspace to the phone directory the user configured (SAF).",
     "workspace_bg_start" to
         "Start a long-running command as a persistent background task in the workspace.",
     "workspace_bg_status" to

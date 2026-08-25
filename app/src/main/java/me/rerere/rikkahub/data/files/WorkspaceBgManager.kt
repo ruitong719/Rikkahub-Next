@@ -45,7 +45,7 @@ data class WorkspaceBgTaskInfo(
 /**
  * 持久化后台任务管理。
  *
- * workspace_shell 是一次性 proot 进程，命令结束进程即退出，后台进程无法存活。
+ * bash 是一次性 proot 进程，命令结束进程即退出，后台进程无法存活。
  * 这里为每个工作区维护一个常驻 headless proot bash（无 UI，管道通信），
  * 后台任务在其中以 `( cmd > log 2>&1; echo $? > exit_code ) &` 方式运行：
  * - 输出重定向到 `/workspace/.l2s.bg/<taskId>/stdout.log`（= filesDir 下，App 直接读文件）

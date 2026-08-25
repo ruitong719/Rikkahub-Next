@@ -44,19 +44,19 @@ fun uniqueToolName(slug: String, used: Set<String>, id: Uuid): String {
  */
 val CATEGORY_TOOLS: Map<SubAgentToolCategory, Set<String>> = mapOf(
     SubAgentToolCategory.READ to setOf(
-        "workspace_read_file",
+        "read",
         "get_time_info",
     ),
     SubAgentToolCategory.WRITE to setOf(
-        "workspace_write_file",
-        "workspace_edit_file",
+        "write",
+        "edit",
         "todo_create",
         "todo_update",
         "todo_complete",
         "todo_clear",
     ),
     SubAgentToolCategory.SHELL to setOf(
-        "workspace_shell",
+        "bash",
     ),
 )
 

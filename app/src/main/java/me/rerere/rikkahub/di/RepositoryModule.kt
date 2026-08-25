@@ -89,7 +89,7 @@ val repositoryModule = module {
         SubAgentRunMonitor()
     }
 
-    // workspace_shell 执行直播注册表（进程内共享，供 ShellToolUI 在执行中实时展示输出）
+    // bash 执行直播注册表（进程内共享，供 ShellToolUI 在执行中实时展示输出）
     single {
         ShellRunMonitor()
     }

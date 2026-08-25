@@ -89,25 +89,39 @@ private object DefaultToolUIRenderer : ToolUIRenderer {
  * 工具 UI 渲染器注册表, 为新工具定制渲染时在 [renderers] 中注册即可
  */
 object ToolUIRegistry {
-    private val renderers: Map<String, ToolUIRenderer> = listOf(
-        SearchWebToolUI,
-        ScrapeWebToolUI,
-        GetTimeInfoToolUI,
-        ClipboardToolUI,
-        TextToSpeechToolUI,
-        GetScreenTimeToolUI,
-        CalendarQueryToolUI,
-        CalendarCreateToolUI,
-        UseSkillToolUI,
-        EditFileToolUI,
-        ReadFileToolUI,
-        WriteFileToolUI,
-        ShellToolUI,
-    ).associateBy { it.toolName }
+    private val renderers: Map<String, ToolUIRenderer> = buildMap {
+        listOf(
+            SearchWebToolUI,
+            ScrapeWebToolUI,
+            GetTimeInfoToolUI,
+            ClipboardToolUI,
+            TextToSpeechToolUI,
+            GetScreenTimeToolUI,
+            CalendarQueryToolUI,
+            CalendarCreateToolUI,
+            UseSkillToolUI,
+            EditFileToolUI,
+            ReadFileToolUI,
+            WriteFileToolUI,
+            ShellToolUI,
+        ).forEach { put(it.toolName, it) }
+        // 工具改名前的旧名（历史消息里的 tool call）指向同一渲染器
+        LEGACY_WORKSPACE_TOOL_UI_ALIASES.forEach { (legacy, current) ->
+            this[current]?.let { put(legacy, it) }
+        }
+    }
 
     /** 查找工具对应的渲染器, 未注册时返回默认渲染器 */
     fun resolve(toolName: String): ToolUIRenderer = renderers[toolName] ?: DefaultToolUIRenderer
 }
+
+/** workspace 核心四工具改名（2026-08-26 对齐 opencode）前的旧名 → 新名 */
+private val LEGACY_WORKSPACE_TOOL_UI_ALIASES = mapOf(
+    "workspace_read_file" to "read",
+    "workspace_write_file" to "write",
+    "workspace_edit_file" to "edit",
+    "workspace_shell" to "bash",
+)
 
 internal fun JsonElement?.getStringContent(key: String): String? =
     this?.jsonObjectOrNull?.get(key)?.jsonPrimitiveOrNull?.contentOrNull

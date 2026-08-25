@@ -1,7 +1,7 @@
 package me.rerere.rikkahub.data.ai.tools
 
 /**
- * workspace_edit_file 使用的文本替换器, 按 [WorkspaceEditReplacers] 顺序逐级尝试,
+ * edit 使用的文本替换器, 按 [WorkspaceEditReplacers] 顺序逐级尝试,
  * 前一级找不到任何匹配时才会降级到下一级更宽松的匹配策略。
  */
 interface TextReplacer {
@@ -27,7 +27,21 @@ val WorkspaceEditReplacers: List<TextReplacer> = listOf(
     ExactReplacer,
     LineTrimmedReplacer,
     BlockAnchorReplacer,
+    WhitespaceNormalizedReplacer,
+    EscapeNormalizedReplacer,
 )
+
+/** 匹配跨度远大于 old_text 时拒绝替换（借鉴 opencode isDisproportionateMatch）：
+ * 宽松策略偶尔会把一大段无关内容当成模糊匹配命中，直接替换会大面积毁码。 */
+private fun isDisproportionateMatch(content: String, match: TextReplacer.Match, oldText: String): Boolean {
+    val span = content.substring(match.start, match.endExclusive)
+    val oldLines = oldText.lines().size.coerceAtLeast(1)
+    val spanLines = span.lines().size
+    if (spanLines >= maxOf(oldLines + 3, oldLines * 2)) return true
+    if (oldLines == 1) return false
+    val oldLen = oldText.trim().length
+    return span.trim().length > maxOf(oldLen + 500, oldLen * 4)
+}
 
 /**
  * 逐级尝试 [replacers], 使用第一个产生匹配的替换器。
@@ -48,6 +62,13 @@ fun replaceText(
             require(matches.size == 1) {
                 "old_text matches ${matches.size} locations (strategy: ${replacer.name}); " +
                     "add more surrounding context to make it unique, or set replace_all=true"
+            }
+        }
+        if (replacer !== ExactReplacer) {
+            val bad = matches.firstOrNull { isDisproportionateMatch(content, it, oldText) }
+            require(bad == null) {
+                "Refusing replacement: the fuzzy-matched span is much larger than old_text " +
+                    "(strategy: ${replacer.name}). Re-read the file and provide the full exact old_text."
             }
         }
         val applied = if (replaceAll) matches.sortedBy { it.start } else listOf(matches.minBy { it.start })
@@ -71,6 +92,8 @@ fun replaceText(
             "read the file again and copy old_text exactly from its current content"
     )
 }
+
+private val WHITESPACE_RUN = Regex("\\s+")
 
 /**
  * 第一级: 精确匹配, 非重叠计数, 与 String.replace 语义一致。
@@ -152,6 +175,58 @@ object BlockAnchorReplacer : LineWindowReplacer() {
 
     override fun windowMatches(windowTrimmed: List<String>, oldTrimmed: List<String>): Boolean =
         windowTrimmed.first() == oldTrimmed.first() && windowTrimmed.last() == oldTrimmed.last()
+}
+
+/**
+ * 第四级: 行内空白串归一化后比较(连续空白视为单个空格), 容忍对齐用的多空格/tab 差异。
+ * 行首尾空白已由 trim 处理, 这里只处理行中部分。
+ */
+object WhitespaceNormalizedReplacer : LineWindowReplacer() {
+    override val name: String = "whitespace_normalized"
+
+    private fun normalize(line: String): String = line.trim().replace(WHITESPACE_RUN, " ")
+
+    override fun isApplicable(oldTrimmed: List<String>): Boolean =
+        oldTrimmed.any { it.isNotEmpty() }
+
+    override fun windowMatches(windowTrimmed: List<String>, oldTrimmed: List<String>): Boolean =
+        windowTrimmed.map(::normalize) == oldTrimmed.map(::normalize)
+}
+
+/**
+ * 第五级: 把 old_text 中的字面转义序列(\n \t \r \" \' \\)还原成真实字符后再精确查找。
+ * 模型经常把换行写成字面 "\\n" 而不是真实换行, 这是 exact 匹配失败的常见原因。
+ * 仅当还原后的文本确实不同且能在原文中找到时才产生候选。
+ */
+object EscapeNormalizedReplacer : TextReplacer {
+    override val name: String = "escape_normalized"
+
+    override fun findMatches(content: String, oldText: String, newText: String): List<TextReplacer.Match> {
+        val unescaped = unescapeLiteralSequences(oldText)
+        if (unescaped.isEmpty() || unescaped == oldText) return emptyList()
+        val matches = mutableListOf<TextReplacer.Match>()
+        var index = content.indexOf(unescaped)
+        while (index >= 0) {
+            matches += TextReplacer.Match(index, index + unescaped.length, newText)
+            index = content.indexOf(unescaped, index + unescaped.length)
+        }
+        return matches
+    }
+
+    private val ESCAPE_REGEX = Regex("\\\\[ntr'\"\\\\]")
+
+    /** 只还原常见转义, 不做完整字符串解码, 避免误伤包含反斜杠的代码 */
+    private fun unescapeLiteralSequences(text: String): String =
+        text.replace(ESCAPE_REGEX) { match ->
+            when (match.value) {
+                "\\n" -> "\n"
+                "\\t" -> "\t"
+                "\\r" -> "\r"
+                "\\\"" -> "\""
+                "\\'" -> "'"
+                else -> "\\"
+            }
+        }
 }
 
 private class LineWithOffset(

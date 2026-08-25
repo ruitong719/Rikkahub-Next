@@ -302,7 +302,7 @@ class GenerationHandler(
                     val result = withContext(ShellRunKey(tool.toolCallId)) {
                         toolDef.execute(args)
                     }
-                    val hasShellAccess = toolsInternal.any { it.name == "workspace_shell" }
+                    val hasShellAccess = toolsInternal.any { it.name == "bash" }
                     resultTool = tool.copy(
                         output = maybeTruncateToolOutput(tool.toolCallId, result, hasShellAccess)
                     )

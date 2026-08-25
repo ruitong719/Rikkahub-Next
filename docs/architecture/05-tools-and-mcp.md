@@ -56,18 +56,25 @@ MCP 工具命名约定 **`mcp__<serverName>__<toolName>`**。
 
 ## 4. Workspace 工具组（data/ai/tools/WorkspaceTools*.kt）
 
-shell_status=READY 才创建。13 个工具：
+shell_status=READY 才创建。11 个工具（2026-08-26 起对齐 opencode 命名：read/write/edit/bash 裸名，其余保留前缀）：
 
 | 工具 | 默认审批 | 说明 |
 |---|---|---|
-| workspace_read_file(path; 文本+图片扩展名, ≤8MB) | false | 经 resolveRootfsPath 直读 rootfs/workspace/bind mount |
-| workspace_write_file | false | |
-| workspace_edit_file(old_text/new_text/replace_all) | false | 三级宽松匹配 TextReplacers: ExactReplacer→LineTrimmedReplacer→BlockAnchorReplacer；多义且非 replace_all 报错；输出带 unified diff 存 DiffMetadata 供 UI 渲染 |
-| workspace_shell(command/cwd/timeout 默认30s 最大600s) | true | PRoot bash -c；实验开关 enableShellLiveOutput 时经 ShellRunMonitor 直播输出 |
+| read(path/offset/limit; 行号前缀 `N: content` 分页) | false | 文本行级分页读取；目录路径返回条目列表；图片扩展名转 Image part；二进制嗅探拒绝；不存在时给同目录 did-you-mean 建议 |
+| write | false | 覆盖写（overwrite 默认 true）；描述含 read-before-overwrite 守则 |
+| edit(old_text/new_text/replace_all) | false | 五级宽松匹配 TextReplacers: Exact→LineTrimmed→BlockAnchor→WhitespaceNormalized→EscapeNormalized；模糊匹配跨度远大于 old_text 拒改（失配保护）；多义且非 replace_all 报错；输出带 unified diff 存 DiffMetadata 供 UI 渲染 |
+| bash(command/cwd/timeout 默认30s 最大600s) | true | PRoot bash -c；实验开关 enableShellLiveOutput 时经 ShellRunMonitor 直播输出 |
 | workspace_export_to_phone | true | SAF 导出到手机 |
-| workspace_mount_list / mount_sync(pull/push) | false / true | SAF 挂载查看/同步 |
 | workspace_bg_start/status/output/kill/list | start,kill=true 其余 false | 常驻后台任务管理（.l2s.bg/<taskId>/） |
 | workspace_create_backup | true | 复用 WebDavSync.prepareBackupFile(DATABASE) → `/workspace/backup.zip` |
+
+挂载点（SAF → /mnt/<name>）不再有 AI 工具（2026-08-26 删除 mount_list/mount_sync）：
+`<workspace>` 系统块注入挂载点列表与快照同步语义，后台循环自动 push→pull，
+间隔设置项 Settings.workspaceAutoSyncIntervalSeconds（关闭/30s/1min/5min，默认 60s）；
+设置页手动同步按钮保留。
+
+旧名兼容：已持久化的按工作区审批覆盖经 LEGACY_TOOL_NAME_ALIASES 运行时兜底；
+历史消息渲染在 WorkspaceToolUIs / ChatMessageEditedFiles 新旧名双匹配。
 
 三张联动表（改工具必同步）：
 - `WorkspaceToolDefaultApprovals`：默认审批表，可被 WorkspaceEntity.toolApprovals 按工作区覆盖
@@ -126,5 +133,9 @@ Idle / Connecting / Connected / Reconnecting(attempt,max) / Error(message,detail
 3. 本地工具 → LocalTools.getTools() + LocalToolOption 加分支
 4. workspace 工具 → 同步 DefaultApprovals / WORKSPACE_TOOL_NAMES / DEFAULT_WORKSPACE_TOOL_PROMPTS 三张表
 5. UI 卡片 → ToolUIRegistry 注册 Renderer（否则 JSON 兜底）
-6. 输出 >32KB 自动截断落盘 tool_outputs/（有 workspace_shell 的助手才生效）
-7. 大输出想给 AI 读全文 → 引导它用 workspace_read_file 或提供专用读取工具
+6. 输出 >32KB 自动截断落盘 tool_outputs/（有 bash 的助手才生效）
+7. 大输出想给 AI 读全文 → 引导它用 read 或提供专用读取工具
+
+会话级权限模式 PermissionMode（plan/build/yolo，Conversation 字段）：ChatService
+装配完工具后经 PermissionModePolicy.apply 统一改写——PLAN 拒绝变更类工具并下线
+subagent + 注入 <plan_mode> 提示；YOLO 全部 needsApproval=false。详见 CHANGES.md N 节。

@@ -10,7 +10,7 @@ import kotlin.coroutines.CoroutineContext
 /**
  * GenerationHandler 执行工具时注入的协程上下文元素, 把 toolCallId 带给工具实现侧。
  *
- * 目前只有 workspace_shell 直播使用; 未来其他需要"知道自己是哪次调用"的工具可复用。
+ * 目前只有 bash 直播使用; 未来其他需要"知道自己是哪次调用"的工具可复用。
  * 工具侧用 coroutineContext[ShellRunKey]?.id 读取, 取不到时自行回退(如 conversationId)。
  */
 class ShellRunKey(
@@ -21,7 +21,7 @@ class ShellRunKey(
     override fun toString(): String = "ShellRunKey($id)"
 }
 
-/** 一次正在(或刚刚结束)执行的 workspace_shell 直播状态, 内存态, 进程内可见 */
+/** 一次正在(或刚刚结束)执行的 bash 直播状态, 内存态, 进程内可见 */
 data class ShellRunState(
     val toolCallId: String,
     val command: String,
@@ -34,7 +34,7 @@ data class ShellRunState(
 )
 
 /**
- * workspace_shell 执行直播注册表(Koin single, 进程内共享)。
+ * bash 执行直播注册表(Koin single, 进程内共享)。
  *
  * 数据流: ProotShellRunner 输出收集线程 --chunk--> [append] --> ShellToolUI 在工具
  * loading 期间按 toolCallId 订阅 [runs], 实时显示尾部输出(弹窗滚动 + 折叠态单行)。

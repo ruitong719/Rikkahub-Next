@@ -1,5 +1,8 @@
 package me.rerere.rikkahub.data.ai.tools
 
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.JsonObjectBuilder
@@ -28,13 +31,11 @@ private const val SHELL_TIMEOUT_MAX_SECONDS = 600L
 private const val MAX_READ_FILE_BYTES = 8L * 1024 * 1024
 
 val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
-    "workspace_read_file" to false,
-    "workspace_write_file" to false,
-    "workspace_edit_file" to false,
-    "workspace_shell" to true,
+    "read" to false,
+    "write" to false,
+    "edit" to false,
+    "bash" to true,
     "workspace_export_to_phone" to true,
-    "workspace_mount_list" to false,
-    "workspace_mount_sync" to true,
     "workspace_bg_start" to true,
     "workspace_bg_status" to false,
     "workspace_bg_output" to false,
@@ -43,8 +44,19 @@ val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
     "workspace_create_backup" to true,
 )
 
+/** 改名前的工具名（v1）：读取已持久化的按工作区审批覆盖时兜底，避免旧配置失效 */
+private val LEGACY_TOOL_NAME_ALIASES: Map<String, String> = mapOf(
+    "workspace_read_file" to "read",
+    "workspace_write_file" to "write",
+    "workspace_edit_file" to "edit",
+    "workspace_shell" to "bash",
+)
+
 fun resolveWorkspaceToolApproval(name: String, overrides: Map<String, Boolean>): Boolean =
-    overrides[name] ?: WorkspaceToolDefaultApprovals[name] ?: false
+    overrides[name]
+        ?: LEGACY_TOOL_NAME_ALIASES.entries.firstOrNull { it.value == name }?.let { overrides[it.key] }
+        ?: WorkspaceToolDefaultApprovals[name]
+        ?: false
 
 suspend fun createWorkspaceTools(
     workspaceId: String?,
@@ -64,8 +76,7 @@ suspend fun createWorkspaceTools(
         createEditFileTool(workspaceId, ::needsApproval, workspaceRepository),
         createShellTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd, conversationId),
         createWorkspaceExportTool(workspaceId, ::needsApproval, workspaceRepository),
-    ) + createWorkspaceMountTools(::needsApproval) +
-        createWorkspaceBgTools(workspaceId, ::needsApproval, workspaceRepository, conversationId) +
+    ) + createWorkspaceBgTools(workspaceId, ::needsApproval, workspaceRepository, conversationId) +
         listOf(createWorkspaceBackupTool(workspaceId, ::needsApproval, workspaceRepository))
 }
 
@@ -76,53 +87,243 @@ private val IMAGE_EXTENSIONS = setOf(
 private fun String.isImagePath(): Boolean =
     substringAfterLast('.', "").lowercase() in IMAGE_EXTENSIONS
 
+private const val DEFAULT_READ_LIMIT_LINES = 2000
+private const val MAX_READ_LIMIT_LINES = 2000
+private const val MAX_READ_LINE_LENGTH = 2000
+
 private fun createReadFileTool(
     workspaceId: String,
     needsApproval: (String) -> Boolean,
     workspaceRepository: WorkspaceRepository,
 ) = Tool(
-    name = "workspace_read_file",
+    name = "read",
     description = """
-        Read a file using the assistant's bound workspace Rootfs. Paths must be absolute inside Rootfs.
-        Use /workspace for the workspace files area.
-        Supports UTF-8 text files and image files (png, jpg, jpeg, gif, webp, bmp, svg, heic, heif, avif, ico).
+        Read a file or directory from the workspace Rootfs. Paths must be absolute inside Rootfs.
+        Usage:
+        - The path parameter must be an absolute path inside Rootfs; use /workspace for the workspace files area.
+        - By default, up to $DEFAULT_READ_LIMIT_LINES lines are returned from the start of the file.
+        - Use offset (1-indexed line number) with limit to page through large files.
+        - Output lines are prefixed with their line number like `12: content`; never include that prefix in old_text when editing.
+        - Reading a directory lists its entries instead (subdirectories end with `/`).
+        - Image files are returned as image attachments; binary files are rejected.
+        - Call this tool in parallel when you know there are multiple files you want to read.
     """.trimIndent().replace("\n", " "),
     parameters = {
         InputSchema.Obj(
             properties = buildJsonObject {
                 putPathProperty(required = true)
+                put("offset", buildJsonObject {
+                    put("type", "integer")
+                    put("description", "Line number to start reading from (1-indexed). Defaults to 1.")
+                })
+                put("limit", buildJsonObject {
+                    put("type", "integer")
+                    put("description", "Maximum number of lines to read. Defaults to $DEFAULT_READ_LIMIT_LINES.")
+                })
             },
             required = listOf("path"),
         )
     },
-    needsApproval = { needsApproval("workspace_read_file") },
+    needsApproval = { needsApproval("read") },
     execute = {
-        val path = it.jsonObject.absolutePath("path")
-        if (path.isImagePath()) {
-            workspaceRepository.readImageInRootfs(workspaceId, path)
-        } else {
-            val text = workspaceRepository.readTextInRootfs(workspaceId, path)
-            listOf(
-                UIMessagePart.Text(
-                    buildJsonObject {
-                        put("path", path)
-                        put("text", text)
-                    }.toString()
-                )
-            )
+        val params = it.jsonObject
+        val path = params.absolutePath("path")
+        val offset = params.string("offset")?.toIntOrNull() ?: 1
+        val limit = params.string("limit")?.toIntOrNull() ?: DEFAULT_READ_LIMIT_LINES
+        require(offset >= 1) { "offset must be >= 1 (1-indexed)" }
+        require(limit in 1..MAX_READ_LIMIT_LINES) {
+            "limit must be between 1 and $MAX_READ_LIMIT_LINES"
         }
+
+        when (val kind = workspaceRepository.probeRootfsKind(workspaceId, path)) {
+            is RootfsKind.Missing -> error(missingFileMessage(workspaceId, workspaceRepository, path))
+            is RootfsKind.Directory -> UIMessagePart.Text(
+                buildJsonObject {
+                    put("path", path)
+                    put("type", "directory")
+                    put("entries", kind.entriesJson())
+                    put("offset", offset)
+                    put("totalEntries", kind.totalEntries)
+                    put("truncated", kind.truncated)
+                }.toString()
+            )
+            is RootfsKind.File -> {
+                if (path.isImagePath()) {
+                    workspaceRepository.readImageInRootfs(workspaceId, path).first()
+                } else {
+                    val bytes = workspaceRepository.readRootfsBuffer(workspaceId, path).toByteArray()
+                    require(!isBinaryContent(bytes)) {
+                        "Cannot read binary file: $path. Use bash with tools like strings/hexdump if you really need it."
+                    }
+                    UIMessagePart.Text(readTextPage(path, bytes.decodeToString(), offset, limit))
+                }
+            }
+        }.let { part -> listOf(part) }
     },
 )
+
+private const val ROOTFS_KIND_PROBE_MAX_ENTRIES = 4000
+
+/** 探测 rootfs 路径类型; 目录时顺带返回排序后的条目列表(type\\tname 行) */
+private sealed interface RootfsKind {
+    data object Missing : RootfsKind
+    data object File : RootfsKind
+    data class Directory(val lines: List<String>, val truncated: Boolean) : RootfsKind
+
+    val totalEntries: Int get() = if (this is Directory) lines.size else 0
+
+    fun entriesJson(): JsonArray = buildJsonArray {
+        if (this@RootfsKind !is Directory) return@buildJsonArray
+        lines.forEach { line ->
+            val type = line.substringBefore('\t', "")
+            val name = line.substringAfter('\t', "")
+            if (name.isEmpty()) return@forEach
+            add(JsonPrimitive(if (type == "d") "$name/" else name))
+        }
+    }
+}
+
+private suspend fun WorkspaceRepository.probeRootfsKind(
+    workspaceId: String,
+    path: String,
+): RootfsKind {
+    val pathArg = path.shellQuote()
+    val result = runRootfsCommand(
+        workspaceId = workspaceId,
+        action = "Probe path",
+        command = """
+            p=$pathArg
+            if [ ! -e "${'$'}p" ] && [ ! -L "${'$'}p" ]; then printf 'missing\n'; exit 0; fi
+            if [ -d "${'$'}p" ]; then
+              printf 'dir\n'
+              find "${'$'}p" -mindepth 1 -maxdepth 1 -printf '%y\t%f\n' 2>/dev/null | LC_ALL=C sort | head -n $ROOTFS_KIND_PROBE_MAX_ENTRIES
+            else
+              printf 'file\n'
+            fi
+        """.trimIndent(),
+    )
+    val output = result.stdout
+    return when {
+        output.startsWith("missing") -> RootfsKind.Missing
+        output.startsWith("file") -> RootfsKind.File
+        else -> {
+            val lines = output.lines().drop(1).filter { it.isNotBlank() }
+            RootfsKind.Directory(
+                lines = lines,
+                truncated = lines.size >= ROOTFS_KIND_PROBE_MAX_ENTRIES,
+            )
+        }
+    }
+}
+
+/** 文件不存在时的报错文案: 附上同目录下名字相近的条目建议(opencode 式 did-you-mean), 减少一轮试错 */
+private suspend fun missingFileMessage(
+    workspaceId: String,
+    workspaceRepository: WorkspaceRepository,
+    path: String,
+): String {
+    val parent = path.trimEnd('/').substringBeforeLast('/', "/")
+    val base = path.substringAfterLast('/')
+    val suggestions = runCatching {
+        when (val parentKind = workspaceRepository.probeRootfsKind(workspaceId, parent)) {
+            is RootfsKind.Directory -> parentKind.lines
+                .map { it.substringAfter('\t', "") }
+                .filter { entry ->
+                    entry.lowercase().contains(base.lowercase()) || base.lowercase().contains(entry.lowercase())
+                }
+                .take(3)
+
+            else -> emptyList()
+        }
+    }.getOrDefault(emptyList())
+
+    val parentDir = parent.removePrefix("/workspace").ifBlank { "/" }
+    return if (suggestions.isNotEmpty()) {
+        "File not found: $path (workspace: $parentDir)\n\nDid you mean one of these?\n" +
+            suggestions.joinToString("\n") { "$parent/$it" }
+    } else {
+        "File not found: $path (workspace: $parentDir)"
+    }
+}
+
+/**
+ * 二进制嗅探: 首个 NUL 字节, 或不可打印字符占比 >30% 即判定二进制。
+ * 判定前不整串解码, 避免 mojibake 污染模型上下文。
+ */
+private fun isBinaryContent(bytes: ByteArray): Boolean {
+    val sample = if (bytes.size > 8 * 1024) bytes.copyOf(8 * 1024) else bytes
+    if (sample.isEmpty()) return false
+    var nonPrintable = 0
+    for (b in sample) {
+        if (b == ZERO_BYTE) return true
+        if (b < 9.toByte() || (b in 14..31)) nonPrintable++
+    }
+    return nonPrintable.toDouble() / sample.size > BINARY_NON_PRINTABLE_RATIO
+}
+
+private const val BINARY_NON_PRINTABLE_RATIO = 0.3
+private val ZERO_BYTE: Byte = 0
+
+/**
+ * 文本分页: 返回带行号前缀 `N: content` 的窗口, 截断时附续读提示(opencode 同款交互)。
+ */
+private fun readTextPage(path: String, text: String, offset: Int, limit: Int): String {
+    val allLines = text.split('\n').let { lines ->
+        // 结尾换行产生的空尾行不计入总行数
+        if (lines.size > 1 && lines.last().isEmpty()) lines.dropLast(1) else lines
+    }
+    val totalLines = allLines.size
+    if (offset > totalLines) {
+        error("Offset $offset is out of range for this file ($totalLines lines)")
+    }
+
+    var lineTruncated = false
+    val window = allLines.drop(offset - 1).take(limit).mapIndexed { index, line ->
+        val number = offset + index
+        if (line.length > MAX_READ_LINE_LENGTH) {
+            lineTruncated = true
+            "$number: " + line.take(MAX_READ_LINE_LENGTH) + "... (line truncated to $MAX_READ_LINE_LENGTH chars)"
+        } else {
+            "$number: $line"
+        }
+    }
+
+    val lastLine = offset + window.size - 1
+    val truncated = lineTruncated || offset - 1 + window.size < totalLines
+    val content = buildString {
+        append(window.joinToString("\n"))
+        if (offset - 1 + window.size < totalLines) {
+            append("\n\n(Showing lines $offset-$lastLine of $totalLines. Use offset=${lastLine + 1} to continue.)")
+        } else {
+            append("\n\n(End of file - total $totalLines lines)")
+        }
+    }
+
+    return buildJsonObject {
+        put("path", path)
+        put("type", "file")
+        put("totalLines", totalLines)
+        put("offset", offset)
+        put("endLine", lastLine)
+        put("content", content)
+        put("truncated", truncated)
+        if (truncated) put("nextOffset", lastLine + 1)
+    }.toString()
+}
 
 private fun createWriteFileTool(
     workspaceId: String,
     needsApproval: (String) -> Boolean,
     workspaceRepository: WorkspaceRepository,
 ) = Tool(
-    name = "workspace_write_file",
+    name = "write",
     description = """
-        Write a UTF-8 text file using the assistant's bound workspace Rootfs. Paths must be absolute inside Rootfs.
-        Use /workspace for the workspace files area.
+        Write a UTF-8 text file into the workspace Rootfs. Paths must be absolute inside Rootfs; /workspace is the files area.
+        Usage:
+        - This tool overwrites the existing file at the path unless overwrite=false (then it skips instead).
+        - If a file already exists, ALWAYS prefer edit with old_text/new_text; read it with read before doing a full-file replacement.
+        - NEVER proactively create documentation files or README files. Only create them when explicitly requested by the user.
+        - Only use emojis if the user explicitly requests it.
     """.trimIndent().replace("\n", " "),
     parameters = {
         InputSchema.Obj(
@@ -140,7 +341,7 @@ private fun createWriteFileTool(
             required = listOf("path", "text"),
         )
     },
-    needsApproval = { needsApproval("workspace_write_file") || it.pathOutsideWritableRoots("path") },
+    needsApproval = { needsApproval("write") || it.pathOutsideWritableRoots("path") },
     execute = {
         val params = it.jsonObject
         val path = params.absolutePath("path")
@@ -156,12 +357,15 @@ private fun createEditFileTool(
     needsApproval: (String) -> Boolean,
     workspaceRepository: WorkspaceRepository,
 ) = Tool(
-    name = "workspace_edit_file",
+    name = "edit",
     description = """
-        Edit a UTF-8 text file using the assistant's bound workspace Rootfs. Paths must be absolute inside Rootfs.
-        Use /workspace for the workspace files area.
-        Provide old_text and new_text. By default old_text must occur exactly once; set replace_all=true to replace every occurrence.
-        If no exact match is found, whitespace-tolerant line matching is attempted automatically.
+        Edit a UTF-8 text file in the workspace Rootfs by performing exact string replacement. Paths must be absolute inside Rootfs.
+        Usage:
+        - You must read the file at least once before editing. Copy old_text verbatim from the read output, WITHOUT the `N: ` line-number prefixes.
+        - The edit fails if old_text is not found, or if it matches multiple locations (set replace_all=true for every occurrence).
+        - When a match is ambiguous, include more surrounding lines in old_text to make it unique.
+        - If no exact match is found, whitespace-tolerant fallbacks run automatically: trimmed lines, block anchors, normalized whitespace runs, and escaped \\n / \\t literals.
+        - ALWAYS prefer editing existing files. NEVER create new files unless explicitly required.
     """.trimIndent().replace("\n", " "),
     parameters = {
         InputSchema.Obj(
@@ -183,7 +387,7 @@ private fun createEditFileTool(
             required = listOf("path", "old_text", "new_text"),
         )
     },
-    needsApproval = { needsApproval("workspace_edit_file") || it.pathOutsideWritableRoots("path") },
+    needsApproval = { needsApproval("edit") || it.pathOutsideWritableRoots("path") },
     execute = {
         val params = it.jsonObject
         val path = params.absolutePath("path")
@@ -224,9 +428,10 @@ private fun createShellTool(
     defaultCwd: String? = null,
     conversationId: String? = null,
 ) = Tool(
-    name = "workspace_shell",
+    name = "bash",
     description = buildString {
-        append("Run a shell command in the assistant's bound workspace Rootfs. The workspace files area is mounted at /workspace. ")
+        append("Run a shell command inside the workspace PRoot Linux environment (bash -c). The workspace files area is mounted at /workspace. ")
+        append("IMPORTANT: This tool is for terminal operations like git, package managers, builds, and process checks. DO NOT use it to read, write, or edit files - use the dedicated read/write/edit tools instead, they are safer and their outputs are easier to act on. ")
         append("Use cwd for a path relative to the workspace files root. ")
         if (!defaultCwd.isNullOrBlank()) {
             append("Defaults to '$defaultCwd'. ")
@@ -262,7 +467,7 @@ private fun createShellTool(
             required = listOf("command"),
         )
     },
-    needsApproval = { needsApproval("workspace_shell") },
+    needsApproval = { needsApproval("bash") },
     execute = {
         val params = it.jsonObject
         val command = params.string("command") ?: error("command is required")

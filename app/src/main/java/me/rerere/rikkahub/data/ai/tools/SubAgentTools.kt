@@ -145,9 +145,9 @@ private fun buildPresetSubAgentTool(
 
 private fun buildGeneralSubAgentTool(ctx: SubAgentInvokeContext): Tool {
     val subAgent = ctx.subAgent
-    val categoriesHint = "Allowed values: read (workspace_read_file, get_time_info)," +
-        " write (workspace_write_file, workspace_edit_file, todo tools)," +
-        " shell (workspace_shell), skill (the subagent's configured skills)."
+    val categoriesHint = "Allowed values: read (read, get_time_info)," +
+        " write (write, edit, todo tools)," +
+        " shell (bash), skill (the subagent's configured skills)."
     return Tool(
         name = "subagent_general",
         description = buildString {
