@@ -1331,6 +1331,7 @@
   <string name="subagent_monitor_status_error">Last run: failed</string>
   <string name="subagent_monitor_status_timeout">Last run: timed out</string>
   <string name="subagent_monitor_status_done">Last run: finished</string>
+  <string name="subagent_monitor_status_interrupted">Interrupted (app restarted before it finished)</string>
   <string name="chat_message_tool_calendar_query">Query calendar events</string>
   <string name="chat_message_tool_calendar_create">Create event: %1$s</string>
   <string name="chat_page_move_to_folder">Move to Folder</string>

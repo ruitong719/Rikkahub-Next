@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
@@ -110,7 +110,8 @@ fun SubAgentTracePage(id: String) {
                         style = MaterialTheme.typography.titleMedium,
                     )
                 }
-                items(run.steps, key = { "${it.toolName}-${it.inputPreview}" }) { step ->
+                // key 必须用位置：同一条命令可能被重复执行（重试），工具名+输入预览会撞 key 导致崩溃
+                itemsIndexed(run.steps, key = { index, _ -> index }) { _, step ->
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()

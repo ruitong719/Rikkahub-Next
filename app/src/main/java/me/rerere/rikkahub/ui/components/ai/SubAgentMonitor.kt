@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -38,11 +40,13 @@ import me.rerere.hugeicons.stroke.AiBrain01
 import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.hugeicons.stroke.Settings02
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.ai.slugify
 import me.rerere.rikkahub.data.ai.uniqueToolName
 import me.rerere.rikkahub.data.model.SubAgent
 import me.rerere.rikkahub.data.model.isGeneralSubagent
 import me.rerere.rikkahub.ui.components.ui.ToggleSurface
+import org.koin.compose.koinInject
 import kotlin.uuid.Uuid
 
 private val invocationJson = Json { ignoreUnknownKeys = true }
@@ -87,34 +91,48 @@ fun SubAgentMonitorButton(
     }
 }
 
-/** 统计当前正在被调用的 subagent 实例数量（所有调用中结果尚未回填的 = 执行中） */
-fun countRunningSubAgents(subAgents: List<SubAgent>, messages: List<UIMessage>): Int {
-    val toolNames = computeSubAgentToolNames(subAgents).values.toSet()
-    return messages.sumOf { message ->
-        message.parts.count { part ->
-            part is UIMessagePart.Tool && part.toolName in toolNames && part.output.isEmpty()
-        }
+/**
+ * 统计当前真正在运行的 subagent 实例数：消息里的挂起调用必须能与内存活跃轨迹对上账，
+ * 否则视为已中断（App 崩溃/重启后内存轨迹清空，挂起调用不应永远显示运行中）。
+ */
+fun countRunningSubAgents(
+    subAgents: List<SubAgent>,
+    messages: List<UIMessage>,
+    liveRuns: Map<Uuid, me.rerere.rikkahub.data.ai.SubAgentRunState>,
+): Int {
+    val toolNames = computeSubAgentToolNames(subAgents)
+    return subAgents.sumOf { subAgent ->
+        val toolName = toolNames[subAgent.id] ?: return@sumOf 0
+        reconcileInvocations(toolName, subAgent.id, messages, liveRuns)
+            .count { it.effectiveStatus == InvocationStatus.RUNNING }
     }
 }
 
-/** subagent 一次调用的状态（由对话消息中的 subagent_* 工具调用推导） */
-private enum class SubAgentRunStatus {
-    RUNNING,    // 有调用但尚无结果输出（执行中/结果未回填）
-    SUCCESS,    // 返回 status=success
-    ERROR,      // 返回 status=error
-    TIMEOUT,    // 返回 status=timeout 或提示超时
-    DONE,       // 有输出但无法解析状态
+/** 面板里一次调用的展示状态（由消息推导 + 与内存活跃轨迹对账后的最终结果） */
+private enum class InvocationStatus {
+    RUNNING,      // 挂起且能在内存中找到对应活跃轨迹
+    INTERRUPTED,  // 挂起但无活跃轨迹（进程重启后遗留），不再显示"运行中"
+    SUCCESS,      // 返回 status=success
+    ERROR,        // 返回 status=error
+    TIMEOUT,      // 返回 status=timeout 或提示超时
+    DONE,         // 有输出但无法解析状态
 }
 
 /** 面板里一行的展示信息（对应一次发派调用） */
 private data class InvocationView(
-    val status: SubAgentRunStatus,
-    /** 执行中显示 task 预览；结束后显示结果首行预览 */
+    /** 输入 JSON 的 task 原文（用于与内存轨迹对账） */
+    val task: String,
+    /** 执行中显示 task 截断预览；结束后显示结果首行预览 */
     val preview: String,
     /** 调用时的 label 参数（General 并行实例区分用），可能为 null */
     val label: String?,
     /** 结果 JSON 携带的轨迹 id；旧消息没有则回退定义 id */
     val runId: String?,
+)
+
+private data class ResolvedInvocation(
+    val view: InvocationView,
+    val effectiveStatus: InvocationStatus,
 )
 
 /**
@@ -132,6 +150,9 @@ fun SubAgentMonitorSheet(
 ) {
     // 与 SubAgentTools.createSubAgentTools 相同的工具名生成规则，用于在消息里匹配调用
     val toolNames = remember(subAgents) { computeSubAgentToolNames(subAgents) }
+    // 内存活跃轨迹：区分"真在跑"与"崩溃/重启后遗留的挂起调用"
+    val runMonitor = koinInject<SubAgentRunMonitor>()
+    val liveRuns by runMonitor.runs.collectAsStateWithLifecycle()
     // 定义数 × 历史调用数都可能超出屏幕：整列可滚动
     val scrollState = rememberScrollState()
 
@@ -159,18 +180,20 @@ fun SubAgentMonitorSheet(
             } else {
                 subAgents.forEach { subAgent ->
                     val invocations = toolNames[subAgent.id]
-                        ?.let { collectInvocations(it, messages) }
+                        ?.let { reconcileInvocations(it, subAgent.id, messages, liveRuns) }
                         .orEmpty()
                     if (invocations.isEmpty()) {
                         InvocationRow(
                             title = subAgent.name.ifBlank { subAgent.id.toString() },
                             description = subAgent.description,
                             view = null,
+                            status = null,
                             onOpenTrace = { onOpenTrace(subAgent.id.toString()) },
                             onManage = { onManage(subAgent.id.toString()) },
                         )
                     } else {
-                        invocations.forEachIndexed { index, view ->
+                        invocations.forEachIndexed { index, resolved ->
+                            val view = resolved.view
                             val title = when {
                                 invocations.size == 1 -> subAgent.name.ifBlank { subAgent.id.toString() }
                                 !view.label.isNullOrBlank() -> view.label
@@ -180,6 +203,7 @@ fun SubAgentMonitorSheet(
                                 title = title,
                                 description = null,
                                 view = view,
+                                status = resolved.effectiveStatus,
                                 onOpenTrace = { onOpenTrace(view.runId ?: subAgent.id.toString()) },
                                 onManage = { onManage(subAgent.id.toString()) },
                             )
@@ -196,10 +220,10 @@ private fun InvocationRow(
     title: String,
     description: String?,
     view: InvocationView?,
+    status: InvocationStatus?,
     onOpenTrace: () -> Unit,
     onManage: () -> Unit,
 ) {
-    val status = view?.status
     ListItem(
         onClick = onOpenTrace,
         content = {
@@ -213,7 +237,7 @@ private fun InvocationRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                if (status == SubAgentRunStatus.RUNNING) {
+                if (status == InvocationStatus.RUNNING) {
                     Text(
                         text = stringResource(R.string.subagent_monitor_running_badge),
                         style = MaterialTheme.typography.labelSmall,
@@ -239,9 +263,9 @@ private fun InvocationRow(
                         text = stringResource(statusLabelRes(status)),
                         style = MaterialTheme.typography.bodySmall,
                         color = when (status) {
-                            SubAgentRunStatus.ERROR, SubAgentRunStatus.TIMEOUT ->
+                            InvocationStatus.ERROR, InvocationStatus.TIMEOUT, InvocationStatus.INTERRUPTED ->
                                 MaterialTheme.colorScheme.error
-                            SubAgentRunStatus.RUNNING ->
+                            InvocationStatus.RUNNING ->
                                 MaterialTheme.colorScheme.primary
                             else -> MaterialTheme.colorScheme.outline
                         },
@@ -290,28 +314,39 @@ private fun computeSubAgentToolNames(subAgents: List<SubAgent>): Map<Uuid, Strin
     }
 }
 
-/** 按出现顺序收集该工具的所有调用（并行多实例各占一条） */
-private fun collectInvocations(toolName: String, messages: List<UIMessage>): List<InvocationView> =
-    buildList {
+/**
+ * 消息里的调用与内存活跃轨迹对账：
+ * - 有输出的调用直接用输出推导状态；
+ * - 挂起调用若能匹配到一条未消费的活跃轨迹（优先 task 相同）则仍在运行，
+ *   匹配不上说明进程重启过、轨迹已丢——判定为已中断。
+ */
+private fun reconcileInvocations(
+    toolName: String,
+    subAgentId: Uuid,
+    messages: List<UIMessage>,
+    liveRuns: Map<Uuid, me.rerere.rikkahub.data.ai.SubAgentRunState>,
+): List<ResolvedInvocation> {
+    val pendingPool = liveRuns.values
+        .filter { it.subAgentId == subAgentId && it.status == me.rerere.rikkahub.data.ai.SubAgentRunStatus.RUNNING }
+        .toMutableList()
+    return buildList {
         messages.forEach { message ->
             message.parts.forEach { part ->
                 if (part is UIMessagePart.Tool && part.toolName == toolName) {
-                    add(part.toInvocationView())
+                    add(part.toResolved(pendingPool))
                 }
             }
         }
     }
+}
 
-private fun UIMessagePart.Tool.toInvocationView(): InvocationView {
+private fun UIMessagePart.Tool.toResolved(pendingPool: MutableList<me.rerere.rikkahub.data.ai.SubAgentRunState>): ResolvedInvocation {
     val input = runCatching {
         invocationJson.parseToJsonElement(input.ifBlank { "{}" }).jsonObject
     }.getOrNull()
     val label = input?.get("label")?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
-    val taskPreview = input?.get("task")?.jsonPrimitive?.contentOrNull
-        ?.trim()
-        ?.replace('\n', ' ')
-        ?.take(100)
-        .orEmpty()
+    val task = input?.get("task")?.jsonPrimitive?.contentOrNull.orEmpty()
+    val taskPreview = task.trim().replace('\n', ' ').take(100)
 
     val outputText = output.filterIsInstance<UIMessagePart.Text>().joinToString("\n") { it.text }
     val outputJson = runCatching {
@@ -319,27 +354,38 @@ private fun UIMessagePart.Tool.toInvocationView(): InvocationView {
     }.getOrNull()
     val runId = outputJson?.get("runId")?.jsonPrimitive?.contentOrNull
 
+    if (output.isEmpty()) {
+        val match = pendingPool.firstOrNull { it.task == task } ?: pendingPool.firstOrNull()
+        return if (match != null) {
+            pendingPool.remove(match)
+            ResolvedInvocation(
+                InvocationView(task, taskPreview, label, runId),
+                InvocationStatus.RUNNING,
+            )
+        } else {
+            ResolvedInvocation(
+                InvocationView(task, taskPreview, label, runId),
+                InvocationStatus.INTERRUPTED,
+            )
+        }
+    }
+
     val status = when {
-        output.isEmpty() -> SubAgentRunStatus.RUNNING
-        "\"status\":\"error\"" in outputText -> SubAgentRunStatus.ERROR
-        "\"status\":\"timeout\"" in outputText || "timed out" in outputText -> SubAgentRunStatus.TIMEOUT
-        "\"status\":\"success\"" in outputText -> SubAgentRunStatus.SUCCESS
-        else -> SubAgentRunStatus.DONE
+        "\"status\":\"error\"" in outputText -> InvocationStatus.ERROR
+        "\"status\":\"timeout\"" in outputText || "timed out" in outputText -> InvocationStatus.TIMEOUT
+        "\"status\":\"success\"" in outputText -> InvocationStatus.SUCCESS
+        else -> InvocationStatus.DONE
     }
-    // 执行中没有结果可预览，改看任务内容；结束后看结果首行
-    val preview = if (status == SubAgentRunStatus.RUNNING) {
-        taskPreview
-    } else {
-        outputText.lineSequence().firstOrNull { it.isNotBlank() }?.take(120).orEmpty()
-    }
-    return InvocationView(status = status, preview = preview, label = label, runId = runId)
+    val preview = outputText.lineSequence().firstOrNull { it.isNotBlank() }?.take(120).orEmpty()
+    return ResolvedInvocation(InvocationView(task, preview, label, runId), status)
 }
 
 @Composable
-private fun statusLabelRes(status: SubAgentRunStatus): Int = when (status) {
-    SubAgentRunStatus.RUNNING -> R.string.subagent_monitor_status_running
-    SubAgentRunStatus.SUCCESS -> R.string.subagent_monitor_status_success
-    SubAgentRunStatus.ERROR -> R.string.subagent_monitor_status_error
-    SubAgentRunStatus.TIMEOUT -> R.string.subagent_monitor_status_timeout
-    SubAgentRunStatus.DONE -> R.string.subagent_monitor_status_done
+private fun statusLabelRes(status: InvocationStatus): Int = when (status) {
+    InvocationStatus.RUNNING -> R.string.subagent_monitor_status_running
+    InvocationStatus.INTERRUPTED -> R.string.subagent_monitor_status_interrupted
+    InvocationStatus.SUCCESS -> R.string.subagent_monitor_status_success
+    InvocationStatus.ERROR -> R.string.subagent_monitor_status_error
+    InvocationStatus.TIMEOUT -> R.string.subagent_monitor_status_timeout
+    InvocationStatus.DONE -> R.string.subagent_monitor_status_done
 }

@@ -59,6 +59,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -98,6 +99,7 @@ import me.rerere.hugeicons.stroke.ArrowUp02
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.Fullscreen
 import me.rerere.hugeicons.stroke.Zap
+import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
 import me.rerere.rikkahub.data.ai.tools.local.TodoItem
 import me.rerere.rikkahub.R
@@ -363,9 +365,11 @@ fun ChatInput(
                                     val enabledSubAgents = settings.subagents.filter {
                                         it.id in assistant.subagentIds
                                     }
-                                    // 角标 = 正在被调用的 subagent 数量（有调用才显示）
-                                    val runningSubAgents = remember(enabledSubAgents, messages) {
-                                        countRunningSubAgents(enabledSubAgents, messages)
+                                    // 角标 = 正在被调用的 subagent 数量（挂起调用需与内存轨迹对账，崩溃遗留不计）
+                                    val subAgentRunMonitor = koinInject<SubAgentRunMonitor>()
+                                    val liveRuns by subAgentRunMonitor.runs.collectAsStateWithLifecycle()
+                                    val runningSubAgents = remember(enabledSubAgents, messages, liveRuns) {
+                                        countRunningSubAgents(enabledSubAgents, messages, liveRuns)
                                     }
                                     if (showSubAgentMonitor) {
                                         val navController = LocalNavController.current

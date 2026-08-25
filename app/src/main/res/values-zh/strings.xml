@@ -1332,6 +1332,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="subagent_monitor_status_error">上次执行：失败</string>
   <string name="subagent_monitor_status_timeout">上次执行：超时</string>
   <string name="subagent_monitor_status_done">上次执行：完成</string>
+  <string name="subagent_monitor_status_interrupted">已中断（应用在完成前重启）</string>
   <string name="todo_sheet_empty">暂无待办，可以让 AI 帮你记一条</string>
   <string name="todo_sheet_title">待办（%1$d 进行中 / 共 %2$d）</string>
   <string name="todo_status_button">待办列表</string>
