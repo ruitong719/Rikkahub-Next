@@ -119,6 +119,19 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
     val enableWebSearch by vm.enableWebSearch.collectAsStateWithLifecycle()
     val errors by vm.errors.collectAsStateWithLifecycle()
 
+    // 流式自动重连轻提示（实验性）：仅当前会话的重连事件弹出
+    val reconnectToaster = LocalToaster.current
+    LaunchedEffect(Unit) {
+        vm.reconnectNotices.collect { notice ->
+            if (notice.conversationId == conversation.id) {
+                reconnectToaster.show(
+                    message = "已自动重连，重连次数 ${notice.attempt}/${notice.maxAttempts}",
+                    type = ToastType.Success,
+                )
+            }
+        }
+    }
+
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val softwareKeyboardController = LocalSoftwareKeyboardController.current
 

@@ -576,6 +576,8 @@ data class Settings(
     val developerMode: Boolean = false,
     val displaySetting: DisplaySetting = DisplaySetting(),
     val networkSetting: NetworkSetting = NetworkSetting(),
+    /** 实验性：流式生成因网络波动中断时自动重连（整单重发，指数退避，最多 4 次） */
+    val enableStreamAutoReconnect: Boolean = false,
     val favoriteModels: List<Uuid> = emptyList(),
     val chatModelId: Uuid = Uuid.random(),
     val fastModelId: Uuid = Uuid.random(),

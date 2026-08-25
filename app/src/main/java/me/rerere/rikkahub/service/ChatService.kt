@@ -161,6 +161,13 @@ enum class ChatErrorSolution {
     CheckTitleModelSettings,
 }
 
+/** 流式自动重连事件（实验性）：UI 层按会话过滤后以轻提示展示 */
+data class StreamReconnectNotice(
+    val conversationId: Uuid,
+    val attempt: Int,
+    val maxAttempts: Int,
+)
+
 private val inputTransformers by lazy {
     listOf(
         TimeReminderTransformer,
@@ -219,6 +226,9 @@ class ChatService(
 
     // 错误状态
     private val _errors = MutableStateFlow<List<ChatError>>(emptyList())
+    // 流式自动重连事件（实验性）：extraBufferCapacity 保证 tryEmit 在无订阅者时也不丢
+    private val _reconnectNotices = MutableSharedFlow<StreamReconnectNotice>(extraBufferCapacity = 8)
+    val reconnectNotices: SharedFlow<StreamReconnectNotice> = _reconnectNotices.asSharedFlow()
     val errors: StateFlow<List<ChatError>> = _errors.asStateFlow()
 
     fun addError(
@@ -715,6 +725,10 @@ class ChatService(
                 assistant = assistant,
                 conversationId = conversationId,
                 conversationSystemPrompt = conversation.customSystemPrompt,
+                enableAutoReconnect = settingsStore.settingsFlow.value.enableStreamAutoReconnect,
+                onAutoReconnect = { attempt, maxAttempts ->
+                    _reconnectNotices.tryEmit(StreamReconnectNotice(conversationId, attempt, maxAttempts))
+                },
                 workspaceCwd = conversation.workspaceCwd,
                 memories = memories,
                 rollingContextSummary = rollingContextText,

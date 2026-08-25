@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
@@ -37,6 +38,7 @@ import me.rerere.rikkahub.data.ai.transformers.MessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.OutputMessageTransformer
 import me.rerere.rikkahub.data.files.FileFolders
 import java.io.File
+import java.io.IOException
 import me.rerere.rikkahub.data.ai.transformers.onGenerationFinish
 import me.rerere.rikkahub.data.ai.transformers.transforms
 import me.rerere.rikkahub.data.ai.transformers.visualTransforms
@@ -63,6 +65,20 @@ sealed interface GenerationChunk {
     ) : GenerationChunk
 }
 
+// 流式自动重连（实验性）：指数退避 1s/2s/4s/8s，仅对网络层错误重试
+internal const val AUTO_RECONNECT_MAX_ATTEMPTS = 4
+internal const val AUTO_RECONNECT_BACKOFF_BASE_MS = 1_000L
+
+/** 沿 cause 链判断是否网络层错误（IOException 族）；HTTP 错误体解析出的 API 异常不在此列 */
+internal fun Throwable.hasRetryableNetworkCause(): Boolean {
+    var cur: Throwable? = this
+    while (cur != null) {
+        if (cur is IOException) return true
+        cur = cur.cause
+    }
+    return false
+}
+
 class GenerationHandler(
     private val context: Context,
     private val providerManager: ProviderManager,
@@ -87,6 +103,10 @@ class GenerationHandler(
         workspaceCwd: String? = null,
         rollingContextSummary: String? = null,
         requestMessageStartIndex: Int = 0,
+        /** 实验性：单次 LLM 请求因网络层错误失败时自动整单重发（指数退避，最多 4 次） */
+        enableAutoReconnect: Boolean = false,
+        /** 每次自动重连时回调（attempt 从 1 起），UI 用于轻提示 */
+        onAutoReconnect: suspend (attempt: Int, maxAttempts: Int) -> Unit = { _, _ -> },
         /**
          * 生成循环中每轮调用 LLM 前回调：返回需要插入对话的用户补充消息（队列）。
          * 插入点在工具执行完之后、下一轮调用之前，让 LLM 尽快看到用户补充；
@@ -185,6 +205,8 @@ class GenerationHandler(
                     processingStatus = processingStatus,
                     conversationSystemPrompt = conversationSystemPrompt,
                     conversationId = conversationId,
+                    enableAutoReconnect = enableAutoReconnect,
+                    onAutoReconnect = onAutoReconnect,
                     workspaceCwd = workspaceCwd,
                     rollingContextSummary = rollingContextSummary,
                     requestMessageStartIndex = requestMessageStartIndex,
@@ -388,6 +410,8 @@ class GenerationHandler(
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         conversationSystemPrompt: String? = null,
         conversationId: Uuid? = null,
+        enableAutoReconnect: Boolean = false,
+        onAutoReconnect: suspend (attempt: Int, maxAttempts: Int) -> Unit = { _, _ -> },
         workspaceCwd: String? = null,
         rollingContextSummary: String? = null,
         requestMessageStartIndex: Int = 0,
@@ -462,30 +486,48 @@ class GenerationHandler(
             },
             sessionId = conversationId?.toString(),
         )
-        if (stream) {
-            val streamChunkHandler = StreamChunkHandler(model)
-            providerImpl.streamText(
-                providerSetting = provider,
-                messages = internalMessages,
-                params = params
-            ).collect {
-                messages = streamChunkHandler.handle(messages, it)
+        // 自动重连环（实验性）：仅网络层错误触发；回滚到尝试前快照后整单重发
+        var reconnectAttempt = 0
+        while (true) {
+            val attemptSnapshot = messages
+            try {
+                if (stream) {
+                    val streamChunkHandler = StreamChunkHandler(model)
+                    providerImpl.streamText(
+                        providerSetting = provider,
+                        messages = internalMessages,
+                        params = params
+                    ).collect {
+                        messages = streamChunkHandler.handle(messages, it)
+                        onUpdateMessages(messages)
+                    }
+                } else {
+                    // 非流式拿不到首包时刻，整轮请求时长计入纯生成时长（不含工具执行间隙）
+                    val generationStart = System.currentTimeMillis()
+                    val result = providerImpl.generateText(
+                        providerSetting = provider,
+                        messages = internalMessages,
+                        params = params,
+                    )
+                    messages = messages.handleTextGenerationResult(
+                        result = result,
+                        model = model,
+                        generationStartMillis = generationStart,
+                    )
+                    onUpdateMessages(messages)
+                }
+                break
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (reconnectAttempt >= AUTO_RECONNECT_MAX_ATTEMPTS || !e.hasRetryableNetworkCause()) throw e
+                reconnectAttempt += 1
+                // 回滚到本次尝试前：重发是整单重新生成，半截内容由新流覆盖
+                messages = attemptSnapshot
                 onUpdateMessages(messages)
+                onAutoReconnect(reconnectAttempt, AUTO_RECONNECT_MAX_ATTEMPTS)
+                delay(AUTO_RECONNECT_BACKOFF_BASE_MS shl (reconnectAttempt - 1))
             }
-        } else {
-            // 非流式拿不到首包时刻，整轮请求时长计入纯生成时长（不含工具执行间隙）
-            val generationStart = System.currentTimeMillis()
-            val result = providerImpl.generateText(
-                providerSetting = provider,
-                messages = internalMessages,
-                params = params,
-            )
-            messages = messages.handleTextGenerationResult(
-                result = result,
-                model = model,
-                generationStartMillis = generationStart,
-            )
-            onUpdateMessages(messages)
         }
     }
 

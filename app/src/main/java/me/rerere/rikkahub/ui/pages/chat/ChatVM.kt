@@ -42,6 +42,7 @@ import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.FavoriteRepository
 import me.rerere.rikkahub.service.ChatError
 import me.rerere.rikkahub.service.ChatService
+import me.rerere.rikkahub.service.StreamReconnectNotice
 import me.rerere.rikkahub.ui.hooks.writeStringPreference
 import me.rerere.rikkahub.ui.hooks.ChatInputState
 import me.rerere.rikkahub.utils.UiState
@@ -127,6 +128,9 @@ class ChatVM(
 
     // 错误状态
     val errors: StateFlow<List<ChatError>> = chatService.errors
+
+    // 流式自动重连事件（实验性）：UI 按当前会话过滤后以轻提示展示
+    val reconnectNotices: SharedFlow<StreamReconnectNotice> = chatService.reconnectNotices
 
     fun dismissError(id: Uuid) = chatService.dismissError(id)
 

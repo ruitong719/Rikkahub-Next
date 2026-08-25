@@ -899,3 +899,40 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
 - **版本**：fork 自行 bump 至 versionCode 180 / versionName 2.4.12（对齐上游语义）
 - **遗留**：无
 
+---
+
+## M. 流式自动重连（实验性）（2026-08-25）
+
+移动网络抖动（WiFi/数据切换、信号盲区）导致流式生成中断的问题。设置 →
+通用偏好底部新增「流式自动重连（实验性）」开关，**默认关闭**。
+
+### 行为
+
+- 触发条件：单次 LLM 请求因**网络层错误**失败——沿 cause 链判定 IOException
+  族（ECONNRESET / SocketTimeout / 断连等）；HTTP 错误体解析出的 API 异常
+  （401/400 等）不重试，立即报错
+- 重试策略：整单重发 + 指数退避 1s/2s/4s/8s，最多 4 次（共 5 次尝试）；
+  每次重连弹轻提示「已自动重连，重连次数 n/4」
+- 中途断流的半截内容：回滚到本次请求开始前的快照（UI 与持久化同步回滚），
+  新流重新生成后覆盖 —— 即"整单重发"语义，重复 token 消耗是该方案固有代价
+- 用户点停止立即中止；CancellationException 永不重试
+- 重试范围是 generateInternal 内的**单次 LLM 请求**：工具循环的多步骤不重复执行
+
+### 实现
+
+- GenerationHandler.generateText/generateInternal 新增 `enableAutoReconnect`
+  与 `onAutoReconnect(attempt, max)` 参数（带默认值，标题/翻译等其它调用方零改动）；
+  判据函数 `Throwable.hasRetryableNetworkCause()` 附 JVM 单测
+  （AutoReconnectPolicyTest）
+- ChatService 新增 `reconnectNotices: SharedFlow<StreamReconnectNotice>`，
+  仅主聊天生成路径接线；ChatPage 按当前会话过滤收集后经 LocalToaster 弹提示
+- 设置字段 `Settings.enableStreamAutoReconnect`（DataStore JSON 兼容旧备份）；
+  开关在生成开始时读取一次
+
+### 已知边界（二期候选）
+
+- HTTP 5xx/429 走 API 错误解析路径，当前不重试
+- 断网持续时固定退避最多 15s 后放弃；ConnectivityManager 网络恢复触发即时
+  重试未做
+
+
