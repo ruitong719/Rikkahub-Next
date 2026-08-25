@@ -6,9 +6,7 @@
 ## 当前状态
 
 - **基线**：merge-base `0c52b62b`（上游 2.4.9，v1.00 迭代时整体 merge）
-- **已同步至**：`986b9c39`（2026-08-23）—— 上游 `master` 全部提交处理完毕，无待办
-- **对账方法**：`git cherry HEAD upstream/master`（patch-id 等价判定）+ fork 历史逐条核对；
-  cherry-pick 均保留原作者署名
+- **已同步至**：`e8293d35`（2026-08-25）—— 上游 `master` 全部提交处理完毕
 
 ## 全量对账表（`0c52b62b..c167c70e`）
 
@@ -37,6 +35,49 @@
 | 21 | `986b9c39` | feat: 新增网络配置页 支持配置 user agent 和 代理 | 已合入 | `f55e67ea` |
 | 22 | `3509406b` | fix: 代理测试消息改用 LocalResources | 已合入 | `0d621367` |
 | 23 | `b270766f` | chore: bump to 2.4.11 | 已合入（语义） | fork 自行 bump：179 / 2.4.11 |
+
+## 全量对账表（`b270766f..e8293d35`，2026-08-25）
+
+| # | 上游 commit | 主题 | 处理 | fork 落点 |
+|---|---|---|---|---|
+| 24 | `3a533a6a` | feat: 工作区终端后台运行 + 多Tab | 已合入（适配） | `cbc7cb18`，DI 三处双保留冲突 |
+| 25 | `f4508dfa` | chore: 更新 proot lib | 已合入 | `350f6b8a`，纯二进制替换 |
+| 26 | `e6ebcf59` | feat: OpenRouter 加 session_id 头（#1760） | 已合入（适配） | `5e17d313`，GenerationHandler 两处参数错位冲突 |
+| 27 | `54030ec4` | chore: SnakeYAML 解析 skill | 已合入 | `a130e226`，零冲突 |
+| 28 | `f86d6e82` | fix: 键盘弹出时 ChatInput 保持圆角 | 已合入 | `45b6a770`，零冲突 |
+| 29 | `e6e0dfd4` | feat: 键盘弹出时收起工具栏并上移发送按钮 | 已合入（手工移植） | `b1d379b1`，单文件 +298/-249 |
+| 30 | `1e3351f7` | chore: 初始化 videogen 模块 | 已合入 | `01d4bfb3` |
+| 31 | `96fbe7e3` | chore: 初始化 video 生成 api 层 | 已合入 | `b7aaab1e`（依赖 #30 先行） |
+| 32 | `4fcb590a` | fix(setting): 测试连接对话框补全本地化 | 已合入（适配） | `6d4828ac`，values/strings.xml 双追加冲突 |
+| 33 | `6c6a8458` | fix: fork 会话继承 folder id / workspace cwd | 已合入（适配） | `0da70328`，含 createForkConversation 助手函数与 JVM 测试 |
+| 34 | `aab5026e` | fix(notification): Live Update 胶囊图标（#1782） | 已合入 | `d092f176` |
+| 35 | `0c056d08` | chore: bump to 2.4.12 | 已合入（语义） | fork 自行 bump：180 / 2.4.12 |
+| 36 | `e8293d35` | fix(ai): 规范化空 tool schema（#1781） | 已合入 | `4add3eea`，含 ChatCompletionsToolSchemaTest |
+
+## #24–#36 批次说明（2026-08-25）
+
+- **#24 终端后台运行**：上游新增 `WorkspaceTerminalSessionManager`（240 行，
+  会话脱离 Compose 组合保活）+ 重写 `WorkspaceTerminalPage`（多 Tab）。fork 该页面
+  与基线完全一致可整体落入；DI 三处（AppModule import、ViewModelModule/DetailVM
+  构造参数）为双方各加一行的双保留冲突。fork 原有 WorkspaceBgManager 是 AI 后台
+  任务体系，与本功能（交互终端会话保活）互补无重叠
+- **#26 session_id**：`TextGenerationParams.sessionId` 仅在 OpenRouter 分支注入
+  `session_id` 头；GenerationHandler 公开/私有函数签名加 `conversationId` 参数。
+  冲突成因是 git 把上游新增行与 fork 已有的 modeInjection/lorebook 行错位配对
+- **#29 移植要点**：① `WindowInsets.isImeVisible` 计算可见性；② 工具栏外层
+  Row（缩进 20）包进 `AnimatedVisibility(!imeVisible)`（缩进 16，
+  expandVertically/shrinkVertically）；③ 抽 `SendButton` 私有 @Composable，签名
+  扩展为 `(loading, empty, queuedCount, onClick, onLongClick, modifier)`，保留
+  fork 特有的 showInterrupt 逻辑（生成中有输入时仍为发送样式点击入队）、
+  `BadgedBox` 队列角标与 `KeepScreenOn`；④ `TextInputRow` 新增 `trailingContent:
+  @Composable () -> Unit = {}` 形参，IME 弹出时调用 SendButton；⑤ `trailingIcon`
+  槽改为 `Row{ 全屏按钮(if isFocused); trailingContent() }` 包裹
+- **#33 fork 会话继承**：fork 原构造只复制 4 个字段，原因是滚动摘要重构已把
+  modeInjectionIds/lorebookIds 从 Conversation 模型整体移除。合入时照搬上游
+  8 字段版本导致 app 模块编译失败（`No parameter with name 'modeInjectionIds'`，
+  由 `:app:compileDebugKotlin` 基线验证抓出），`e07d6dd7` 修正为复制 6 个字段
+  （id/assistantId/messageNodes/customSystemPrompt/workspaceCwd/folderId）；
+  rollingContextSummary 属会话自身产物，fork 时不应继承，保持不复制
 
 ## #17–#21 批次说明（2026-08-23）
 

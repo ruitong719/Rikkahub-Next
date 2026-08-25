@@ -880,3 +880,22 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
 - **数据来源**：`FloatingActivityHub` 新增跨轮次累加器（RunAccumulator），
   agentic 多轮的 usage/工具数按消息 id 变更逐轮折叠；生成中每 500ms 刷新秒表，
   结束后冻结显示
+
+---
+
+## L. 上游同步 2.4.12（2026-08-25）
+
+上游 `b270766f..e8293d35` 共 13 个 commit 逐条对账合入，详见
+[UPSTREAM_SYNC.md](UPSTREAM_SYNC.md) #24–#36 对账表。要点：
+
+- **新能力**：工作区终端后台运行+多Tab（`WorkspaceTerminalSessionManager`
+  会话保活）；videogen 模块骨架与视频生成 API 层（阿里云/MiniMax/火山引擎，
+  尚未接入 UI）；OpenRouter 请求带会话级 `session_id` 头
+- **修复**：fork 会话未继承 folderId/workspaceCwd（抽 `createForkConversation()`
+  复制 6 字段，附 JVM 测试；上游版引用 fork 已删字段致编译失败，`e07d6dd7` 修正）；
+  Live Update 焦点通知胶囊无图标；供应商测试
+  连接对话框补全五语言本地化；Chat Completions 空 tool schema 规范化（附测试）；
+  ChatInput 键盘弹出时保持圆角；SnakeYAML 解析 skill frontmatter；proot lib 更新
+- **版本**：fork 自行 bump 至 versionCode 180 / versionName 2.4.12（对齐上游语义）
+- **遗留**：无
+
