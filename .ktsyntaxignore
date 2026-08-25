@@ -1,0 +1,9 @@
+# ktsyntax（tree-sitter 快速语法检查）豁免清单：这些文件命中 tree-sitter-kotlin
+# grammar 的已知缺口，会稳定误报，跳过以保证门检信号干净。
+# 注意：被豁免文件的真实语法错误由 kotlinc fast / gradle 路径兜底。
+#
+# 缺口①：@注解函数类型无法解析（如 @Composable() () -> Unit、(@Composable () -> Unit)?）
+ai/src/main/java/me/rerere/ai/provider/ProviderSetting.kt
+# 缺口②：特定上下文中的字符串模板/函数类型组合导致整文件级解析失败（断点定位失真）
+ai/src/main/java/me/rerere/ai/ui/StreamChunkHandler.kt
+app/src/main/java/me/rerere/rikkahub/ui/components/ui/ChainOfThought.kt

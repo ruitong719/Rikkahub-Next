@@ -79,6 +79,7 @@ class SubAgentRunner(
                 result = "Subagent timed out after ${subAgent.timeoutMs}ms",
                 steps = 0,
                 usage = null,
+                runId = runId.toString(),
             )
             val (status, message) = when {
                 "\"status\":\"success\"" in result -> SubAgentRunStatus.SUCCESS to ""
@@ -114,6 +115,7 @@ class SubAgentRunner(
                 result = "Model not found for subagent '${subAgent.name}': configure a chat model first",
                 steps = 0,
                 usage = null,
+                runId = runId.toString(),
             )
 
         // 合成"虚拟 Assistant"：主 effectiveSystemPrompt + subagent 专属提示
@@ -184,6 +186,7 @@ class SubAgentRunner(
                 result = "Reached max steps (${subAgent.maxSteps}) without a final answer",
                 steps = subAgent.maxSteps,
                 usage = null,
+                runId = runId.toString(),
             )
         } else {
             buildSubAgentResultJson(
@@ -191,6 +194,7 @@ class SubAgentRunner(
                 result = lastAssistantText,
                 steps = finalMessages.size,
                 usage = finalMessages.lastOrNull()?.usage,
+                runId = runId.toString(),
             )
         }
     }

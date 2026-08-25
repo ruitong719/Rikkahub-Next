@@ -90,12 +90,13 @@ fun stripReasoning(messages: List<UIMessage>): List<UIMessage> = messages.map { 
     )
 }
 
-/** subagent 运行结果 JSON（返回给主 Agent 的 tool output） */
+/** subagent 运行结果 JSON（返回给主 Agent 的 tool output）；runId 供监看面板跳转对应轨迹 */
 fun buildSubAgentResultJson(
     status: String,
     result: String,
     steps: Int,
     usage: TokenUsage?,
+    runId: String? = null,
 ): String = buildJsonObject {
     put("status", status)
     put("result", result)
@@ -106,5 +107,8 @@ fun buildSubAgentResultJson(
             put("completionTokens", usage.completionTokens)
             put("totalTokens", usage.totalTokens)
         })
+    }
+    if (runId != null) {
+        put("runId", runId)
     }
 }.toString()
