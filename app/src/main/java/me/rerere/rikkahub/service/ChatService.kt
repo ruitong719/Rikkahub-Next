@@ -561,11 +561,30 @@ class ChatService(
         approved: Boolean,
         reason: String = "",
         answer: String? = null,
+        alwaysAllow: Boolean = false,
     ) {
         val session = getOrCreateSession(conversationId)
         // 用户主动操作（审批继续生成），清零自动拉起限流计数
         session.resetAutoResumeGuards()
         session.getJob()?.cancel()
+
+        // 「本次会话内全部同意」：按该调用的相关路径注册目录授权（无路径概念的工具按工具名），
+        // 同批其他 Pending 调用在生成恢复后的下一轮经 applyConversationGrants 自动放行
+        if (approved && alwaysAllow && answer == null) {
+            val toolCall = session.state.value.messageNodes
+                .flatMap { it.messages }
+                .flatMap { it.parts }
+                .filterIsInstance<UIMessagePart.Tool>()
+                .firstOrNull { it.toolCallId == toolCallId }
+            if (toolCall != null) {
+                val paths = ToolGrants.relevantPaths(toolCall.toolName, toolCall.inputAsJson())
+                if (paths.isEmpty()) {
+                    session.toolGrants.grantTool(toolCall.toolName)
+                } else {
+                    paths.forEach { session.toolGrants.grantDir(ToolGrants.parentDir(it)) }
+                }
+            }
+        }
 
         val job = appScope.launch {
             try {
@@ -746,8 +765,9 @@ class ChatService(
                     add(PlanModeTransformer(conversation.permissionMode == PermissionMode.PLAN))
                 },
                 outputTransformers = outputTransformers,
-                tools = PermissionModePolicy.apply(
-                    tools = buildList {
+                tools = applyConversationGrants(
+                    tools = PermissionModePolicy.apply(
+                        tools = buildList {
                         // MCP 工具名校验：无效时中止整个生成（保持原行为）
                     mcpManager.getAllAvailableTools().also { allTools ->
                         val invalidNames = allTools
@@ -813,7 +833,9 @@ class ChatService(
                         )
                     }
                     },
-                    mode = conversation.permissionMode,
+                        mode = conversation.permissionMode,
+                    ),
+                    grants = session.toolGrants,
                 ),
             ).onCompletion {
                 // 可能被取消了，或者意外结束，兜底更新
@@ -870,6 +892,20 @@ class ChatService(
                 generateSuggestion(conversationId, finalConversation)
             }
         }
+    }
+
+    /**
+     * 会话级授权包装：把「本次会话内全部同意」的授予结果并入每个工具的 needsApproval。
+     * 已被目录/工具授权覆盖的调用直接放行，不再进入 Pending 审批——
+     * 并行批次中一旦有一个获得授权，其余同批调用在下一轮循环自动放行。
+     */
+    private fun applyConversationGrants(tools: List<Tool>, grants: ToolGrants): List<Tool> = tools.map { tool ->
+        val base = tool.needsApproval
+        tool.copy(
+            needsApproval = { args ->
+                base(args) && !grants.covers(tool.name, ToolGrants.relevantPaths(tool.name, args))
+            }
+        )
     }
 
     private suspend fun createWorkspaceToolsIfReady(

@@ -49,6 +49,9 @@ class ConversationSession(
     var autoResumeStreak: Int = 0
         private set
 
+    // 「本次会话内全部同意」的工具授权（目录子树/整工具），进程或会话回收即失效
+    val toolGrants = ToolGrants()
+
     @Volatile
     var autoResumeFailures: Int = 0
         private set

@@ -48,6 +48,7 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.BubbleChatQuestion
 import me.rerere.hugeicons.stroke.Cancel01
+import me.rerere.hugeicons.stroke.Key01
 import me.rerere.hugeicons.stroke.Tick01
 import me.rerere.hugeicons.stroke.Tools
 import me.rerere.rikkahub.R
@@ -94,7 +95,7 @@ fun ChainOfThoughtScope.ChatMessageServerToolStep(tool: UIMessagePart.ServerTool
 fun ChainOfThoughtScope.ChatMessageToolStep(
     tool: UIMessagePart.Tool,
     loading: Boolean = false,
-    onToolApproval: ((toolCallId: String, approved: Boolean, reason: String) -> Unit)? = null,
+    onToolApproval: ((toolCallId: String, approved: Boolean, reason: String, alwaysAllow: Boolean) -> Unit)? = null,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)? = null,
 ) {
     // ask_user 是交互式问答流程, 不走注册式渲染框架
@@ -173,8 +174,19 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
                             modifier = Modifier.size(14.dp)
                         )
                     }
+                    // 本次会话内全部同意：按该调用的目录/工具注册会话级授权，同批其余调用连带放行
                     FilledTonalIconButton(
-                        onClick = { onToolApproval(tool.toolCallId, true, "") },
+                        onClick = { onToolApproval(tool.toolCallId, true, "", true) },
+                        modifier = Modifier.size(28.dp),
+                    ) {
+                        Icon(
+                            imageVector = HugeIcons.Key01,
+                            contentDescription = stringResource(R.string.chat_message_tool_approve_always),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                    FilledTonalIconButton(
+                        onClick = { onToolApproval(tool.toolCallId, true, "", false) },
                         modifier = Modifier.size(28.dp),
                     ) {
                         Icon(
@@ -234,7 +246,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
             onDismiss = { showDenyDialog = false },
             onConfirm = { reason ->
                 showDenyDialog = false
-                onToolApproval(tool.toolCallId, false, reason)
+                onToolApproval(tool.toolCallId, false, reason, false)
             }
         )
     }

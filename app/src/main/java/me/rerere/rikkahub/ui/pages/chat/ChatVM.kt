@@ -260,9 +260,10 @@ class ChatVM(
     fun handleToolApproval(
         toolCallId: String,
         approved: Boolean,
-        reason: String = ""
+        reason: String = "",
+        alwaysAllow: Boolean = false
     ) {
-        chatService.handleToolApproval(_conversationId, toolCallId, approved, reason)
+        chatService.handleToolApproval(_conversationId, toolCallId, approved, reason, alwaysAllow = alwaysAllow)
     }
 
     fun handleToolAnswer(
