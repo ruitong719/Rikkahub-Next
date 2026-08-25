@@ -141,3 +141,41 @@ git cherry-pick <sha>
 - fork 的 versionCode 自 178 起自行维护，上游 bump 提交只对齐版本语义，不照抄
 - 沙箱环境无 Android SDK，cherry-pick 后的验证以 `git apply --check`、
   逐文件人工核对与 JVM 可跑的单测为准，Gradle 构建回归在真机构建时补做
+
+## `git cherry` 假阳性
+
+`git cherry HEAD local-upstream/master` 在本 fork 长期会显示一批 `+`（上游独有），
+但**对账表里它们都标着"已合入"**。原因：
+
+- `git cherry` 用 `git patch-id` 做等价判定，对 hunk 上下文行号和 blob hash 敏感
+- 本 fork 大量 cherry-pick 都经过冲突解决（双侧各加一行、字符串双追加、
+  修复型简化等），导致落点 commit 的 patch hunk 位置偏移 1-2 行、blob hash
+  与上游不同
+- 但**实际代码内容与上游等价**（用 `sed` 规范化掉 `index` 行与 `@@ -X,Y +A,B @@`
+  行号后 `diff` 0 差异），且 `git log --all --grep` 能逐条找到 fork 中的等价提交
+
+**判别规则**：
+
+1. 看对账表"已合入"行的 fork 落点 commit 是否存在 —— 存在即已合入
+2. 用 `git log --all --grep="<上游 commit 标题>"` 在 fork 历史里搜同标题
+3. 用规范化 hunk 后的 `diff` 验证改动内容等价（见下面脚本）
+
+**不要被 `git cherry +` 误导就再次 cherry-pick**，会引入重复逻辑或与已合入版本冲突。
+
+### 等价验证脚本
+
+```bash
+# 验证"已合入"项的实际代码等价（忽略 hunk 位置）
+for up in d1e8effc de888df2 97df86ec ...; do
+  fork=$(grep "$up" docs/UPSTREAM_SYNC.md | grep -oP '`[0-9a-f]{7}`' | tail -1 | tr -d '`')
+  if [ -z "$fork" ]; then continue; fi
+  diff <(git show $up --pretty=format: | tail -n +6 \
+    | sed -E 's/^index [0-9a-f]+(\.\.[0-9a-f]+)? /index /' \
+    | sed -E 's/^@@ -[0-9]+(,[0-9]+)? \+[0-9]+(,[0-9]+)? @@/@@/') \
+       <(git show $fork --pretty=format: | tail -n +6 \
+    | sed -E 's/^index [0-9a-f]+(\.\.[0-9a-f]+)? /index /' \
+    | sed -E 's/^@@ -[0-9]+(,[0-9]+)? \+[0-9]+(,[0-9]+)? @@/@@/')
+done
+```
+
+差异在 ±10 行内通常为空白或 fork 私有特性（无 S3、MCP 预设、滚动摘要重构等）。
