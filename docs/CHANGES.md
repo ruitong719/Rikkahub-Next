@@ -990,3 +990,67 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
 原底栏右侧的 `+`（onMoreClick，打开附件面板）上提一行，常驻输入框行 trailing 区、
 发送按钮左侧——键盘弹出时无需收起键盘即可添加附件；键盘收起时输入行右侧也保留该入口。
 底栏原 `+` 移除，ASR/发送按钮位置不变；聚焦时顺序为 `[全屏] [+] [发送]`。
+
+---
+
+## P. todowrite 单工具全量替换 + Migration_30_31 历史工具名改写（2026-08-26）
+
+### 1. Todo 工具对齐 opencode（方案一）
+
+- 四个增量 CRUD 工具（todo_create/update/complete/clear）合并为单个 **todowrite**：
+  每次提交完整列表整体替换，条目为 `{content, status, priority}`（无 id，顺序即位置），
+  返回写入后的全量列表——模型无需读取工具即可掌握现状
+- 状态机：pending / in_progress（同时仅一个）/ completed / cancelled，
+  替代原布尔 completed；priority: high/medium/low
+- 提示词完整移植 opencode todowrite.txt 的使用时机/规则/示例守则
+- 底层 TodoStore 保持对话级 JSON 文件 + StateFlow；旧布尔格式文件首次加载时自动迁移
+  （title+description 合并为 content，completed→COMPLETED/PENDING）并回写新格式
+- UI：TodoSheet 按状态分区着色（in_progress=tertiary 圆点），角标计数改为
+  pending+in_progress；悬浮窗经 TodoStoreItem 映射保持兼容
+- subagent WRITE 类别表同步为 todowrite；PLAN 模式刻意不拦截本工具
+  （模型可先把执行计划写成清单）
+- 测试：TodoStoreTest 重写（全量替换/隔离/清空/旧格式迁移/往返一致）
+
+### 2. DB v30→31：历史数据中的旧工具名改写（Migration_30_31）
+
+此前 read/write/edit/bash 改名采用运行时兜底（审批别名 + 渲染双匹配），本次起
+启动迁移直接改写持久化数据：
+
+- `message_node.messages` 与 `favorites.*` JSON 列中 `"toolName":"旧名"` 链式 REPLACE
+  为新名（kotlinx 紧凑 JSON，模式精确）
+- `workspaces.tool_approvals / tool_prompts` 的覆盖键改名（锚定 `"old":` 冒号，
+  不误伤提示词正文）
+- 刻意不转换：已删除的 mount_* 调用（通用渲染器可兜底展示）、旧 todo_* 调用
+  （与 todowrite 参数结构不同，改名反而误导）
+- 运行时别名与渲染双匹配已随之移除：迁移负责改写数据，漏网旧名由通用渲染器兜底
+
+---
+
+## Q. 写入安全区可配置 + bash 路径审批 + 三选项会话授权（2026-08-26）
+
+### 1. 安全区提取为工作区设置
+
+- 原 `/workspace`,`/tmp` 硬编码白名单提取为 `WorkspaceEntity.writable_roots`
+  （JSON 数组，按工作区隔离），DB v31→32 AutoMigration；空数组 = 全部强制审批（fail-safe）
+- 工作区详情页「手机目录挂载」与「工具审批」之间新增「写入安全区」卡片：
+  chip 列表增删 + 输入添加，校验绝对路径
+- write/edit 的强制审批逻辑不变，前缀列表改读实体
+
+### 2. bash 纳入路径审批（启发式）
+
+- 新增 BashPathScanner：正则提取命令中的绝对路径候选与 `../` 上跳序列，
+  忽略 /dev /proc /sys 伪设备（借鉴 opencode shell.ts 的 tree-sitter 方案语义，
+  降级为无 JNI 依赖的正则实现，并比原版多覆盖重定向目标场景）
+- bash 的 needsApproval = 工具开关 || 命令触及安全区外；
+  best-effort 启发式，PRoot 沙箱仍是真正的安全边界
+
+### 3. 审批三选项：本次会话内全部同意
+
+- 审批按钮组从「拒绝/同意」扩为「拒绝/会话内全部同意(Key01)/单次同意」
+- 新增 ToolGrants（挂在 ConversationSession，内存态随会话回收）：
+  授权粒度为目录子树（read/write/edit/export 取 path/source，bash 取扫描到的路径父目录），
+  无路径概念的工具（calendar_create、bg_start、backup 等）退化为整工具放行
+- ChatService 装配后经 applyConversationGrants 包装每个工具的 needsApproval——
+  已授权覆盖的调用直接放行；并行批次中一旦一个「全部同意」，同批其余 Pending
+  在生成恢复后的下一轮自动通过，无需逐个点
+- YOLO 整体跳过、PLAN 整体禁用的语义不受影响；todowrite 不受安全区约束

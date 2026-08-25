@@ -33,7 +33,7 @@ MCP 工具命名约定 **`mcp__<serverName>__<toolName>`**。
 | ask_user | AskUser | questions[{id,question,options}] | 向用户提问等待回答（ApprovalState.Answered 机制）；**subagent 一律排除** | Pending 等答 |
 | get_screen_time | ScreenTime | begin/end 或 range(today/week) | UsageStats per-app 屏幕时长；无权限自动跳设置页 | 否 |
 | calendar_query / calendar_create | Calendar | 时间范围 / title+start(+end) | 设备日历查询/创建（创建 needsApproval=true） | create 是 |
-| todo_create/todo_update/todo_complete/todo_clear | Todo | title/description/id/completed | 对话隔离待办（TodoStore：filesDir/todo/<convId>.json，StateFlow 供 UI 角标实时同步） | 否 |
+| todowrite（2026-08-26 起，替代原 todo_create/update/complete/clear 四工具） | Todo | todos[]（content/status: pending·in_progress·completed·cancelled/priority） | 单工具全量替换，对齐 opencode；返回全量列表；对话隔离待办（TodoStore：filesDir/todo/<convId>.json，StateFlow 供 UI 角标实时同步；旧布尔格式文件加载时自动迁移） | 否（PLAN 模式也不拦截，供模型写执行计划） |
 
 ## 3. 搜索 / 会话 / 记忆 / 技能工具（data/ai/tools/）
 
@@ -61,9 +61,15 @@ shell_status=READY 才创建。11 个工具（2026-08-26 起对齐 opencode 命�
 | 工具 | 默认审批 | 说明 |
 |---|---|---|
 | read(path/offset/limit; 行号前缀 `N: content` 分页) | false | 文本行级分页读取；目录路径返回条目列表；图片扩展名转 Image part；二进制嗅探拒绝；不存在时给同目录 did-you-mean 建议 |
-| write | false | 覆盖写（overwrite 默认 true）；描述含 read-before-overwrite 守则 |
-| edit(old_text/new_text/replace_all) | false | 五级宽松匹配 TextReplacers: Exact→LineTrimmed→BlockAnchor→WhitespaceNormalized→EscapeNormalized；模糊匹配跨度远大于 old_text 拒改（失配保护）；多义且非 replace_all 报错；输出带 unified diff 存 DiffMetadata 供 UI 渲染 |
-| bash(command/cwd/timeout 默认30s 最大600s) | true | PRoot bash -c；实验开关 enableShellLiveOutput 时经 ShellRunMonitor 直播输出 |
+| write(path) | false | 覆盖写（overwrite 默认 true）；read-before-overwrite 守则；**路径在写入安全区外强制审批** |
+| edit(old_text/new_text/replace_all) | false | 五级宽松匹配 TextReplacers: Exact→LineTrimmed→BlockAnchor→WhitespaceNormalized→EscapeNormalized；模糊匹配跨度远大于 old_text 拒改（失配保护）；多义且非 replace_all 报错；输出带 unified diff 存 DiffMetadata 供 UI 渲染；安全区外强制审批 |
+| bash(command/cwd/timeout 默认30s 最大600s) | true | PRoot bash -c；实验开关 enableShellLiveOutput 时经 ShellRunMonitor 直播输出；BashPathScanner 启发式提取命令中绝对路径，触及安全区外强制审批 |
+
+写入安全区（2026-08-26）：WorkspaceEntity.writable_roots JSON 数组（默认 ["/workspace","/tmp"]，
+按工作区配置于详情页「写入安全区」卡片），write/edit/bash 目标在区外时无视工具级开关强制弹审批。
+会话级授权：审批 UI 三选项（拒绝/本次会话内全部同意/单次同意），ToolGrants（内存态挂
+ConversationSession）按目录子树或整工具记录授予，ChatService.applyConversationGrants 包装
+needsApproval 实现已授权调用免审批、同批 Pending 连带放行。
 | workspace_export_to_phone | true | SAF 导出到手机 |
 | workspace_bg_start/status/output/kill/list | start,kill=true 其余 false | 常驻后台任务管理（.l2s.bg/<taskId>/） |
 | workspace_create_backup | true | 复用 WebDavSync.prepareBackupFile(DATABASE) → `/workspace/backup.zip` |
@@ -73,8 +79,8 @@ shell_status=READY 才创建。11 个工具（2026-08-26 起对齐 opencode 命�
 间隔设置项 Settings.workspaceAutoSyncIntervalSeconds（关闭/30s/1min/5min，默认 60s）；
 设置页手动同步按钮保留。
 
-旧名兼容：已持久化的按工作区审批覆盖经 LEGACY_TOOL_NAME_ALIASES 运行时兜底；
-历史消息渲染在 WorkspaceToolUIs / ChatMessageEditedFiles 新旧名双匹配。
+旧名兼容（2026-08-26 二次调整）：Migration_30_31 启动时直接改写消息与工作区覆盖中的
+旧工具名，运行时别名/渲染双匹配已移除，未知旧名由通用渲染器兜底。
 
 三张联动表（改工具必同步）：
 - `WorkspaceToolDefaultApprovals`：默认审批表，可被 WorkspaceEntity.toolApprovals 按工作区覆盖
@@ -89,6 +95,10 @@ shell_status=READY 才创建。11 个工具（2026-08-26 起对齐 opencode 命�
 
 ## 6. TodoStore（data/ai/tools/TodoStore.kt + local/TodoTool.kt）
 
+- 模型（2026-08-26 对齐 opencode）：`TodoItem(content, status, priority)` 无 id、顺序即位置；
+  状态机 pending/in_progress/completed/cancelled
+- 工具形态：单 `todowrite` 全量替换（每次提交完整列表），返回全量列表供模型自洽；
+  旧版四增量工具与布尔格式 JSON 文件已废弃，文件首次加载自动转换并回写
 - 对话隔离：`filesDir/todo/<conversationId>.json`
 - Koin single，StateFlow 缓存 → ChatVM.todos / TodoSheet / 悬浮球待办 Tab / TodoStatusButton 角标实时同步
 
