@@ -286,13 +286,33 @@ class GenerationHandler(
             }
 
             // Handle tools (execute approved tools, handle denied tools)
+            // 每个工具完成后立即写回并 emit：UI 按 isExecuted 逐个点亮，而非整批跑完一起刷新
+            suspend fun emitToolResult(done: UIMessagePart.Tool) {
+                val lastMessage = messages.last()
+                val updatedParts = lastMessage.parts.map { part ->
+                    if (part is UIMessagePart.Tool && part.toolCallId == done.toolCallId) done else part
+                }
+                messages = messages.dropLast(1) + lastMessage.copy(parts = updatedParts)
+                emit(
+                    GenerationChunk.Messages(
+                        messages.transforms(
+                            transformers = outputTransformers,
+                            context = context,
+                            model = model,
+                            assistant = assistant,
+                            settings = settings
+                        )
+                    )
+                )
+            }
+
             val executedTools = arrayListOf<UIMessagePart.Tool>()
             toolsToProcess.forEach { tool ->
                 when (tool.approvalState) {
                     is ToolApprovalState.Denied -> {
                         // Tool was denied by user
                         val reason = (tool.approvalState as ToolApprovalState.Denied).reason
-                        executedTools += tool.copy(
+                        val deniedTool = tool.copy(
                             output = listOf(
                                 UIMessagePart.Text(
                                     json.encodeToString(
@@ -306,16 +326,20 @@ class GenerationHandler(
                                 )
                             )
                         )
+                        executedTools += deniedTool
+                        emitToolResult(deniedTool)
                     }
 
                     is ToolApprovalState.Answered -> {
                         // Tool was answered by user (e.g., ask_user tool)
                         val answer = (tool.approvalState as ToolApprovalState.Answered).answer
-                        executedTools += tool.copy(
+                        val answeredTool = tool.copy(
                             output = listOf(
                                 UIMessagePart.Text(answer)
                             )
                         )
+                        executedTools += answeredTool
+                        emitToolResult(answeredTool)
                     }
 
                     is ToolApprovalState.Pending -> {
@@ -324,6 +348,7 @@ class GenerationHandler(
 
                     else -> {
                         // Auto or Approved - execute the tool
+                        var resultTool: UIMessagePart.Tool? = null
                         runCatching {
                             val toolDef = toolsInternal.find { toolDef -> toolDef.name == tool.toolName }
                                 ?: error("Tool ${tool.toolName} not found")
@@ -338,14 +363,14 @@ class GenerationHandler(
                                 toolDef.execute(args)
                             }
                             val hasShellAccess = toolsInternal.any { it.name == "workspace_shell" }
-                            executedTools += tool.copy(
+                            resultTool = tool.copy(
                                 output = maybeTruncateToolOutput(tool.toolCallId, result, hasShellAccess)
                             )
                         }.onFailure {
                             // 取消必须向上传播，否则停止生成会被误报为工具执行错误
                             if (it is CancellationException) throw it
                             it.printStackTrace()
-                            executedTools += tool.copy(
+                            resultTool = tool.copy(
                                 output = listOf(
                                     UIMessagePart.Text(
                                         json.encodeToString(
@@ -363,6 +388,11 @@ class GenerationHandler(
                                 )
                             )
                         }
+                        // emit 放在 runCatching 外：emit 的取消不能被吞成工具错误
+                        resultTool?.let { done ->
+                            executedTools += done
+                            emitToolResult(done)
+                        }
                     }
                 }
             }
@@ -371,26 +401,6 @@ class GenerationHandler(
                 // No results to add (all tools were pending)
                 break
             }
-
-            // Update last message with executed tools (NOT create TOOL message)
-            val lastMessage = messages.last()
-            val updatedParts = lastMessage.parts.map { part ->
-                if (part is UIMessagePart.Tool) {
-                    executedTools.find { it.toolCallId == part.toolCallId } ?: part
-                } else part
-            }
-            messages = messages.dropLast(1) + lastMessage.copy(parts = updatedParts)
-            emit(
-                GenerationChunk.Messages(
-                    messages.transforms(
-                        transformers = outputTransformers,
-                        context = context,
-                        model = model,
-                        assistant = assistant,
-                        settings = settings
-                    )
-                )
-            )
         }
 
     }.flowOn(Dispatchers.IO)
