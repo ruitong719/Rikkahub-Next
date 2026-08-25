@@ -144,8 +144,6 @@ internal fun createForkConversation(
     assistantId = source.assistantId,
     messageNodes = messageNodes,
     customSystemPrompt = source.customSystemPrompt,
-    modeInjectionIds = source.modeInjectionIds,
-    lorebookIds = source.lorebookIds,
     workspaceCwd = source.workspaceCwd,
     folderId = source.folderId,
 )
