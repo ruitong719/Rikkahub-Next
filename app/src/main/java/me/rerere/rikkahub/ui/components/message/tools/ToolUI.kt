@@ -90,7 +90,6 @@ private object DefaultToolUIRenderer : ToolUIRenderer {
  */
 object ToolUIRegistry {
     private val renderers: Map<String, ToolUIRenderer> = listOf(
-        MemoryToolUI,
         SearchWebToolUI,
         ScrapeWebToolUI,
         GetTimeInfoToolUI,
@@ -100,8 +99,6 @@ object ToolUIRegistry {
         CalendarQueryToolUI,
         CalendarCreateToolUI,
         UseSkillToolUI,
-        RecentChatsToolUI,
-        ConversationSearchToolUI,
         EditFileToolUI,
         ReadFileToolUI,
         WriteFileToolUI,

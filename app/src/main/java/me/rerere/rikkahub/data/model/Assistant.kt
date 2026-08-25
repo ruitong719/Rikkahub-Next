@@ -25,9 +25,6 @@ data class Assistant(
     // 上下文 Token 阈值, 超出后启用滚动摘要上下文。0 表示使用默认值 (32K)
     val rollingContextCompressionThresholdTokens: Int = DEFAULT_ROLLING_CONTEXT_THRESHOLD_TOKENS,
     val streamOutput: Boolean = true,
-    val enableMemory: Boolean = false,
-    val useGlobalMemory: Boolean = false, // 使用全局共享记忆而非助手隔离记忆
-    val enableRecentChatsReference: Boolean = false,
     val messageTemplate: String = "{{ message }}",
     val presetMessages: List<UIMessage> = emptyList(),
     val quickMessageIds: Set<Uuid> = emptySet(),
@@ -53,12 +50,6 @@ data class Assistant(
 data class QuickMessage(
     val id: Uuid = Uuid.random(),
     val title: String = "",
-    val content: String = "",
-)
-
-@Serializable
-data class AssistantMemory(
-    val id: Int,
     val content: String = "",
 )
 

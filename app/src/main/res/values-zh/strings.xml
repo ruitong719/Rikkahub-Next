@@ -16,7 +16,6 @@
   <string name="assistant_detail_extensions_desc">管理快捷消息、技能等扩展</string>
   <string name="assistant_detail_local_tools_desc">启用本地工具</string>
   <string name="assistant_detail_mcp_desc">配置 MCP 服务器工具</string>
-  <string name="assistant_detail_memory_desc">管理助手记忆和最近的聊天引用</string>
   <string name="assistant_detail_prompt_desc">设置系统提示与消息模板</string>
   <string name="assistant_detail_request_desc">配置自定义请求头和正文参数</string>
   <string name="assistant_extensions_page_empty_quick_messages">暂无快捷消息，请在扩展中创建</string>
@@ -60,8 +59,6 @@
   <string name="assistant_page_delete_dialog_text">确定要删除这个助手吗？此操作无法撤销。</string>
   <string name="assistant_page_delete_header">删除 Header</string>
   <string name="assistant_page_enter_image_url">输入图片URL</string>
-  <string name="assistant_page_global_memory">全局记忆</string>
-  <string name="assistant_page_global_memory_desc">使用全局共享内存而非助手隔离内存。启用后，所有助手共享同一内存存储</string>
   <string name="assistant_page_header_name">Header 名称</string>
   <string name="assistant_page_header_value">Header 值</string>
   <string name="assistant_page_image_url">图片URL</string>
@@ -78,15 +75,11 @@
   <string name="assistant_page_local_tools_todo_title">待办事项</string>
   <string name="assistant_page_local_tools_tts_desc">让AI使用您所选的TTS服务为您朗读文本</string>
   <string name="assistant_page_local_tools_tts_title">文字转语音</string>
-  <string name="assistant_page_manage_memory_title">管理记忆</string>
   <string name="assistant_page_max_tokens">最大Token数</string>
   <string name="assistant_page_max_tokens_desc">最大生成Token数量。留空表示无限制。</string>
   <string name="assistant_page_max_tokens_limit">限制：%d 个Token</string>
   <string name="assistant_page_max_tokens_no_limit">无限制</string>
   <string name="assistant_page_max_tokens_no_token_limit">无Token限制</string>
-  <string name="assistant_page_memory">记忆</string>
-  <string name="assistant_page_memory_count">记忆: %d</string>
-  <string name="assistant_page_memory_desc">启用记忆后，模型在与你对话时尝试主动记录你的信息，并在后续其他对话中使用，此功能需要模型支持工具调用才能正常工作</string>
   <string name="assistant_page_message_template">聊天内容模板</string>
   <string name="assistant_page_message_template_desc">控制聊天消息在发送给LLM之前的内容格式，通常不需要修改</string>
   <string name="assistant_page_message_template_missing_message">模板不包含 {{ message }}，用户消息将不会被发送</string>
@@ -96,8 +89,6 @@
   <string name="assistant_page_quick_message_content">内容</string>
   <string name="assistant_page_quick_message_title">标题</string>
   <string name="assistant_page_quick_messages">快捷消息</string>
-  <string name="assistant_page_recent_chats">参考历史聊天记录</string>
-  <string name="assistant_page_recent_chats_desc">启用后，允许助手在过去的对话中搜索相关信息</string>
   <string name="assistant_page_regex_affecting_scopes">影响范围：</string>
   <string name="assistant_page_regex_desc">定义正则表达式模式，在发送/接收消息前对其进行转换</string>
   <string name="assistant_page_regex_find_regex">查找正则表达式</string>
@@ -119,7 +110,6 @@
   <string name="assistant_page_tab_extensions">扩展管理</string>
   <string name="assistant_page_tab_local_tools">本地工具</string>
   <string name="assistant_page_tab_mcp">MCP</string>
-  <string name="assistant_page_tab_memory">记忆</string>
   <string name="assistant_page_tab_prompt">提示词</string>
   <string name="assistant_page_tab_request">自定义请求</string>
   <string name="assistant_page_tags">标签</string>
@@ -221,13 +211,10 @@
   <string name="chat_message_tool_call_title">工具调用</string>
   <string name="chat_message_tool_clipboard_read">读取剪贴板</string>
   <string name="chat_message_tool_clipboard_write">写入剪贴板</string>
-  <string name="chat_message_tool_create_memory">创建了记忆</string>
-  <string name="chat_message_tool_delete_memory">删除了记忆</string>
   <string name="chat_message_tool_denied">已拒绝</string>
   <string name="chat_message_tool_deny">拒绝</string>
   <string name="chat_message_tool_deny_dialog_hint">原因（可选）</string>
   <string name="chat_message_tool_deny_dialog_title">拒绝工具执行</string>
-  <string name="chat_message_tool_edit_memory">更新了记忆</string>
   <string name="chat_message_tool_get_time">获取时间信息</string>
   <string name="chat_message_tool_scrape_prefix">抓取网站：%1$s</string>
   <string name="chat_message_tool_scrape_web">抓取网页</string>
@@ -1230,15 +1217,12 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="tool_ui_shell_live_output">实时输出</string>
   <string name="tool_ui_speaking">朗读: %s</string>
   <string name="tool_ui_replay">重播</string>
-  <string name="tool_ui_delete_memory">删除记忆</string>
   <string name="tool_ui_file">文件</string>
   <string name="workspace_page_name_duplicate">名称已存在</string>
   <string name="setting_mcp_page_name_invalid">名称只能包含英文字母和数字</string>
   <string name="error_mcp_invalid_server_name">无效的MCP服务器名称（仅允许字母数字字符）：%1$s</string>
   <string name="log_page_record_requests">记录请求</string>
   <string name="log_page_record_requests_desc">捕获请求标头、正文和响应元数据</string>
-  <string name="chat_message_tool_recent_chats">查看最近的对话</string>
-  <string name="chat_message_tool_conversation_search">搜索历史：%1$s</string>
   <string name="assistant_page_local_tools_screen_time_title">屏幕时间</string>
   <string name="assistant_page_local_tools_screen_time_desc">让AI读取你的应用屏幕使用时间</string>
   <string name="assistant_page_local_tools_screen_time_permission_required">请在设置中授予“使用情况访问权限”以使用屏幕使用时间</string>
@@ -1272,7 +1256,6 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="assistant_page_context_message_preset_default">默认</string>
   <string name="assistant_page_context_token_estimate">按最近一次会话估算 ≈ 携带最近 %1$d 条消息（约 %2$d 轮对话）</string>
   <string name="assistant_page_context_message_limit_warning">较低的阈值会更积极地压缩上下文，可能会丢失早期对话的细节。较高的阈值保留更多上下文，但每次请求会消耗更多 Token。</string>
-  <string name="subagents_edit_cat_conversation">最近会话引用</string>
   <string name="subagents_edit_cat_local">本地工具（时间 / 剪贴板 / 日历 / 待办…）</string>
   <string name="subagents_edit_cat_mcp">MCP 工具</string>
   <string name="subagents_edit_cat_search">网络搜索</string>

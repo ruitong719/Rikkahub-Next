@@ -15,7 +15,6 @@ import me.rerere.rikkahub.data.ai.uniqueToolName
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.files.SkillMetadata
 import me.rerere.rikkahub.data.model.Assistant
-import me.rerere.rikkahub.data.model.AssistantMemory
 import me.rerere.rikkahub.data.model.SubAgent
 import kotlin.uuid.Uuid
 
@@ -28,7 +27,6 @@ fun createSubAgentTools(
     subAgents: List<SubAgent>,
     assistant: Assistant,
     settings: Settings,
-    memories: List<AssistantMemory>?,
     conversationSystemPrompt: String?,
     conversationHistory: List<UIMessage>,
     toolCatalog: List<Tool>,
@@ -79,7 +77,6 @@ fun createSubAgentTools(
                     conversationHistory = conversationHistory,
                     task = task,
                     context = context,
-                    memories = memories,
                     toolCatalog = toolCatalog,
                     allSkills = allSkills,
                 )

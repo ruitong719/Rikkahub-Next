@@ -54,7 +54,6 @@ import me.rerere.rikkahub.data.ai.context.createRollingContextPlan
 import me.rerere.rikkahub.data.ai.context.rollingContextWindowStartIndex
 import me.rerere.rikkahub.data.ai.SubAgentRunner
 import me.rerere.rikkahub.data.ai.mcp.McpManager
-import me.rerere.rikkahub.data.ai.tools.createConversationTools
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
 import me.rerere.rikkahub.data.ai.tools.createSearchTools
 import me.rerere.rikkahub.data.ai.tools.createSkillTools
@@ -86,13 +85,11 @@ import me.rerere.rikkahub.data.files.WorkspaceBgManager
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
-import me.rerere.rikkahub.data.model.AssistantMemory
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.data.model.replaceRegexes
 import me.rerere.rikkahub.data.model.toMessageNode
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.FolderRepository
-import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.web.BadRequestException
 import me.rerere.rikkahub.web.NotFoundException
@@ -191,7 +188,6 @@ class ChatService(
     private val appEventBus: AppEventBus,
     private val settingsStore: SettingsStore,
     private val conversationRepo: ConversationRepository,
-    private val memoryRepository: MemoryRepository,
     private val generationHandler: GenerationHandler,
     private val templateTransformer: TemplateTransformer,
     private val providerManager: ProviderManager,
@@ -660,11 +656,6 @@ class ChatService(
 
             // start generating
             val session = getOrCreateSession(conversationId)
-            val memories: List<AssistantMemory>? = if (assistant.useGlobalMemory) {
-                memoryRepository.getGlobalMemories()
-            } else {
-                memoryRepository.getMemoriesOfAssistant(assistant.id.toString())
-            }
 
             // 滚动摘要上下文：当对话 token 超出阈值时，压缩早期消息为摘要
             val rollingThresholdTokens = assistant.rollingContextCompressionThresholdTokens
@@ -730,7 +721,6 @@ class ChatService(
                     _reconnectNotices.tryEmit(StreamReconnectNotice(conversationId, attempt, maxAttempts))
                 },
                 workspaceCwd = conversation.workspaceCwd,
-                memories = memories,
                 rollingContextSummary = rollingContextText,
                 requestMessageStartIndex = requestStartIndex,
                 onPollQueuedMessages = {
@@ -775,9 +765,6 @@ class ChatService(
                             addAll(createSearchTools(settings))
                         }
                         addAll(localTools.getTools(assistant.localTools, conversationId))
-                        if (assistant.enableRecentChatsReference) {
-                            addAll(createConversationTools(conversationRepo, assistant.id))
-                        }
                         addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd, conversationId))
                         if (assistant.enabledSkills.isNotEmpty()) {
                             addAll(
@@ -809,7 +796,6 @@ class ChatService(
                                 subAgents = settings.subagents.filter { it.id in assistant.subagentIds },
                                 assistant = assistant,
                                 settings = settings,
-                                memories = memories,
                                 conversationSystemPrompt = conversation.customSystemPrompt,
                                 conversationHistory = conversation.currentMessages,
                                 toolCatalog = mainTools,

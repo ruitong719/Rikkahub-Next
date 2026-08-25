@@ -46,7 +46,6 @@ private val ALLOWLIST_CATEGORY_PREFIXES: Map<String, List<String>> = mapOf(
     ),
     "search" to listOf("search_web", "scrape_web"),
     "mcp" to listOf("mcp__"),
-    "conversation" to listOf("recent_chats", "conversation_search"),
     "local" to listOf(
         "calendar_",
         "clipboard_tool",

@@ -11,14 +11,13 @@ import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.files.SkillMetadata
 import me.rerere.rikkahub.data.model.Assistant
-import me.rerere.rikkahub.data.model.AssistantMemory
 import me.rerere.rikkahub.data.model.SubAgent
 import kotlin.uuid.Uuid
 
 /**
  * Subagent 执行核心：复用 GenerationHandler.generateText 作为嵌套 Agent 循环。
  *
- * 上下文语义（用户拍板）：继承主 Agent 系统提示/记忆 + 带入主 Agent 对话记录
+ * 上下文语义（用户拍板）：继承主 Agent 系统提示 + 带入主 Agent 对话记录
  * （过滤 think 过程），再叠加 task；不应用主 Agent 的 input/output transformers。
  *
  * 工具集：主工具池按 allowlist 过滤（needsApproval 覆盖为 false，派发时已一次性审批）
@@ -38,7 +37,6 @@ class SubAgentRunner(
         conversationHistory: List<UIMessage>,
         task: String,
         context: String?,
-        memories: List<AssistantMemory>?,
         toolCatalog: List<Tool>,
         allSkills: List<SkillMetadata>,
     ): String {
@@ -52,11 +50,10 @@ class SubAgentRunner(
                 conversationHistory = conversationHistory,
                 task = task,
                 context = context,
-                memories = memories,
                 toolCatalog = toolCatalog,
                 allSkills = allSkills,
-            )
-        } ?: buildSubAgentResultJson(
+                )
+            } ?: buildSubAgentResultJson(
             status = "timeout",
             result = "Subagent timed out after ${subAgent.timeoutMs}ms",
             steps = 0,
@@ -80,7 +77,6 @@ class SubAgentRunner(
         conversationHistory: List<UIMessage>,
         task: String,
         context: String?,
-        memories: List<AssistantMemory>?,
         toolCatalog: List<Tool>,
         allSkills: List<SkillMetadata>,
     ): String {
@@ -136,7 +132,6 @@ class SubAgentRunner(
             model = model,
             messages = messages,
             assistant = subAssistant,
-            memories = memories,
             tools = tools,
             maxSteps = subAgent.maxSteps,
             processingStatus = MutableStateFlow(null),

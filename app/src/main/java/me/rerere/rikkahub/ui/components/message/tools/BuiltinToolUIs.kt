@@ -40,7 +40,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.longOrNull
@@ -49,12 +48,8 @@ import me.rerere.common.http.jsonObjectOrNull
 import me.rerere.highlight.CodeHighlightText
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Clipboard
-import me.rerere.hugeicons.stroke.Delete01
-import me.rerere.hugeicons.stroke.Eraser
 import me.rerere.hugeicons.stroke.GlobalSearch
 import me.rerere.hugeicons.stroke.MagicWand01
-import me.rerere.hugeicons.stroke.Message02
-import me.rerere.hugeicons.stroke.QuillWrite01
 import me.rerere.hugeicons.stroke.Refresh01
 import me.rerere.hugeicons.stroke.Search01
 import me.rerere.hugeicons.stroke.Calendar03
@@ -65,7 +60,6 @@ import me.rerere.hugeicons.stroke.VolumeHigh
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
-import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.components.ui.Favicon
 import me.rerere.rikkahub.ui.components.ui.FaviconRow
@@ -78,80 +72,6 @@ import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-
-/**
- * 记忆工具: 按 action 区分标题/图标, 摘要显示记忆内容, 详情附带删除按钮
- */
-object MemoryToolUI : ToolUIRenderer {
-    private const val ACTION_CREATE = "create"
-    private const val ACTION_EDIT = "edit"
-    private const val ACTION_DELETE = "delete"
-
-    override val toolName: String = "memory_tool"
-
-    private fun action(context: ToolUIContext): String? =
-        context.arguments.getStringContent("action")
-
-    override fun icon(context: ToolUIContext): ImageVector = when (action(context)) {
-        ACTION_DELETE -> HugeIcons.Eraser
-        else -> HugeIcons.QuillWrite01
-    }
-
-    @Composable
-    override fun title(context: ToolUIContext): String = when (action(context)) {
-        ACTION_CREATE -> stringResource(R.string.chat_message_tool_create_memory)
-        ACTION_EDIT -> stringResource(R.string.chat_message_tool_edit_memory)
-        ACTION_DELETE -> stringResource(R.string.chat_message_tool_delete_memory)
-        else -> stringResource(R.string.chat_message_tool_call_generic, toolName)
-    }
-
-    override fun hasSummary(context: ToolUIContext): Boolean =
-        action(context) in listOf(ACTION_CREATE, ACTION_EDIT) &&
-            context.content.getStringContent("content") != null
-
-    @Composable
-    override fun Summary(context: ToolUIContext) {
-        context.content.getStringContent("content")?.let { memoryContent ->
-            Text(
-                text = memoryContent,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.shimmer(isLoading = context.loading),
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-
-    @Composable
-    override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
-        val memoryRepo: MemoryRepository = koinInject()
-        val scope = rememberCoroutineScope()
-        val memoryId = (context.content as? JsonObject)?.get("id")?.jsonPrimitiveOrNull?.intOrNull
-        DefaultToolPreview(
-            context = context,
-            headerActions = if (action(context) in listOf(ACTION_CREATE, ACTION_EDIT) && memoryId != null) {
-                {
-                    IconButton(
-                        onClick = {
-                            scope.launch {
-                                memoryRepo.deleteMemory(memoryId)
-                                onDismissRequest()
-                            }
-                        }
-                    ) {
-                        Icon(
-                            imageVector = HugeIcons.Delete01,
-                            contentDescription = stringResource(R.string.tool_ui_delete_memory)
-                        )
-                    }
-                }
-            } else {
-                null
-            },
-        )
-    }
-}
 
 /**
  * 网络搜索: 标题带查询词, 摘要显示 answer 与结果数, 详情为结果列表
@@ -347,69 +267,6 @@ object UseSkillToolUI : ToolUIRenderer {
         val skillName = context.arguments.getStringContent("name") ?: ""
         val path = context.arguments.getStringContent("path")
         return if (path != null) "Skill: $skillName / $path" else "Skill: $skillName"
-    }
-}
-
-/**
- * 最近聊天: 标题固定, 摘要列出最近对话的标题
- */
-object RecentChatsToolUI : ToolUIRenderer {
-    override val toolName: String = "recent_chats"
-
-    override fun icon(context: ToolUIContext): ImageVector = HugeIcons.Message02
-
-    @Composable
-    override fun title(context: ToolUIContext): String =
-        stringResource(R.string.chat_message_tool_recent_chats)
-
-    private fun chats(context: ToolUIContext): List<JsonElement> =
-        (context.content as? JsonArray) ?: emptyList()
-
-    override fun hasSummary(context: ToolUIContext): Boolean = chats(context).isNotEmpty()
-
-    @Composable
-    override fun Summary(context: ToolUIContext) {
-        val titles = chats(context).mapNotNull { it.getStringContent("title") }
-        if (titles.isEmpty()) return
-        Text(
-            text = titles.joinToString(", "),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier.shimmer(isLoading = context.loading),
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-/**
- * 对话历史搜索: 标题带查询词, 摘要显示命中数
- */
-object ConversationSearchToolUI : ToolUIRenderer {
-    override val toolName: String = "conversation_search"
-
-    override fun icon(context: ToolUIContext): ImageVector = HugeIcons.Search01
-
-    @Composable
-    override fun title(context: ToolUIContext): String = stringResource(
-        R.string.chat_message_tool_conversation_search,
-        context.arguments.getStringContent("query") ?: ""
-    )
-
-    private fun results(context: ToolUIContext): List<JsonElement> =
-        (context.content as? JsonArray) ?: emptyList()
-
-    override fun hasSummary(context: ToolUIContext): Boolean = results(context).isNotEmpty()
-
-    @Composable
-    override fun Summary(context: ToolUIContext) {
-        val results = results(context)
-        if (results.isEmpty()) return
-        Text(
-            text = stringResource(R.string.chat_message_tool_search_results_count, results.size),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-        )
     }
 }
 

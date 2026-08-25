@@ -20,12 +20,10 @@ import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.files.SkillMetadata
 import me.rerere.rikkahub.data.model.Assistant
-import me.rerere.rikkahub.data.model.AssistantMemory
 import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.Tag
 import me.rerere.rikkahub.data.repository.ConversationRepository
-import me.rerere.rikkahub.data.repository.MemoryRepository
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import kotlin.uuid.Uuid
 
@@ -34,7 +32,6 @@ private const val TAG = "AssistantDetailVM"
 class AssistantDetailVM(
     private val id: String,
     private val settingsStore: SettingsStore,
-    private val memoryRepository: MemoryRepository,
     private val filesManager: FilesManager,
     private val skillManager: SkillManager,
     private val workspaceRepository: WorkspaceRepository,
@@ -75,18 +72,6 @@ class AssistantDetailVM(
             settings.assistants.find { it.id == assistantId } ?: Assistant()
         }.stateIn(
             scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = Assistant()
-        )
-
-    val memories = assistant
-        .flatMapLatest { currentAssistant ->
-            if (currentAssistant.useGlobalMemory) {
-                memoryRepository.getGlobalMemoriesFlow()
-            } else {
-                memoryRepository.getMemoriesOfAssistantFlow(assistantId.toString())
-            }
-        }
-        .stateIn(
-            scope = viewModelScope, started = SharingStarted.Eagerly, initialValue = emptyList()
         )
 
     val providers = settingsStore
@@ -186,32 +171,6 @@ class AssistantDetailVM(
                         }
                     })
             )
-        }
-    }
-
-    fun addMemory(memory: AssistantMemory) {
-        viewModelScope.launch {
-            val memoryAssistantId = if (assistant.value.useGlobalMemory) {
-                MemoryRepository.GLOBAL_MEMORY_ID
-            } else {
-                assistantId.toString()
-            }
-            memoryRepository.addMemory(
-                assistantId = memoryAssistantId,
-                content = memory.content
-            )
-        }
-    }
-
-    fun updateMemory(memory: AssistantMemory) {
-        viewModelScope.launch {
-            memoryRepository.updateContent(id = memory.id, content = memory.content)
-        }
-    }
-
-    fun deleteMemory(memory: AssistantMemory) {
-        viewModelScope.launch {
-            memoryRepository.deleteMemory(id = memory.id)
         }
     }
 

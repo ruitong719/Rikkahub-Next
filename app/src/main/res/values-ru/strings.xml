@@ -14,7 +14,6 @@
   <string name="assistant_detail_extensions_desc">Управление внедрениями подсказок, лорбуками и навыками</string>
   <string name="assistant_detail_local_tools_desc">Включите локальные инструменты, например движок JavaScript</string>
   <string name="assistant_detail_mcp_desc">Настройте инструменты MCP-сервера для ассистента</string>
-  <string name="assistant_detail_memory_desc">Управляйте памятью ассистента и ссылками на недавние чаты</string>
   <string name="assistant_detail_prompt_desc">Задайте системные подсказки, шаблоны сообщений и правила regex</string>
   <string name="assistant_detail_request_desc">Настройте пользовательские заголовки и параметры тела запроса</string>
   <string name="assistant_extensions_page_empty_quick_messages">Нет доступных быстрых сообщений, создайте одно в Расширениях</string>
@@ -56,8 +55,6 @@
   <string name="assistant_page_delete_dialog_text">Вы уверены, что хотите удалить этого ассистента? Это действие нельзя отменить.</string>
   <string name="assistant_page_delete_header">Удалить заголовок</string>
   <string name="assistant_page_enter_image_url">Введите URL изображения</string>
-  <string name="assistant_page_global_memory">Глобальная память</string>
-  <string name="assistant_page_global_memory_desc">Использовать общую память вместо изолированной для ассистента. При включении все ассистенты используют одно и то же хранилище памяти</string>
   <string name="assistant_page_header_name">Имя заголовка</string>
   <string name="assistant_page_header_value">Значение заголовка</string>
   <string name="assistant_page_image_url">URL изображения</string>
@@ -72,15 +69,11 @@
   <string name="assistant_page_local_tools_time_info_title">Информация о времени</string>
   <string name="assistant_page_local_tools_tts_desc">Позвольте ИИ озвучить текст с помощью выбранного вами сервиса TTS</string>
   <string name="assistant_page_local_tools_tts_title">Преобразование текста в речь</string>
-  <string name="assistant_page_manage_memory_title">Управление памятью</string>
   <string name="assistant_page_max_tokens">Макс. токенов</string>
   <string name="assistant_page_max_tokens_desc">Максимальное количество токенов для генерации. Оставьте пустым, чтобы не ограничивать.</string>
   <string name="assistant_page_max_tokens_limit">Ограничение: %d токенов</string>
   <string name="assistant_page_max_tokens_no_limit">Без ограничений</string>
   <string name="assistant_page_max_tokens_no_token_limit">Без ограничения токенов</string>
-  <string name="assistant_page_memory">Память</string>
-  <string name="assistant_page_memory_count">Память: %d</string>
-  <string name="assistant_page_memory_desc">Когда память включена, модель будет стараться активно записывать вашу информацию во время разговоров и использовать её в последующих беседах. Для работы этой функции модель должна поддерживать вызовы инструментов</string>
   <string name="assistant_page_message_template">Шаблон содержимого сообщения</string>
   <string name="assistant_page_message_template_desc">Управляет форматом содержимого сообщений чата перед отправкой в LLM, обычно изменять не требуется</string>
   <string name="assistant_page_message_template_missing_message">Шаблон не содержит {{ message }}, сообщения пользователя не будут отправлены</string>
@@ -90,8 +83,6 @@
   <string name="assistant_page_quick_message_content">Содержимое</string>
   <string name="assistant_page_quick_message_title">Заголовок</string>
   <string name="assistant_page_quick_messages">Быстрые сообщения</string>
-  <string name="assistant_page_recent_chats">Справка: недавние чаты</string>
-  <string name="assistant_page_recent_chats_desc">Когда включено, позволяет ассистенту искать релевантную информацию в предыдущих разговорах.</string>
   <string name="assistant_page_regex_affecting_scopes">Области действия:</string>
   <string name="assistant_page_regex_desc">Задайте шаблоны регулярных выражений для преобразования сообщений перед отправкой/получением</string>
   <string name="assistant_page_regex_find_regex">Найти регулярное выражение</string>
@@ -113,7 +104,6 @@
   <string name="assistant_page_tab_extensions">Расширения</string>
   <string name="assistant_page_tab_local_tools">Локальные инструменты</string>
   <string name="assistant_page_tab_mcp">MCP</string>
-  <string name="assistant_page_tab_memory">Память</string>
   <string name="assistant_page_tab_prompt">Подсказки</string>
   <string name="assistant_page_tab_request">Пользовательский запрос</string>
   <string name="assistant_page_tags">Теги</string>
@@ -215,13 +205,10 @@
   <string name="chat_message_tool_call_title">Вызов инструмента</string>
   <string name="chat_message_tool_clipboard_read">Читать буфер обмена</string>
   <string name="chat_message_tool_clipboard_write">Записать в буфер обмена</string>
-  <string name="chat_message_tool_create_memory">Создана заметка</string>
-  <string name="chat_message_tool_delete_memory">Удалённая память</string>
   <string name="chat_message_tool_denied">Отклонено</string>
   <string name="chat_message_tool_deny">Отклонить</string>
   <string name="chat_message_tool_deny_dialog_hint">Причина (необязательно)</string>
   <string name="chat_message_tool_deny_dialog_title">Отклонить выполнение инструмента</string>
-  <string name="chat_message_tool_edit_memory">Обновлена память</string>
   <string name="chat_message_tool_get_time">Получить информацию о времени</string>
   <string name="chat_message_tool_scrape_prefix">Собрать данные с сайта: %1$s</string>
   <string name="chat_message_tool_scrape_web">Собрать данные со страницы</string>
@@ -1125,7 +1112,6 @@
   <string name="tool_ui_shell_exit">exit %s</string>
   <string name="tool_ui_speaking">Говорит: %s</string>
   <string name="tool_ui_replay">Повторить</string>
-  <string name="tool_ui_delete_memory">Удалить память</string>
   <string name="tool_ui_file">файл</string>
   <string name="workspace_page_name_duplicate">Такое имя уже существует</string>
   <string name="setting_mcp_page_name_invalid">Имя может содержать только латинские буквы и цифры</string>
@@ -1153,8 +1139,6 @@
   <string name="setting_asr_configure_step_hotwords_desc">Список горячих слов через запятую для повышения точности распознавания имён собственных и терминов предметной области</string>
   <string name="log_page_record_requests">Записывать запросы</string>
   <string name="log_page_record_requests_desc">Записывать заголовки запросов, тела и метаданные ответов</string>
-  <string name="chat_message_tool_recent_chats">Посмотреть недавние чаты</string>
-  <string name="chat_message_tool_conversation_search">История поиска: %1$s</string>
   <string name="assistant_page_local_tools_screen_time_title">Экранное время</string>
   <string name="assistant_page_local_tools_screen_time_desc">Позвольте ИИ прочитать время использования экрана вашего приложения</string>
   <string name="assistant_page_local_tools_screen_time_permission_required">Пожалуйста, предоставьте разрешение Доступ к использованию в настройках, чтобы использовать экранное время</string>

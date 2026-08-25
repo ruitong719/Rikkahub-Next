@@ -5,8 +5,6 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.widget.Toast
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.Book02
-import me.rerere.hugeicons.stroke.Book04
 import me.rerere.hugeicons.stroke.Earth
 import me.rerere.hugeicons.stroke.File02
 import me.rerere.hugeicons.stroke.Image02
@@ -713,17 +711,7 @@ private fun ChainOfThoughtScope.ExportedReasoningStep(
 private fun ChainOfThoughtScope.ExportedToolStep(
     tool: UIMessagePart.Tool
 ) {
-    val memoryAction = runCatching {
-        tool.inputAsJson().jsonObject["action"]?.jsonPrimitiveOrNull?.contentOrNull
-    }.getOrNull()
     val title = when (tool.toolName) {
-        "memory_tool" -> when (memoryAction) {
-            "create" -> stringResource(R.string.chat_message_tool_create_memory)
-            "edit" -> stringResource(R.string.chat_message_tool_edit_memory)
-            "delete" -> stringResource(R.string.chat_message_tool_delete_memory)
-            else -> stringResource(R.string.chat_message_tool_call_generic, tool.toolName)
-        }
-
         "search_web" -> {
             val query = runCatching {
                 tool.inputAsJson().jsonObject["query"]?.jsonPrimitiveOrNull?.contentOrNull ?: ""
@@ -740,12 +728,6 @@ private fun ChainOfThoughtScope.ExportedToolStep(
         icon = {
             Icon(
                 imageVector = when (tool.toolName) {
-                    "memory_tool" -> when (memoryAction) {
-                        "create", "edit" -> HugeIcons.Book04
-                        "delete" -> HugeIcons.Book02
-                        else -> HugeIcons.Wrench01
-                    }
-
                     "search_web" -> HugeIcons.Search01
                     "scrape_web" -> HugeIcons.Earth
                     else -> HugeIcons.Wrench01

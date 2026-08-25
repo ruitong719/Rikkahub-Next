@@ -83,7 +83,6 @@ fun SubAgentEditPage(id: String) {
             ToolCategory("workspace_other", context.getString(R.string.subagents_edit_cat_workspace_other)),
             ToolCategory("search", context.getString(R.string.subagents_edit_cat_search)),
             ToolCategory("mcp", context.getString(R.string.subagents_edit_cat_mcp)),
-            ToolCategory("conversation", context.getString(R.string.subagents_edit_cat_conversation)),
             ToolCategory("local", context.getString(R.string.subagents_edit_cat_local)),
         )
     }
