@@ -106,6 +106,7 @@ import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
 import me.rerere.rikkahub.data.ai.tools.local.TodoItem
+import me.rerere.rikkahub.data.ai.tools.local.TodoStatus
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.Settings
@@ -372,7 +373,9 @@ fun ChatInput(
                                         )
                                     }
                                     TodoStatusButton(
-                                        activeCount = todos.count { !it.completed },
+                                        activeCount = todos.count {
+                                            it.status == TodoStatus.PENDING || it.status == TodoStatus.IN_PROGRESS
+                                        },
                                         onClick = { showTodoSheet = true },
                                     )
                                 }

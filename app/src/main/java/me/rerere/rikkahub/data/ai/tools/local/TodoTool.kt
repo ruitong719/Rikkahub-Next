@@ -1,9 +1,11 @@
 package me.rerere.rikkahub.data.ai.tools.local
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -12,152 +14,115 @@ import me.rerere.ai.core.Tool
 import me.rerere.ai.ui.UIMessagePart
 import kotlin.uuid.Uuid
 
-private val todoJson = Json { encodeDefaults = true }
+private val todoJson = Json { encodeDefaults = true; explicitNulls = false }
 
-private fun todoElement(todo: TodoItem): JsonElement =
-    todoJson.parseToJsonElement(todoJson.encodeToString(TodoItem.serializer(), todo))
+/** 单个 todo 条目的参数校验与解析，非法值直接报错让模型自纠 */
+private fun parseTodoElement(element: kotlinx.serialization.json.JsonElement): TodoItem {
+    val obj = element.jsonObject
+    val content = obj["content"]?.jsonPrimitive?.contentOrNull?.trim()
+    require(!content.isNullOrBlank()) { "each todo requires a non-empty 'content'" }
 
-private fun stringParam(obj: kotlinx.serialization.json.JsonObject, key: String): String? =
-    obj[key]?.jsonPrimitive?.contentOrNull?.trim()
-
-private fun okTodoResult(action: String, todo: TodoItem): String = buildJsonObject {
-    put("status", "ok")
-    put("action", action)
-    put("todo", todoElement(todo))
-}.toString()
-
-private fun errorResult(message: String): String = buildJsonObject {
-    put("status", "error")
-    put("message", message)
-}.toString()
-
-internal fun buildTodoCreateTool(store: TodoStore, conversationId: Uuid): Tool = Tool(
-    name = "todo_create",
-    description = """
-        Create a todo item scoped to the current conversation (other conversations do not see it).
-        Returns the created todo with its 12-character hex id.
-        Use todo_update to edit it and todo_complete to mark it done.
-    """.trimIndent().replace("\n", " "),
-    parameters = {
-        InputSchema.Obj(
-            properties = buildJsonObject {
-                put("title", buildJsonObject {
-                    put("type", "string")
-                    put("description", "Short task title (required)")
-                })
-                put("description", buildJsonObject {
-                    put("type", "string")
-                    put("description", "Optional details about the task")
-                })
-            },
-            required = listOf("title"),
-        )
-    },
-    execute = {
-        val params = it.jsonObject
-        val title = stringParam(params, "title").orEmpty()
-        if (title.isEmpty()) error("title is required")
-        val description = stringParam(params, "description").orEmpty()
-        val todo = store.create(conversationId, title, description)
-        listOf(UIMessagePart.Text(okTodoResult("create", todo)))
-    },
-)
-
-internal fun buildTodoUpdateTool(store: TodoStore, conversationId: Uuid): Tool = Tool(
-    name = "todo_update",
-    description = """
-        Edit an existing todo item in the current conversation.
-        Provide the id and at least one of title or description.
-    """.trimIndent().replace("\n", " "),
-    parameters = {
-        InputSchema.Obj(
-            properties = buildJsonObject {
-                put("id", buildJsonObject {
-                    put("type", "string")
-                    put("description", "12-character hex id of the todo to edit")
-                })
-                put("title", buildJsonObject {
-                    put("type", "string")
-                    put("description", "New title")
-                })
-                put("description", buildJsonObject {
-                    put("type", "string")
-                    put("description", "New description (empty string clears it)")
-                })
-            },
-            required = listOf("id"),
-        )
-    },
-    execute = {
-        val params = it.jsonObject
-        val id = stringParam(params, "id").orEmpty()
-        if (id.isEmpty()) error("id is required")
-        val title = stringParam(params, "title")
-        val description = stringParam(params, "description")
-        if (title == null && description == null) error("provide at least one of title or description")
-        val todo = store.update(conversationId, id, title, description)
-        if (todo == null) {
-            listOf(UIMessagePart.Text(errorResult("Todo not found for id '$id'")))
-        } else {
-            listOf(UIMessagePart.Text(okTodoResult("update", todo)))
+    val statusRaw = obj["status"]?.jsonPrimitive?.contentOrNull
+    val status = statusRaw?.let {
+        runCatching { TodoStatus.valueOf(it.trim().uppercase()) }.getOrElse {
+            error("invalid status '$statusRaw', expected one of: pending, in_progress, completed, cancelled")
         }
-    },
-)
+    } ?: TodoStatus.PENDING
 
-internal fun buildTodoCompleteTool(store: TodoStore, conversationId: Uuid): Tool = Tool(
-    name = "todo_complete",
+    val priorityRaw = obj["priority"]?.jsonPrimitive?.contentOrNull
+    val priority = priorityRaw?.let {
+        runCatching { TodoPriority.valueOf(it.trim().uppercase()) }.getOrElse {
+            error("invalid priority '$priorityRaw', expected one of: high, medium, low")
+        }
+    } ?: TodoPriority.MEDIUM
+
+    return TodoItem(content = content, status = status, priority = priority)
+}
+
+/**
+ * todowrite：对齐 opencode 的单工具全量替换模型。
+ * 模型每次提交完整列表覆盖当前对话的 todo；返回写入后的全量列表，
+ * 因此模型无需读取工具也能随时掌握现状（上下文压缩后依然自洽）。
+ * PLAN 模式刻意不拦截本工具：模型可以先把执行计划写成 todo 清单。
+ */
+internal fun buildTodoWriteTool(store: TodoStore, conversationId: Uuid): Tool = Tool(
+    name = "todowrite",
     description = """
-        Mark a todo item in the current conversation as completed (or un-completed).
-        Only the AI should decide whether a task is done based on the conversation.
+        Create and maintain a structured task list for the current conversation. Tracks progress, organizes multi-step work, and surfaces status to the user.
+        Pass the FULL updated list every call - it replaces the previous list entirely (items are identified by position, not id).
+        Usage - use proactively when:
+        - The task requires 3+ distinct steps or actions (not just 3 tool calls for a single conceptual step)
+        - The work is non-trivial and benefits from planning
+        - The user provides multiple tasks (numbered or comma-separated) or explicitly asks for a todo list
+        - New instructions arrive - capture them as todos
+        - You start a task - mark it in_progress (only one at a time) before working
+        - You finish a task - mark it completed and add any follow-ups discovered during the work
+        Usage - skip when:
+        - The work is a single, straightforward task (or <3 trivial steps)
+        - The request is purely informational or conversational
+        - Tracking adds no organizational value
+        States:
+        - pending: not started
+        - in_progress: actively working (exactly ONE at a time)
+        - completed: finished successfully
+        - cancelled: no longer needed
+        Rules:
+        - Update status in real time; don't batch completions
+        - Mark completed only after the required work is actually done, including any required verification. Never based on intent.
+        - Keep exactly one in_progress while work remains
+        - If blocked or partial, keep it in_progress and add a follow-up todo describing the blocker
+        - Preserve user-provided commands verbatim (flags, args, order)
+        - Items should be specific and actionable; break large work into smaller steps
+        When in doubt, use it.
     """.trimIndent().replace("\n", " "),
     parameters = {
         InputSchema.Obj(
             properties = buildJsonObject {
-                put("id", buildJsonObject {
-                    put("type", "string")
-                    put("description", "12-character hex id of the todo")
-                })
-                put("completed", buildJsonObject {
-                    put("type", "boolean")
-                    put("description", "Default true. Set false to un-complete.")
+                put("todos", buildJsonObject {
+                    put("type", "array")
+                    put("description", "The updated todo list (full replacement)")
+                    put("items", buildJsonObject {
+                        put("type", "object")
+                        put("properties", buildJsonObject {
+                            put("content", buildJsonObject {
+                                put("type", "string")
+                                put("description", "Brief description of the task")
+                            })
+                            put("status", buildJsonObject {
+                                put("type", "string")
+                                put("description", "pending, in_progress, completed or cancelled. Defaults to pending.")
+                            })
+                            put("priority", buildJsonObject {
+                                put("type", "string")
+                                put("description", "high, medium or low. Defaults to medium.")
+                            })
+                        })
+                        put("required", buildJsonArray { add(JsonPrimitive("content")) })
+                    })
                 })
             },
-            required = listOf("id"),
+            required = listOf("todos"),
         )
     },
     execute = {
         val params = it.jsonObject
-        val id = stringParam(params, "id").orEmpty()
-        if (id.isEmpty()) error("id is required")
-        val completed =
-            params["completed"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: true
-        val todo = store.setCompleted(conversationId, id, completed)
-        if (todo == null) {
-            listOf(UIMessagePart.Text(errorResult("Todo not found for id '$id'")))
-        } else {
-            listOf(UIMessagePart.Text(okTodoResult(if (completed) "complete" else "uncomplete", todo)))
+        val todos = params["todos"]?.jsonArray
+            ?: error("todos is required")
+        require(todos.size <= TODO_WRITE_MAX_ITEMS) {
+            "too many todos (${todos.size}), max $TODO_WRITE_MAX_ITEMS"
         }
-    },
-)
-
-internal fun buildTodoClearTool(store: TodoStore, conversationId: Uuid): Tool = Tool(
-    name = "todo_clear",
-    description = """
-        Delete the entire todo list of the current conversation (all items, done and pending).
-        Use sparingly - this is irreversible. Returns the number of items removed.
-    """.trimIndent().replace("\n", " "),
-    parameters = { InputSchema.Obj(properties = buildJsonObject {}, required = emptyList()) },
-    execute = {
-        val removed = store.todos(conversationId).value.size
-        store.clear(conversationId)
+        val items = todos.map(::parseTodoElement)
+        store.replaceAll(conversationId, items)
         listOf(
             UIMessagePart.Text(
                 buildJsonObject {
                     put("status", "ok")
-                    put("action", "clear")
-                    put("removed", removed)
+                    put("activeCount", items.count { it.status == TodoStatus.PENDING || it.status == TodoStatus.IN_PROGRESS })
+                    put("todos", todoJson.parseToJsonElement(todoJson.encodeToString(items)))
                 }.toString()
             )
         )
     },
 )
+
+private const val TODO_WRITE_MAX_ITEMS = 200

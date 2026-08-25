@@ -50,10 +50,7 @@ val CATEGORY_TOOLS: Map<SubAgentToolCategory, Set<String>> = mapOf(
     SubAgentToolCategory.WRITE to setOf(
         "write",
         "edit",
-        "todo_create",
-        "todo_update",
-        "todo_complete",
-        "todo_clear",
+        "todowrite",
     ),
     SubAgentToolCategory.SHELL to setOf(
         "bash",

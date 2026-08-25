@@ -39,15 +39,13 @@ import me.rerere.hugeicons.stroke.LeftToRightListBullet
 import me.rerere.hugeicons.stroke.Tick02
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.tools.local.TodoItem
+import me.rerere.rikkahub.data.ai.tools.local.TodoStatus
 import me.rerere.rikkahub.ui.components.ui.ToggleSurface
-import java.time.OffsetDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 /**
  * 输入框工具条上的 todo 入口：图标 + 未完成数角标。
  * 样式对齐 ReasoningButton（ToggleSurface），无用户交互之外的语义——面板纯展示，
- * 完成/取消完成只由模型通过 todo_complete 工具更新。
+ * 完成状态只由模型通过 todowrite 工具更新。
  */
 @Composable
 fun TodoStatusButton(
@@ -93,8 +91,8 @@ fun TodoSheet(
     onDismiss: () -> Unit,
     onClearTodos: () -> Unit = {},
 ) {
-    val active = todos.filter { !it.completed }
-    val done = todos.filter { it.completed }
+    val active = todos.filter { it.status == TodoStatus.PENDING || it.status == TodoStatus.IN_PROGRESS }
+    val done = todos.filter { it.status == TodoStatus.COMPLETED || it.status == TodoStatus.CANCELLED }
     var showClearConfirm by remember { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -143,7 +141,7 @@ fun TodoSheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
                     )
-                    done.forEach { TodoRow(it, completed = true) }
+                    done.forEach { TodoRow(it) }
                 }
             }
         }
@@ -177,7 +175,8 @@ fun TodoSheet(
 }
 
 @Composable
-private fun TodoRow(item: TodoItem, completed: Boolean = item.completed) {
+private fun TodoRow(item: TodoItem) {
+    val finished = item.status == TodoStatus.COMPLETED || item.status == TodoStatus.CANCELLED
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -185,22 +184,22 @@ private fun TodoRow(item: TodoItem, completed: Boolean = item.completed) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        // 纯展示的状态圆点：实心 = 已完成，空心 = 未完成
+        // 状态圆点：primary 实心=已完成，tertiary=进行中，灰空心=待办/已取消
         Box(
             modifier = Modifier
                 .padding(top = 2.dp)
                 .size(16.dp)
                 .clip(CircleShape)
                 .background(
-                    if (completed) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.outlineVariant
+                    when (item.status) {
+                        TodoStatus.COMPLETED -> MaterialTheme.colorScheme.primary
+                        TodoStatus.IN_PROGRESS -> MaterialTheme.colorScheme.tertiary
+                        else -> MaterialTheme.colorScheme.outlineVariant
                     }
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            if (completed) {
+            if (finished) {
                 Icon(
                     imageVector = HugeIcons.Tick02,
                     contentDescription = null,
@@ -214,35 +213,15 @@ private fun TodoRow(item: TodoItem, completed: Boolean = item.completed) {
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                text = item.title,
+                text = item.content,
                 style = MaterialTheme.typography.bodyLarge,
-                textDecoration = if (completed) TextDecoration.LineThrough else null,
-                color = if (completed) {
+                textDecoration = if (finished) TextDecoration.LineThrough else null,
+                color = if (finished) {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 } else {
                     MaterialTheme.colorScheme.onSurface
                 },
             )
-            if (item.description.isNotBlank()) {
-                Text(
-                    text = item.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Text(
-                text = formatCreatedAt(item.createdAt),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.outline,
-            )
         }
     }
 }
-
-private fun formatCreatedAt(iso: String): String = runCatching {
-    OffsetDateTime.parse(iso)
-        .atZoneSameInstant(ZoneId.systemDefault())
-        .format(DateTimeFormatter.ofPattern("M/d HH:mm"))
-}.getOrDefault(iso)

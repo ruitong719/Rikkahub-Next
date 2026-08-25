@@ -8,34 +8,72 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import kotlin.uuid.Uuid
+
+/**
+ * Todo 条目（对齐 opencode todowrite）：无 id、顺序即列表位置，
+ * 模型每次提交完整列表做全量替换。
+ */
+@Serializable
+enum class TodoStatus {
+    @SerialName("pending")
+    PENDING,
+
+    @SerialName("in_progress")
+    IN_PROGRESS,
+
+    @SerialName("completed")
+    COMPLETED,
+
+    @SerialName("cancelled")
+    CANCELLED,
+}
+
+@Serializable
+enum class TodoPriority {
+    @SerialName("high")
+    HIGH,
+
+    @SerialName("medium")
+    MEDIUM,
+
+    @SerialName("low")
+    LOW,
+}
 
 @Serializable
 data class TodoItem(
-    val id: String,
-    val title: String,
-    val description: String = "",
-    @SerialName("created_at")
-    val createdAt: String,
-    val completed: Boolean = false,
-    @SerialName("completed_at")
-    val completedAt: String? = null,
+    val content: String,
+    val status: TodoStatus = TodoStatus.PENDING,
+    val priority: TodoPriority = TodoPriority.MEDIUM,
 )
 
 /**
  * 对话内 todo 数据源：每个 conversation 一个 JSON 文件（<baseDir>/<conversationId>.json）。
- * LLM 工具（todo_create/update/complete）与聊天 UI 共享同一数据源，
+ * LLM 工具（todowrite 全量替换）与聊天 UI 共享同一数据源，
  * 工具写入后 StateFlow 自动更新，输入框角标实时反映未完成任务数。
  * baseDir 由 Koin 注入 filesDir/todo（Android），测试可传临时目录（纯 JVM）。
+ *
+ * 兼容：旧版布尔模型（id/title/description/completed）文件在首次加载时自动转换为新模型并回写。
  */
 class TodoStore(private val baseDir: File) {
     private val json = Json { ignoreUnknownKeys = true }
     private val cache = mutableMapOf<Uuid, MutableStateFlow<List<TodoItem>>>()
     private val cacheLock = Any()
     private val mutex = Mutex()
+
+    /** 旧版条目（2026-08-26 前）：布尔完成态 + 独立 id/title/description */
+    @Serializable
+    private data class LegacyTodoItem(
+        val id: String,
+        val title: String,
+        val description: String = "",
+        @SerialName("created_at")
+        val createdAt: String? = null,
+        val completed: Boolean = false,
+        @SerialName("completed_at")
+        val completedAt: String? = null,
+    )
 
     fun todos(conversationId: Uuid): StateFlow<List<TodoItem>> = todosMutable(conversationId)
 
@@ -45,55 +83,9 @@ class TodoStore(private val baseDir: File) {
         }
     }
 
-    suspend fun create(conversationId: Uuid, title: String, description: String): TodoItem {
-        val item = TodoItem(
-            id = generateId(),
-            title = title,
-            description = description,
-            createdAt = nowIso(),
-        )
-        updateList(conversationId) { it + item }
-        return item
-    }
-
-    suspend fun update(
-        conversationId: Uuid,
-        id: String,
-        title: String?,
-        description: String?,
-    ): TodoItem? {
-        var updated: TodoItem? = null
-        updateList(conversationId) { list ->
-            list.map { item ->
-                if (item.id == id) {
-                    item.copy(
-                        title = title ?: item.title,
-                        description = description ?: item.description,
-                    ).also { updated = it }
-                } else {
-                    item
-                }
-            }
-        }
-        return updated
-    }
-
-    suspend fun setCompleted(conversationId: Uuid, id: String, completed: Boolean): TodoItem? {
-        var updated: TodoItem? = null
-        val now = nowIso()
-        updateList(conversationId) { list ->
-            list.map { item ->
-                if (item.id == id) {
-                    item.copy(
-                        completed = completed,
-                        completedAt = if (completed) now else null,
-                    ).also { updated = it }
-                } else {
-                    item
-                }
-            }
-        }
-        return updated
+    /** 模型经 todowrite 提交的完整列表，整体替换当前对话的 todo */
+    suspend fun replaceAll(conversationId: Uuid, items: List<TodoItem>) {
+        updateList(conversationId) { items }
     }
 
     /** 清空当前对话的整个 todo 列表（删除当前 todolist） */
@@ -119,8 +111,20 @@ class TodoStore(private val baseDir: File) {
     private fun load(conversationId: Uuid): List<TodoItem> {
         val f = file(conversationId)
         if (!f.exists()) return emptyList()
-        return runCatching { json.decodeFromString<List<TodoItem>>(f.readText()) }
-            .getOrDefault(emptyList())
+        val text = f.readText()
+
+        runCatching { json.decodeFromString<List<TodoItem>>(text) }.getOrNull()?.let { return it }
+
+        // 旧版布尔模型：title(+description) 合并为 content，completed 映射为状态；立即回写升级格式
+        val legacy = runCatching { json.decodeFromString<List<LegacyTodoItem>>(text) }.getOrNull() ?: return emptyList()
+        val migrated = legacy.map { old ->
+            TodoItem(
+                content = if (old.description.isBlank()) old.title else "${old.title}\n${old.description}",
+                status = if (old.completed) TodoStatus.COMPLETED else TodoStatus.PENDING,
+            )
+        }
+        save(conversationId, migrated)
+        return migrated
     }
 
     /** 原子写：先写临时文件再 rename，避免并发/中断产生半截 JSON */
@@ -134,12 +138,4 @@ class TodoStore(private val baseDir: File) {
             tmp.delete()
         }
     }
-
-    private fun generateId(): String {
-        val chars = "0123456789abcdef"
-        return buildString(12) { repeat(12) { append(chars.random()) } }
-    }
-
-    private fun nowIso(): String =
-        DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(Instant.now().atZone(ZoneId.systemDefault()))
 }

@@ -15,6 +15,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.AppScope
+import me.rerere.rikkahub.data.ai.tools.local.TodoStatus
 import me.rerere.rikkahub.data.ai.tools.local.TodoStore
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
@@ -187,10 +188,10 @@ class FloatingActivityHub(
                     _state.value = _state.value.copy(
                         realTodos = todos.map {
                             TodoStoreItem(
-                                id = it.id,
-                                title = it.title,
-                                description = it.description,
-                                completed = it.completed,
+                                id = it.hashCode().toString(),
+                                title = it.content,
+                                description = "",
+                                completed = it.status == TodoStatus.COMPLETED || it.status == TodoStatus.CANCELLED,
                             )
                         }
                     )

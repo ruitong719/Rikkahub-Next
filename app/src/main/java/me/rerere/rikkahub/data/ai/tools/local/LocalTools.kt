@@ -56,10 +56,7 @@ class LocalTools(
         }
         // todo 工具按对话隔离：必须知道 conversationId 才能定位数据文件
         if (options.contains(LocalToolOption.Todo) && conversationId != null) {
-            tools.add(buildTodoCreateTool(todoStore, conversationId))
-            tools.add(buildTodoUpdateTool(todoStore, conversationId))
-            tools.add(buildTodoCompleteTool(todoStore, conversationId))
-            tools.add(buildTodoClearTool(todoStore, conversationId))
+            tools.add(buildTodoWriteTool(todoStore, conversationId))
         }
         return tools
     }
