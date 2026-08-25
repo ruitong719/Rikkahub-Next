@@ -1,7 +1,7 @@
 package me.rerere.rikkahub.ui.components.ai
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -26,8 +26,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -69,6 +69,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -172,7 +173,9 @@ fun ChatInput(
     val focusManager = LocalFocusManager.current
 
     val containerShape = MaterialTheme.shapes.largeIncreased
-    val imeVisible = WindowInsets.isImeVisible
+    val density = LocalDensity.current
+    // Unlike isImeVisible, the target changes as soon as the IME animation starts.
+    val imeTargetVisible = WindowInsets.imeAnimationTarget.getBottom(density) > 0
 
     fun sendMessage() {
         focusManager.clearFocus(force = true)
@@ -273,7 +276,7 @@ fun ChatInput(
                                         contentDescription = stringResource(R.string.more_options)
                                     )
                                 }
-                                if (imeVisible && !asrState.isRecording) {
+                                if (imeTargetVisible && !asrState.isRecording) {
                                     SendButton(
                                         loading = loading,
                                         empty = state.isEmpty(),
@@ -287,11 +290,10 @@ fun ChatInput(
                     )
 
                 AnimatedVisibility(
-                    visible = !imeVisible,
-                    enter = expandVertically() + fadeIn(),
+                    visible = !imeTargetVisible,
+                    enter = EnterTransition.None,
                     exit = shrinkVertically() + fadeOut(),
                 ) {
-
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -513,7 +515,7 @@ fun ChatInput(
                                 )
                             }
 
-                            if (!imeVisible) {
+                            if (!imeTargetVisible) {
                                 AnimatedVisibility(
                                     visible = !asrState.isRecording,
                                     enter = fadeIn() + scaleIn(),
