@@ -801,6 +801,7 @@ class ChatService(
                                 toolCatalog = mainTools,
                                 allSkills = skillManager.listSkills(),
                                 subAgentRunner = subAgentRunner,
+                                conversationId = conversationId,
                             )
                         )
                     }

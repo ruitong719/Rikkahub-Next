@@ -42,6 +42,7 @@ import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.ai.SubAgentRunStatus
 import me.rerere.rikkahub.data.model.SubAgent
+import me.rerere.rikkahub.data.model.isGeneralSubagent
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
 import me.rerere.rikkahub.ui.context.LocalNavController
@@ -113,24 +114,29 @@ fun SubAgentsPage() {
                 }
             } else {
                 items(subagents, key = { it.id.toString() }) { subAgent ->
-                    val run = runs[subAgent.id]
+                    // 一个定义可能有多次运行（并行 General 实例）：取最近一次展示状态
+                    val latestRun = runs.values
+                        .filter { it.subAgentId == subAgent.id }
+                        .maxByOrNull { it.startedAt }
+                    val isGeneral = isGeneralSubagent(subAgent.id)
                     SubAgentCard(
                         subAgent = subAgent,
-                        running = run?.status == SubAgentRunStatus.RUNNING,
-                        hasTrace = run != null,
+                        isGeneral = isGeneral,
+                        running = latestRun?.status == SubAgentRunStatus.RUNNING,
+                        hasTrace = latestRun != null,
                         onClick = {
                             // 正在执行的智能体 -> 查看执行轨迹；否则进入编辑页
-                            if (run?.status == SubAgentRunStatus.RUNNING) {
-                                navController.navigate(Screen.SubAgentTrace(subAgent.id.toString()))
+                            if (latestRun?.status == SubAgentRunStatus.RUNNING) {
+                                navController.navigate(Screen.SubAgentTrace(latestRun.runId.toString()))
                             } else {
                                 navController.navigate(Screen.SubAgentEdit(subAgent.id.toString()))
                             }
                         },
                         onShowTrace = {
-                            navController.navigate(Screen.SubAgentTrace(subAgent.id.toString()))
+                            navController.navigate(Screen.SubAgentTrace((latestRun?.runId ?: subAgent.id).toString()))
                         },
                         onDuplicate = { vm.duplicateSubAgent(subAgent.id) },
-                        onDelete = { deleteTarget = subAgent },
+                        onDelete = if (isGeneral) null else ({ deleteTarget = subAgent }),
                     )
                 }
             }
@@ -157,12 +163,13 @@ fun SubAgentsPage() {
 @Composable
 private fun SubAgentCard(
     subAgent: SubAgent,
+    isGeneral: Boolean,
     running: Boolean,
     hasTrace: Boolean,
     onClick: () -> Unit,
     onShowTrace: () -> Unit,
     onDuplicate: () -> Unit,
-    onDelete: () -> Unit,
+    onDelete: (() -> Unit)?,
 ) {
     Card(
         onClick = onClick,
@@ -184,6 +191,14 @@ private fun SubAgentCard(
                         text = subAgent.name.ifBlank { stringResource(R.string.subagents_page_unnamed) },
                         style = MaterialTheme.typography.titleMedium,
                     )
+                    if (isGeneral) {
+                        Text(
+                            text = stringResource(R.string.subagents_page_builtin),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
                     if (running) {
                         Text(
                             text = stringResource(R.string.subagents_page_running),
@@ -226,12 +241,14 @@ private fun SubAgentCard(
                     modifier = Modifier.size(18.dp),
                 )
             }
-            IconButton(onClick = onDelete) {
-                Icon(
-                    imageVector = HugeIcons.Delete01,
-                    contentDescription = stringResource(R.string.delete),
-                    modifier = Modifier.size(18.dp),
-                )
+            if (onDelete != null) {
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = HugeIcons.Delete01,
+                        contentDescription = stringResource(R.string.delete),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
             Icon(
                 imageVector = HugeIcons.PencilEdit01,

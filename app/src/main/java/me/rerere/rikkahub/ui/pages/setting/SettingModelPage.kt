@@ -177,6 +177,16 @@ private fun ModelSettingsPage(settings: Settings, vm: SettingVM, contentPadding:
                 onClear = { vm.updateSettings(settings.copy(visionModelId = null)) },
             )
         }
+        item {
+            ModelSettingItem(
+                title = stringResource(R.string.setting_model_page_subagent_model),
+                description = stringResource(R.string.setting_model_page_subagent_model_desc),
+                modelId = settings.subagentModelId,
+                providers = settings.providers,
+                onSelect = { vm.updateSettings(settings.copy(subagentModelId = it.id)) },
+                onClear = { vm.updateSettings(settings.copy(subagentModelId = null)) },
+            )
+        }
     }
 }
 

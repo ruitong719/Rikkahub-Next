@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.model.SubAgent
+import me.rerere.rikkahub.data.model.isGeneralSubagent
 import kotlin.uuid.Uuid
 
 class SubAgentsVM(
@@ -32,8 +33,9 @@ class SubAgentsVM(
         }
     }
 
-    /** 删除定义，并清理所有 assistant 对该 subagent 的引用 */
+    /** 删除定义，并清理所有 assistant 对该 subagent 的引用（内置 General 不可删除） */
     fun deleteSubAgent(id: Uuid) {
+        if (isGeneralSubagent(id)) return
         viewModelScope.launch {
             settingsStore.update { settings ->
                 settings.copy(

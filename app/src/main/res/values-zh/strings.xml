@@ -698,6 +698,8 @@
   <string name="setting_model_page_compress_model">压缩模型</string>
   <string name="setting_model_page_vision_model">视觉模型</string>
   <string name="setting_model_page_vision_model_desc">当聊天模型不支持图片输入时，用视觉模型把图片转成文字描述再发送。不设置时图片直接发送给聊天模型。</string>
+  <string name="setting_model_page_subagent_model">子代理模型</string>
+  <string name="setting_model_page_subagent_model_desc">所有子代理统一使用的模型。不设置时使用主聊天模型。</string>
   <string name="setting_model_page_compress_model_desc">用于压缩对话历史的模型</string>
   <string name="setting_model_page_compress_prompt_vars">变量：{content}、{target_tokens}、{additional_context}</string>
   <string name="setting_model_page_ocr_model">OCR 模型</string>
@@ -1256,13 +1258,10 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="assistant_page_context_message_preset_default">默认</string>
   <string name="assistant_page_context_token_estimate">按最近一次会话估算 ≈ 携带最近 %1$d 条消息（约 %2$d 轮对话）</string>
   <string name="assistant_page_context_message_limit_warning">较低的阈值会更积极地压缩上下文，可能会丢失早期对话的细节。较高的阈值保留更多上下文，但每次请求会消耗更多 Token。</string>
-  <string name="subagents_edit_cat_local">本地工具（时间 / 剪贴板 / 日历 / 待办…）</string>
-  <string name="subagents_edit_cat_mcp">MCP 工具</string>
-  <string name="subagents_edit_cat_search">网络搜索</string>
-  <string name="subagents_edit_cat_workspace_other">工作区 · 导出 / 挂载 / 后台 / 备份</string>
-  <string name="subagents_edit_cat_workspace_read">工作区 · 读取文件</string>
-  <string name="subagents_edit_cat_workspace_shell">工作区 · Shell 命令</string>
-  <string name="subagents_edit_cat_workspace_write">工作区 · 写入 / 编辑文件</string>
+  <string name="subagents_edit_cat_read">读取 · workspace_read_file / get_time_info</string>
+  <string name="subagents_edit_cat_write">写入 · 写入 / 编辑文件 / 待办</string>
+  <string name="subagents_edit_cat_shell">Shell · workspace_shell</string>
+  <string name="subagents_edit_general_tools_hint">内置自由代理：不预设工具类别——主模型每次发派时通过 tools 参数选择 read / write / shell / skill，并可并行启动多个实例（每对话同时运行最多 5 个）。</string>
   <string name="subagents_edit_description">描述</string>
   <string name="subagents_edit_description_hint">描述主智能体在什么情况下应把任务委派给此 Subagent</string>
   <string name="subagents_edit_limits">限制</string>
@@ -1289,6 +1288,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="subagents_page_empty_desc">创建一个，让 AI 可以委派聚焦的任务</string>
   <string name="subagents_page_meta">%1$d 个工具 · %2$d 个技能</string>
   <string name="subagents_page_title">Subagent</string>
+  <string name="subagents_page_builtin">内置</string>
   <string name="subagents_page_unnamed">未命名的 Subagent</string>
   <string name="subagents_page_running">执行中</string>
   <string name="subagents_trace_title">执行轨迹</string>

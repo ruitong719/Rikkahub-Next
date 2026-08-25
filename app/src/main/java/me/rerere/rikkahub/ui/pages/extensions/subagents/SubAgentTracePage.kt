@@ -40,8 +40,11 @@ import kotlin.uuid.Uuid
 fun SubAgentTracePage(id: String) {
     val monitor = koinInject<SubAgentRunMonitor>()
     val runs by monitor.runs.collectAsStateWithLifecycle()
-    val subAgentId = runCatching { Uuid.parse(id) }.getOrNull()
-    val run = subAgentId?.let { runs[it] }
+    val parsedId = runCatching { Uuid.parse(id) }.getOrNull()
+    // 兼容两种入参：runId（列表页/监看面板跳转）或 subAgent 定义 id（回退到其最近一次运行）
+    val run = runs[parsedId] ?: parsedId?.let { sid ->
+        runs.values.filter { it.subAgentId == sid }.maxByOrNull { it.startedAt }
+    }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 

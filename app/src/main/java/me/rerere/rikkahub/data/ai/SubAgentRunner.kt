@@ -12,6 +12,7 @@ import me.rerere.rikkahub.data.datastore.findModelById
 import me.rerere.rikkahub.data.files.SkillMetadata
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.SubAgent
+import me.rerere.rikkahub.data.model.SubAgentToolCategory
 import kotlin.uuid.Uuid
 
 /**
@@ -20,10 +21,11 @@ import kotlin.uuid.Uuid
  * 上下文语义（用户拍板）：继承主 Agent 系统提示 + 带入主 Agent 对话记录
  * （过滤 think 过程），再叠加 task；不应用主 Agent 的 input/output transformers。
  *
- * 工具集：主工具池按 allowlist 过滤（needsApproval 覆盖为 false，派发时已一次性审批）
+ * 工具集：主工具池按 allowlist 精确白名单过滤（needsApproval 覆盖为 false，子循环内不审批）
  * + subagent 自己的 enabledSkills 构建的 skill 工具。
  *
- * 执行轨迹：运行期间把工具调用步骤实时上报给 [monitor]，供执行轨迹页展示。
+ * 执行轨迹：运行期间把工具调用步骤实时上报给 [monitor]，供执行轨迹页展示；
+ * 并发由 [SubAgentRunMonitor.tryAcquire] 按对话限额。
  */
 class SubAgentRunner(
     private val generationHandler: GenerationHandler,
@@ -39,34 +41,56 @@ class SubAgentRunner(
         context: String?,
         toolCatalog: List<Tool>,
         allSkills: List<SkillMetadata>,
+        conversationId: Uuid? = null,
+        /** General 实例的展示标签；预设 subagent 为 null（用定义名） */
+        label: String? = null,
+        /** General 调用时由主模型指定的类别；null = 用定义里的 toolAllowlist */
+        allowlistOverride: Set<SubAgentToolCategory>? = null,
     ): String {
-        monitor.start(subAgent.id, task)
-        val result = withTimeoutOrNull(subAgent.timeoutMs) {
-            runInternal(
-                subAgent = subAgent,
-                assistant = assistant,
-                settings = settings,
-                conversationSystemPrompt = conversationSystemPrompt,
-                conversationHistory = conversationHistory,
-                task = task,
-                context = context,
-                toolCatalog = toolCatalog,
-                allSkills = allSkills,
+        if (!monitor.tryAcquire(conversationId, SUBAGENT_CONCURRENCY_LIMIT_PER_CONVERSATION)) {
+            return buildSubAgentResultJson(
+                status = "error",
+                result = "Concurrency limit reached: at most ${SUBAGENT_CONCURRENCY_LIMIT_PER_CONVERSATION} subagents can run at the same time in this conversation. Wait for one to finish before dispatching again.",
+                steps = 0,
+                usage = null,
+            )
+        }
+        // runId 唯一：并行实例在轨迹里各自独立记录
+        val runId = Uuid.random()
+        val displayName = label?.trim()?.takeIf { it.isNotEmpty() } ?: subAgent.name
+        try {
+            monitor.start(runId, subAgent.id, displayName, task, conversationId)
+            val result = withTimeoutOrNull(subAgent.timeoutMs) {
+                runInternal(
+                    subAgent = subAgent,
+                    assistant = assistant,
+                    settings = settings,
+                    conversationSystemPrompt = conversationSystemPrompt,
+                    conversationHistory = conversationHistory,
+                    task = task,
+                    context = context,
+                    toolCatalog = toolCatalog,
+                    allSkills = allSkills,
+                    allowlist = allowlistOverride ?: subAgent.toolAllowlist,
+                    runId = runId,
                 )
             } ?: buildSubAgentResultJson(
-            status = "timeout",
-            result = "Subagent timed out after ${subAgent.timeoutMs}ms",
-            steps = 0,
-            usage = null,
-        )
-        val (status, message) = when {
-            "\"status\":\"success\"" in result -> SubAgentRunStatus.SUCCESS to ""
-            "\"status\":\"timeout\"" in result -> SubAgentRunStatus.TIMEOUT to "timed out"
-            "\"status\":\"error\"" in result -> SubAgentRunStatus.ERROR to "failed"
-            else -> SubAgentRunStatus.ERROR to "unknown"
+                status = "timeout",
+                result = "Subagent timed out after ${subAgent.timeoutMs}ms",
+                steps = 0,
+                usage = null,
+            )
+            val (status, message) = when {
+                "\"status\":\"success\"" in result -> SubAgentRunStatus.SUCCESS to ""
+                "\"status\":\"timeout\"" in result -> SubAgentRunStatus.TIMEOUT to "timed out"
+                "\"status\":\"error\"" in result -> SubAgentRunStatus.ERROR to "failed"
+                else -> SubAgentRunStatus.ERROR to "unknown"
+            }
+            monitor.finish(runId, status, result = result, message = message)
+            return result
+        } finally {
+            monitor.release(conversationId)
         }
-        monitor.finish(subAgent.id, status, result = result, message = message)
-        return result
     }
 
     private suspend fun runInternal(
@@ -79,15 +103,18 @@ class SubAgentRunner(
         context: String?,
         toolCatalog: List<Tool>,
         allSkills: List<SkillMetadata>,
+        allowlist: Set<SubAgentToolCategory>,
+        runId: Uuid,
     ): String {
-        val model = settings.findModelById(
-            subAgent.modelId ?: assistant.chatModelId ?: settings.chatModelId
-        ) ?: return buildSubAgentResultJson(
-            status = "error",
-            result = "Model not found for subagent '${subAgent.name}'",
-            steps = 0,
-            usage = null,
-        )
+        // 模型解析链：全局子代理模型 -> 助手模型 -> 全局默认模型
+        val model = settings.findModelById(settings.subagentModelId, assistant.chatModelId)
+            ?: settings.findModelById(settings.chatModelId)
+            ?: return buildSubAgentResultJson(
+                status = "error",
+                result = "Model not found for subagent '${subAgent.name}': configure a chat model first",
+                steps = 0,
+                usage = null,
+            )
 
         // 合成"虚拟 Assistant"：主 effectiveSystemPrompt + subagent 专属提示
         val effectiveMainPrompt =
@@ -102,13 +129,12 @@ class SubAgentRunner(
             systemPrompt = listOfNotNull(effectiveMainPrompt, subAgent.systemPrompt)
                 .joinToString("\n\n")
                 .trim(),
-            chatModelId = subAgent.modelId,
         )
 
         val tools = buildList {
             addAll(
                 toolCatalog
-                    .filter { matchesToolAllowlist(it.name, subAgent.toolAllowlist) }
+                    .filter { matchesToolAllowlist(it.name, allowlist) }
                     .map { it.copy(needsApproval = { false }) }
             )
             if (subAgent.enabledSkills.isNotEmpty()) {
@@ -140,7 +166,7 @@ class SubAgentRunner(
             if (chunk is GenerationChunk.Messages) {
                 finalMessages = chunk.messages
                 monitor.updateSteps(
-                    subAgent.id,
+                    runId,
                     extractSteps(finalMessages, fromIndex = ownMessageStart)
                 )
             }

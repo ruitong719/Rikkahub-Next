@@ -45,6 +45,8 @@ import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.rikkahub.data.model.DEFAULT_SUBAGENTS
 import me.rerere.rikkahub.data.model.SubAgent
 import me.rerere.rikkahub.data.model.Tag
+import me.rerere.rikkahub.data.model.defaultGeneralSubagent
+import me.rerere.rikkahub.data.model.isGeneralSubagent
 import me.rerere.rikkahub.ui.theme.CustomTheme
 import me.rerere.rikkahub.ui.theme.PresetThemes
 import me.rerere.rikkahub.utils.JsonInstant
@@ -93,6 +95,7 @@ class SettingsStore(
         val TRANSLATE_MODEL = stringPreferencesKey("translate_model")
         val ENABLE_SUGGESTION = booleanPreferencesKey("enable_suggestion")
         val SUGGESTION_MODEL = stringPreferencesKey("suggestion_model")
+        val SUBAGENT_MODEL = stringPreferencesKey("subagent_model")
         val IMAGE_GENERATION_MODEL = stringPreferencesKey("image_generation_model")
         val TITLE_PROMPT = stringPreferencesKey("title_prompt")
         val TRANSLATION_PROMPT = stringPreferencesKey("translation_prompt")
@@ -208,6 +211,7 @@ class SettingsStore(
                     ?: DEFAULT_AUTO_MODEL_ID,
                 enableSuggestion = preferences[ENABLE_SUGGESTION] != false,
                 suggestionModelId = preferences[SUGGESTION_MODEL]?.let { Uuid.parse(it) },
+                subagentModelId = preferences[SUBAGENT_MODEL]?.let { Uuid.parse(it) },
                 imageGenerationModelId = preferences[IMAGE_GENERATION_MODEL]?.let { Uuid.parse(it) } ?: Uuid.random(),
                 titlePrompt = preferences[TITLE_PROMPT] ?: DEFAULT_TITLE_PROMPT,
                 translatePrompt = preferences[TRANSLATION_PROMPT] ?: DEFAULT_TRANSLATION_PROMPT,
@@ -227,7 +231,15 @@ class SettingsStore(
                 deletedAssistantIds = preferences[DELETED_ASSISTANT_IDS] ?: emptySet(),
                 deletedProviderIds = preferences[DELETED_PROVIDER_IDS] ?: emptySet(),
                 subagents = preferences[SUBAGENTS]?.let {
-                    JsonInstant.decodeFromString(it)
+                    // 以用户数据为准（允许删光）；仅保证内置 General 存在
+                    JsonInstant.decodeFromString<List<SubAgent>>(it)
+                        .let { list ->
+                            if (list.none { subAgent -> isGeneralSubagent(subAgent.id) }) {
+                                listOf(defaultGeneralSubagent()) + list
+                            } else {
+                                list
+                            }
+                        }
                 } ?: DEFAULT_SUBAGENTS,
                 dynamicColor = preferences[DYNAMIC_COLOR] != false,
                 themeId = preferences[THEME_ID] ?: PresetThemes[0].id,
@@ -418,6 +430,9 @@ class SettingsStore(
             settings.suggestionModelId?.let {
                 preferences[SUGGESTION_MODEL] = it.toString()
             } ?: preferences.remove(SUGGESTION_MODEL)
+            settings.subagentModelId?.let {
+                preferences[SUBAGENT_MODEL] = it.toString()
+            } ?: preferences.remove(SUBAGENT_MODEL)
             preferences[IMAGE_GENERATION_MODEL] = settings.imageGenerationModelId.toString()
             preferences[TITLE_PROMPT] = settings.titlePrompt
             preferences[TRANSLATION_PROMPT] = settings.translatePrompt
@@ -596,6 +611,8 @@ data class Settings(
     val compressPrompt: String = DEFAULT_COMPRESS_PROMPT,
     /** 视觉模型：主模型不支持图片输入时，用于把图片转成文字描述（image-router 式降级） */
     val visionModelId: Uuid? = null,
+    /** 子代理模型：所有 subagent（预设与 General）统一使用；null 时回退主模型 */
+    val subagentModelId: Uuid? = null,
     val assistantId: Uuid = DEFAULT_ASSISTANT_ID,
     val providers: List<ProviderSetting> = DEFAULT_PROVIDERS,
     val assistants: List<Assistant> = DEFAULT_ASSISTANTS,

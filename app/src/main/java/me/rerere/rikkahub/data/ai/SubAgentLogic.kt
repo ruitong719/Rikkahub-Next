@@ -5,11 +5,15 @@ import kotlinx.serialization.json.put
 import me.rerere.ai.core.TokenUsage
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.rikkahub.data.model.SubAgentToolCategory
 import kotlin.uuid.Uuid
 
 /**
  * Subagent 纯逻辑函数：与 Android/生成循环无关，可独立 JVM 单测。
  */
+
+/** 每个对话内同时运行的 subagent 实例上限（所有类型合并计数） */
+const val SUBAGENT_CONCURRENCY_LIMIT_PER_CONVERSATION = 5
 
 /** 工具名 slug：仅保留 ASCII 字母数字，其余转下划线、压缩连续下划线；空名回退 "agent" */
 fun slugify(name: String): String =
@@ -33,41 +37,32 @@ fun uniqueToolName(slug: String, used: Set<String>, id: Uuid): String {
     return candidate
 }
 
-/** 类别标签 -> 工具名前缀映射（plan 功能六 §4）；精确工具名直接命中 */
-private val ALLOWLIST_CATEGORY_PREFIXES: Map<String, List<String>> = mapOf(
-    "workspace_read" to listOf("workspace_read_file"),
-    "workspace_write" to listOf("workspace_write_file", "workspace_edit_file"),
-    "workspace_shell" to listOf("workspace_shell"),
-    "workspace_other" to listOf(
-        "workspace_export_to_phone",
-        "workspace_mount_",
-        "workspace_bg_",
-        "workspace_create_backup",
-    ),
-    "search" to listOf("search_web", "scrape_web"),
-    "mcp" to listOf("mcp__"),
-    "local" to listOf(
-        "calendar_",
-        "clipboard_tool",
-        "eval_javascript",
-        "get_screen_time",
-        "text_to_speech",
+/**
+ * 类别 -> 精确工具名白名单。刻意用精确名单而非前缀匹配：
+ * 不在表内的工具（搜索/MCP/export/mount/bg 等）一律不暴露给 subagent。
+ * ask_user 永远排除：子循环内等待用户交互会挂起/死锁。
+ */
+val CATEGORY_TOOLS: Map<SubAgentToolCategory, Set<String>> = mapOf(
+    SubAgentToolCategory.READ to setOf(
+        "workspace_read_file",
         "get_time_info",
-        "todo_",
+    ),
+    SubAgentToolCategory.WRITE to setOf(
+        "workspace_write_file",
+        "workspace_edit_file",
+        "todo_create",
+        "todo_update",
+        "todo_complete",
+        "todo_clear",
+    ),
+    SubAgentToolCategory.SHELL to setOf(
+        "workspace_shell",
     ),
 )
 
-/**
- * 判断工具是否允许 subagent 使用。ask_user 一律排除：
- * 子循环内等待用户交互会挂起/死锁。
- */
-fun matchesToolAllowlist(toolName: String, allowlist: Set<String>): Boolean {
+fun matchesToolAllowlist(toolName: String, allowlist: Set<SubAgentToolCategory>): Boolean {
     if (toolName == "ask_user") return false
-    if (allowlist.isEmpty()) return false
-    return allowlist.any { entry ->
-        toolName == entry ||
-            (ALLOWLIST_CATEGORY_PREFIXES[entry]?.any { toolName.startsWith(it) } == true)
-    }
+    return allowlist.any { category -> toolName in CATEGORY_TOOLS[category].orEmpty() }
 }
 
 private val THINKING_REGEX = Regex("<think>([\\s\\S]*?)(?:</think>|$)", RegexOption.DOT_MATCHES_ALL)

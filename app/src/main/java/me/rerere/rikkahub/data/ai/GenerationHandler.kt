@@ -4,6 +4,9 @@ import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -282,6 +285,60 @@ class GenerationHandler(
             }
 
             val executedTools = arrayListOf<UIMessagePart.Tool>()
+
+            // 执行一个已批准的工具，返回结果 part；不直接 emit，由调用方决定写回时机与批次
+            suspend fun runApprovedTool(tool: UIMessagePart.Tool): UIMessagePart.Tool? {
+                var resultTool: UIMessagePart.Tool? = null
+                runCatching {
+                    val toolDef = toolsInternal.find { toolDef -> toolDef.name == tool.toolName }
+                        ?: error("Tool ${tool.toolName} not found")
+                    val args = runCatching {
+                        json.parseToJsonElement(tool.input.ifBlank { "{}" })
+                    }.getOrElse {
+                        error("Invalid tool arguments JSON for ${tool.toolName}: ${it.message}")
+                    }
+                    Log.i(TAG, "generateText: executing tool ${toolDef.name} with args: $args")
+                    // 注入 toolCallId 供工具实现侧标识本次调用(如 shell 直播), 见 ShellRunKey
+                    val result = withContext(ShellRunKey(tool.toolCallId)) {
+                        toolDef.execute(args)
+                    }
+                    val hasShellAccess = toolsInternal.any { it.name == "workspace_shell" }
+                    resultTool = tool.copy(
+                        output = maybeTruncateToolOutput(tool.toolCallId, result, hasShellAccess)
+                    )
+                }.onFailure {
+                    // 取消必须向上传播，否则停止生成会被误报为工具执行错误
+                    if (it is CancellationException) throw it
+                    it.printStackTrace()
+                    resultTool = tool.copy(
+                        output = listOf(
+                            UIMessagePart.Text(
+                                json.encodeToString(
+                                    buildJsonObject {
+                                        put(
+                                            "error",
+                                            JsonPrimitive(buildString {
+                                                append("[${it.javaClass.name}] ${it.message}")
+                                                append("\n${it.stackTraceToString()}")
+                                            })
+                                        )
+                                    }
+                                )
+                            )
+                        )
+                    )
+                }
+                return resultTool
+            }
+
+            suspend fun emitDone(done: UIMessagePart.Tool?) {
+                // emit 放在 runCatching 外：emit 的取消不能被吞成工具错误
+                done?.let {
+                    executedTools += it
+                    emitToolResult(it)
+                }
+            }
+
             toolsToProcess.forEach { tool ->
                 when (tool.approvalState) {
                     is ToolApprovalState.Denied -> {
@@ -317,59 +374,35 @@ class GenerationHandler(
                         emitToolResult(answeredTool)
                     }
 
-                    is ToolApprovalState.Pending -> {
-                        // Should not reach here, but just in case
-                    }
-
-                    else -> {
-                        // Auto or Approved - execute the tool
-                        var resultTool: UIMessagePart.Tool? = null
-                        runCatching {
-                            val toolDef = toolsInternal.find { toolDef -> toolDef.name == tool.toolName }
-                                ?: error("Tool ${tool.toolName} not found")
-                            val args = runCatching {
-                                json.parseToJsonElement(tool.input.ifBlank { "{}" })
-                            }.getOrElse {
-                                error("Invalid tool arguments JSON for ${tool.toolName}: ${it.message}")
-                            }
-                            Log.i(TAG, "generateText: executing tool ${toolDef.name} with args: $args")
-                            // 注入 toolCallId 供工具实现侧标识本次调用(如 shell 直播), 见 ShellRunKey
-                            val result = withContext(ShellRunKey(tool.toolCallId)) {
-                                toolDef.execute(args)
-                            }
-                            val hasShellAccess = toolsInternal.any { it.name == "workspace_shell" }
-                            resultTool = tool.copy(
-                                output = maybeTruncateToolOutput(tool.toolCallId, result, hasShellAccess)
-                            )
-                        }.onFailure {
-                            // 取消必须向上传播，否则停止生成会被误报为工具执行错误
-                            if (it is CancellationException) throw it
-                            it.printStackTrace()
-                            resultTool = tool.copy(
-                                output = listOf(
-                                    UIMessagePart.Text(
-                                        json.encodeToString(
-                                            buildJsonObject {
-                                                put(
-                                                    "error",
-                                                    JsonPrimitive(buildString {
-                                                        append("[${it.javaClass.name}] ${it.message}")
-                                                        append("\n${it.stackTraceToString()}")
-                                                    })
-                                                )
-                                            }
-                                        )
-                                    )
-                                )
-                            )
-                        }
-                        // emit 放在 runCatching 外：emit 的取消不能被吞成工具错误
-                        resultTool?.let { done ->
-                            executedTools += done
-                            emitToolResult(done)
-                        }
-                    }
+                    else -> Unit
                 }
+            }
+
+            // 已批准待执行的工具（Auto / Approved）
+            val approvedTools = toolsToProcess.filter { tool ->
+                when (tool.approvalState) {
+                    is ToolApprovalState.Denied,
+                    is ToolApprovalState.Answered,
+                    is ToolApprovalState.Pending,
+                    -> false
+
+                    else -> true
+                }
+            }
+
+            // 普通工具保持顺序执行：可能依赖前序工具产生的副作用（文件、工作区状态等）
+            approvedTools
+                .filter { tool -> toolsInternal.none { it.name == tool.toolName && it.parallelSafe } }
+                .forEach { tool -> emitDone(runApprovedTool(tool)) }
+
+            // subagent 发派类工具（parallelSafe）互不依赖：同一批并发执行，按原序写回结果
+            val parallelTools = approvedTools.filter { tool ->
+                toolsInternal.any { it.name == tool.toolName && it.parallelSafe }
+            }
+            if (parallelTools.isNotEmpty()) {
+                coroutineScope {
+                    parallelTools.map { tool -> async { runApprovedTool(tool) } }.awaitAll()
+                }.forEach { done -> emitDone(done) }
             }
 
             if (executedTools.isEmpty()) {

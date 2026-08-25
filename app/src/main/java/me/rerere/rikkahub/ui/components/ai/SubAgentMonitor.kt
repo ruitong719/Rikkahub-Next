@@ -35,6 +35,7 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.slugify
 import me.rerere.rikkahub.data.ai.uniqueToolName
 import me.rerere.rikkahub.data.model.SubAgent
+import me.rerere.rikkahub.data.model.isGeneralSubagent
 import me.rerere.rikkahub.ui.components.ui.ToggleSurface
 import kotlin.uuid.Uuid
 
@@ -78,12 +79,13 @@ fun SubAgentMonitorButton(
     }
 }
 
-/** 统计当前正在被调用的 subagent 数量（工具调用已发起、结果尚未回填 = 执行中） */
+/** 统计当前正在被调用的 subagent 实例数量（所有调用中结果尚未回填的 = 执行中） */
 fun countRunningSubAgents(subAgents: List<SubAgent>, messages: List<UIMessage>): Int {
-    val toolNames = computeSubAgentToolNames(subAgents)
-    return subAgents.count { subAgent ->
-        val toolName = toolNames[subAgent.id] ?: return@count false
-        lastInvocation(toolName, messages)?.first == SubAgentRunStatus.RUNNING
+    val toolNames = computeSubAgentToolNames(subAgents).values.toSet()
+    return messages.sumOf { message ->
+        message.parts.count { part ->
+            part is UIMessagePart.Tool && part.toolName in toolNames && part.output.isEmpty()
+        }
     }
 }
 
@@ -135,6 +137,10 @@ fun SubAgentMonitorSheet(
                     val toolName = toolNames[subAgent.id]
                     val (status, preview) = toolName?.let { lastInvocation(it, messages) }
                         ?: (SubAgentRunStatus.NEVER to "")
+                    // 并行发派（General 多实例）：同一时刻可能有多个执行中实例
+                    val runningInstances = toolName
+                        ?.let { countRunningInvocations(it, messages) }
+                        ?: 0
                     ListItem(
                         onClick = { onOpenTrace(subAgent.id.toString()) },
                         content = {
@@ -148,10 +154,14 @@ fun SubAgentMonitorSheet(
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f),
                                 )
-                                // 运行中标记
-                                if (status == SubAgentRunStatus.RUNNING) {
+                                // 运行中标记（多实例时附数量）
+                                if (runningInstances > 0) {
                                     Text(
-                                        text = stringResource(R.string.subagent_monitor_running_badge),
+                                        text = if (runningInstances > 1) {
+                                            stringResource(R.string.subagent_monitor_running_badge) + " ×${runningInstances}"
+                                        } else {
+                                            stringResource(R.string.subagent_monitor_running_badge)
+                                        },
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.padding(start = 8.dp),
@@ -215,15 +225,26 @@ fun SubAgentMonitorSheet(
     }
 }
 
-/** 计算每个 subagent 的工具名（与 SubAgentTools 相同的 slug + 去重规则） */
+/** 计算每个 subagent 的工具名（与 SubAgentTools 相同的 slug + 去重规则；General 固定为 general） */
 private fun computeSubAgentToolNames(subAgents: List<SubAgent>): Map<Uuid, String> {
-    val used = mutableSetOf<String>()
+    val used = mutableSetOf<String>("general")
     return subAgents.associate { subAgent ->
-        val slug = uniqueToolName(slugify(subAgent.name), used, subAgent.id)
-        used += slug
+        val slug = if (isGeneralSubagent(subAgent.id)) {
+            "general"
+        } else {
+            uniqueToolName(slugify(subAgent.name), used, subAgent.id).also { used += it }
+        }
         subAgent.id to "subagent_$slug"
     }
 }
+
+/** 该工具当前执行中的调用数（已发起但结果未回填） */
+private fun countRunningInvocations(toolName: String, messages: List<UIMessage>): Int =
+    messages.sumOf { message ->
+        message.parts.count { part ->
+            part is UIMessagePart.Tool && part.toolName == toolName && part.output.isEmpty()
+        }
+    }
 
 /** 从对话消息中取该工具最近一次调用 */
 private fun lastInvocation(toolName: String, messages: List<UIMessage>): Pair<SubAgentRunStatus, String>? {

@@ -2,7 +2,6 @@ package me.rerere.rikkahub.ui.pages.extensions.subagents
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,11 +9,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -36,13 +33,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import me.rerere.ai.provider.ModelType
-import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.UserMultiple02
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.model.SubAgent
-import me.rerere.rikkahub.ui.components.ai.ModelListSheet
-import me.rerere.rikkahub.ui.components.ai.rememberModelListState
+import me.rerere.rikkahub.data.model.SubAgentToolCategory
+import me.rerere.rikkahub.data.model.isGeneralSubagent
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.context.LocalNavController
 import me.rerere.rikkahub.ui.context.LocalToaster
@@ -51,8 +45,8 @@ import me.rerere.rikkahub.utils.plus
 import org.koin.androidx.compose.koinViewModel
 import kotlin.uuid.Uuid
 
-/** UI 上按类别勾选的工具分组（值 = SubAgent.toolAllowlist 中的标签） */
-private data class ToolCategory(val tag: String, val label: String)
+/** UI 上按类别勾选的工具分组（值 = SubAgent.toolAllowlist 中的类别） */
+private data class ToolCategory(val category: SubAgentToolCategory, val label: String)
 
 @Composable
 fun SubAgentEditPage(id: String) {
@@ -61,11 +55,11 @@ fun SubAgentEditPage(id: String) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val isNew = id == "new"
     val initial = if (isNew) SubAgent() else settings.subagents.find { it.id.toString() == id } ?: SubAgent()
+    val isGeneral = !isNew && isGeneralSubagent(initial.id)
 
     var name by remember(initial) { mutableStateOf(initial.name) }
     var description by remember(initial) { mutableStateOf(initial.description) }
     var systemPrompt by remember(initial) { mutableStateOf(initial.systemPrompt) }
-    var modelId by remember(initial) { mutableStateOf(initial.modelId?.toString() ?: "") }
     var allowlist by remember(initial) { mutableStateOf(initial.toolAllowlist) }
     var enabledSkills by remember(initial) { mutableStateOf(initial.enabledSkills) }
     var maxSteps by remember(initial) { mutableStateOf(initial.maxSteps.toString()) }
@@ -75,30 +69,13 @@ fun SubAgentEditPage(id: String) {
     val toaster = LocalToaster.current
     val context = LocalContext.current
 
+    // General 的工具类别由主模型每次调用时通过 tools 参数指定，编辑页不提供勾选
     val categories = remember {
         listOf(
-            ToolCategory("workspace_read", context.getString(R.string.subagents_edit_cat_workspace_read)),
-            ToolCategory("workspace_write", context.getString(R.string.subagents_edit_cat_workspace_write)),
-            ToolCategory("workspace_shell", context.getString(R.string.subagents_edit_cat_workspace_shell)),
-            ToolCategory("workspace_other", context.getString(R.string.subagents_edit_cat_workspace_other)),
-            ToolCategory("search", context.getString(R.string.subagents_edit_cat_search)),
-            ToolCategory("mcp", context.getString(R.string.subagents_edit_cat_mcp)),
-            ToolCategory("local", context.getString(R.string.subagents_edit_cat_local)),
+            ToolCategory(SubAgentToolCategory.READ, context.getString(R.string.subagents_edit_cat_read)),
+            ToolCategory(SubAgentToolCategory.WRITE, context.getString(R.string.subagents_edit_cat_write)),
+            ToolCategory(SubAgentToolCategory.SHELL, context.getString(R.string.subagents_edit_cat_shell)),
         )
-    }
-    val chatModels = remember(settings) {
-        settings.providers.flatMap { provider ->
-            provider.models.map { model -> provider to model }
-        }.filter { (_, model) -> model.type == ModelType.CHAT }
-    }
-    val selectedModelLabel = remember(modelId, chatModels) {
-        if (modelId.isBlank()) {
-            context.getString(R.string.subagents_edit_model_follow_main)
-        } else {
-            chatModels.firstOrNull { it.second.id.toString() == modelId }
-                ?.let { "${it.second.displayName} (${it.first.name})" }
-                ?: context.getString(R.string.subagents_edit_model_follow_main)
-        }
     }
 
     fun buildSubAgent(): SubAgent {
@@ -107,7 +84,6 @@ fun SubAgentEditPage(id: String) {
             name = name.trim(),
             description = description.trim(),
             systemPrompt = systemPrompt.trim(),
-            modelId = modelId.ifBlank { null }?.let { runCatching { Uuid.parse(it) }.getOrNull() },
             toolAllowlist = allowlist,
             enabledSkills = enabledSkills,
             maxSteps = maxSteps.toIntOrNull()?.coerceIn(1, 256) ?: 64,
@@ -156,6 +132,7 @@ fun SubAgentEditPage(id: String) {
                     label = { Text(stringResource(R.string.subagents_edit_name)) },
                     placeholder = { Text(stringResource(R.string.subagents_edit_name_hint)) },
                     singleLine = true,
+                    enabled = !isGeneral,
                 )
             }
             item {
@@ -181,80 +158,36 @@ fun SubAgentEditPage(id: String) {
                 )
             }
             item {
-                // 模型选择：复用聊天底栏的模型选择弹窗（ModelListSheet），第一项为"跟随主聊天模型"
-                val modelListState = rememberModelListState(
-                    modelId = modelId.ifBlank { null }?.let { runCatching { Uuid.parse(it) }.getOrNull() },
-                    providers = settings.providers,
-                    type = ModelType.CHAT,
-                )
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = selectedModelLabel,
-                        onValueChange = {},
-                        readOnly = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(stringResource(R.string.subagents_edit_model)) },
-                        singleLine = true,
-                    )
-                    // 点击遮罩：readOnly TextField 会消费指针事件，外挂 clickable 不可靠
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .clickable { modelListState.open() },
-                    )
-                    ModelListSheet(
-                        state = modelListState,
-                        onSelect = { model ->
-                            modelId = model.id.toString()
-                        },
-                        header = {
-                            Column(
+                if (isGeneral) {
+                    // General 的类别由主模型调用时通过 tools 参数指定，编辑页不提供勾选
+                    SectionCard(
+                        title = stringResource(R.string.subagents_edit_tools),
+                        desc = stringResource(R.string.subagents_edit_general_tools_hint)
+                    ) {}
+                } else {
+                    SectionCard(title = stringResource(R.string.subagents_edit_tools), desc = stringResource(R.string.subagents_edit_tools_desc)) {
+                        categories.forEach { category ->
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        modelId = ""
-                                        modelListState.close()
+                                        allowlist =
+                                            if (category.category in allowlist) allowlist - category.category
+                                            else allowlist + category.category
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    Icon(
-                                        imageVector = HugeIcons.UserMultiple02,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.subagents_edit_model_follow_main),
-                                        style = MaterialTheme.typography.bodyLarge,
-                                    )
-                                }
+                                Checkbox(
+                                    checked = category.category in allowlist,
+                                    onCheckedChange = { checked ->
+                                        allowlist =
+                                            if (checked) allowlist + category.category
+                                            else allowlist - category.category
+                                    },
+                                )
+                                Text(category.label, style = MaterialTheme.typography.bodyMedium)
                             }
-                        },
-                    )
-                }
-            }
-            item {
-                SectionCard(title = stringResource(R.string.subagents_edit_tools), desc = stringResource(R.string.subagents_edit_tools_desc)) {
-                    categories.forEach { category ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    allowlist = if (category.tag in allowlist) allowlist - category.tag else allowlist + category.tag
-                                }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(
-                                checked = category.tag in allowlist,
-                                onCheckedChange = { checked ->
-                                    allowlist = if (checked) allowlist + category.tag else allowlist - category.tag
-                                },
-                            )
-                            Text(category.label, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }

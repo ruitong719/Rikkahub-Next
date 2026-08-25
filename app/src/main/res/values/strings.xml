@@ -328,6 +328,7 @@
   <string name="extensions_page_subagents">Subagents</string>
   <string name="extensions_page_subagents_desc">Manage expert sub-agents the AI can delegate to</string>
   <string name="subagents_page_title">Subagents</string>
+  <string name="subagents_page_builtin">Built-in</string>
   <string name="subagents_page_empty">No subagents yet</string>
   <string name="subagents_page_empty_desc">Create one to let the AI delegate focused tasks</string>
   <string name="subagents_page_unnamed">Unnamed subagent</string>
@@ -364,13 +365,10 @@
   <string name="subagents_edit_max_steps">Max steps</string>
   <string name="subagents_edit_timeout">Timeout (seconds)</string>
   <string name="subagents_edit_requires_approval">Require approval when delegating</string>
-  <string name="subagents_edit_cat_workspace_read">Workspace · read files</string>
-  <string name="subagents_edit_cat_workspace_write">Workspace · write / edit files</string>
-  <string name="subagents_edit_cat_workspace_shell">Workspace · shell</string>
-  <string name="subagents_edit_cat_workspace_other">Workspace · export / mount / background / backup</string>
-  <string name="subagents_edit_cat_search">Web search</string>
-  <string name="subagents_edit_cat_mcp">MCP tools</string>
-  <string name="subagents_edit_cat_local">Local tools (time / clipboard / calendar / todo…)</string>
+  <string name="subagents_edit_cat_read">Read · workspace_read_file / get_time_info</string>
+  <string name="subagents_edit_cat_write">Write · write / edit files / todo</string>
+  <string name="subagents_edit_cat_shell">Shell · workspace_shell</string>
+  <string name="subagents_edit_general_tools_hint">Built-in free-form agent: no preset tool categories — the main model picks read / write / shell / skill for each dispatch, and may launch multiple parallel instances (max 5 running per conversation).</string>
   <string name="extensions_page_quick_messages_desc">Manage shared quick message templates</string>
   <string name="extensions_page_section_extensions">Extensions</string>
   <string name="extensions_page_title">Extensions</string>
@@ -749,6 +747,8 @@
   <string name="setting_model_page_compress_model">Compress Model</string>
   <string name="setting_model_page_vision_model">Vision Model</string>
   <string name="setting_model_page_vision_model_desc">Used to describe images as text when the chat model does not support image input. When not set, images are sent to the chat model directly.</string>
+  <string name="setting_model_page_subagent_model">Subagent Model</string>
+  <string name="setting_model_page_subagent_model_desc">Model used by all subagents. When not set, subagents run on the main chat model.</string>
   <string name="setting_model_page_fast_model">Fast Model</string>
   <string name="setting_model_page_fast_model_desc">Model for fast or background tasks, also used as fallback for title and suggestion models when not set</string>
   <string name="setting_model_page_compress_model_desc">Model for compressing conversation history</string>
