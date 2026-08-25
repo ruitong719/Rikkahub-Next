@@ -1155,6 +1155,11 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="workspace_detail_mount_confirm">确定</string>
   <string name="workspace_detail_mount_cancel">取消</string>
   <string name="workspace_detail_mount_empty">暂无挂载</string>
+  <string name="workspace_writable_roots_title">写入安全区</string>
+  <string name="workspace_writable_roots_desc">Write/Edit/Bash 调用若目标路径在这些 rootfs 前缀之外，始终需要审批；清空列表则全部强制审批。</string>
+  <string name="workspace_writable_roots_add_hint">绝对路径前缀，如 /mnt/photos</string>
+  <string name="workspace_writable_roots_add">添加</string>
+  <string name="workspace_writable_roots_invalid">必须是以 / 开头的绝对路径</string>
   <string name="workspace_mount_auto_sync">自动同步间隔</string>
   <string name="workspace_mount_auto_sync_off">关闭</string>
   <string name="workspace_detail_install_rootfs_desc">将下载 tar.gz 并解压到 %s 的 Linux 目录。</string>

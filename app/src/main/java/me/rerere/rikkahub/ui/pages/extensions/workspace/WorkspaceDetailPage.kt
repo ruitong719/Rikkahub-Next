@@ -61,6 +61,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.ArrowTurnBackward
 import me.rerere.hugeicons.stroke.Bash
 import me.rerere.hugeicons.stroke.ComputerTerminal01
@@ -275,6 +276,7 @@ fun WorkspaceDetailPage(id: String) {
                     mountMessage = mountMessage,
                     autoSyncIntervalSeconds = autoSyncInterval,
                     onAutoSyncIntervalChange = vm::updateAutoSyncInterval,
+                    onUpdateWritableRoots = vm::setWritableRoots,
                     onAddMount = { showMountNameDialog = true },
                     onRemoveMount = vm::removeMount,
                     onSyncMount = vm::syncMount,
@@ -409,6 +411,7 @@ private fun WorkspaceBasicPage(
     mountMessage: String?,
     autoSyncIntervalSeconds: Int,
     onAutoSyncIntervalChange: (Int) -> Unit,
+    onUpdateWritableRoots: (List<String>) -> Unit,
     onAddMount: () -> Unit,
     onRemoveMount: (String) -> Unit,
     onSyncMount: (String, SyncDirection) -> Unit,
@@ -505,6 +508,13 @@ private fun WorkspaceBasicPage(
                 onAdd = onAddMount,
                 onRemove = onRemoveMount,
                 onSync = onSyncMount,
+            )
+        }
+
+        item {
+            WorkspaceWritableRootsCard(
+                workspace = workspace,
+                onUpdate = onUpdateWritableRoots,
             )
         }
 
@@ -900,6 +910,94 @@ private fun workspaceToolApprovalItems() = listOf(
     "workspace_bg_list" to stringResource(R.string.workspace_detail_tool_bg_list),
     "workspace_create_backup" to stringResource(R.string.workspace_detail_tool_create_backup),
 )
+
+@Composable
+private fun WorkspaceWritableRootsCard(
+    workspace: WorkspaceEntity?,
+    onUpdate: (List<String>) -> Unit,
+) {
+    val roots = workspace?.writableRootsList().orEmpty()
+    var input by remember { mutableStateOf("") }
+    var invalid by remember { mutableStateOf(false) }
+
+    fun submit() {
+        val normalized = "/" + input.trim().trim('/')
+        if (!normalized.startsWith("//") && normalized.length > 1 && !normalized.contains("..")) {
+            onUpdate((roots + normalized).distinct())
+            input = ""
+            invalid = false
+        } else {
+            invalid = true
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CustomColors.cardColorsOnSurfaceContainer,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = stringResource(R.string.workspace_writable_roots_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.workspace_writable_roots_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            roots.forEach { root ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = root,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { onUpdate(roots - root) }) {
+                        Icon(
+                            imageVector = HugeIcons.Cancel01,
+                            contentDescription = root,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = input,
+                onValueChange = {
+                    input = it
+                    invalid = false
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.workspace_writable_roots_add_hint)) },
+                isError = invalid,
+                supportingText = if (invalid) {
+                    { Text(stringResource(R.string.workspace_writable_roots_invalid)) }
+                } else {
+                    null
+                },
+                singleLine = true,
+                trailingIcon = {
+                    TextButton(onClick = { submit() }, enabled = input.isNotBlank()) {
+                        Text(stringResource(R.string.workspace_writable_roots_add))
+                    }
+                },
+            )
+        }
+    }
+}
 
 @Composable
 private fun WorkspaceInfoRow(

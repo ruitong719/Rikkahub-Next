@@ -1208,6 +1208,11 @@
   <string name="workspace_detail_mount_confirm">OK</string>
   <string name="workspace_detail_mount_cancel">Cancel</string>
   <string name="workspace_detail_mount_empty">No mounts yet</string>
+  <string name="workspace_writable_roots_title">Writable safe roots</string>
+  <string name="workspace_writable_roots_desc">Write/Edit/Bash calls targeting paths outside these rootfs prefixes always require approval. Empty list means everything requires approval.</string>
+  <string name="workspace_writable_roots_add_hint">Absolute path prefix, e.g. /mnt/photos</string>
+  <string name="workspace_writable_roots_add">Add</string>
+  <string name="workspace_writable_roots_invalid">Must be an absolute path starting with /</string>
   <string name="workspace_mount_auto_sync">Auto sync interval</string>
   <string name="workspace_mount_auto_sync_off">Off</string>
   <string name="workspace_detail_tool_mount_list">List Mounts</string>

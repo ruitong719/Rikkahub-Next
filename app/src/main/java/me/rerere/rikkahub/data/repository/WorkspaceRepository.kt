@@ -124,6 +124,18 @@ class WorkspaceRepository(
         ) > 0
     }
 
+    /** 覆盖写入安全区（rootfs 绝对路径前缀列表）；空列表 = 所有写路径都强制审批 */
+    suspend fun setWritableRoots(id: String, roots: List<String>): Boolean {
+        val workspace = dao.getById(id) ?: return false
+        dao.upsert(
+            workspace.copy(
+                writableRoots = JsonInstant.encodeToString(roots),
+                updatedAt = System.currentTimeMillis(),
+            )
+        )
+        return true
+    }
+
     /** 覆盖某个工具的注入提示词；prompt 为空字符串等同清除覆盖（恢复默认） */
     suspend fun setToolPrompt(id: String, toolName: String, prompt: String): Boolean {
         val workspace = dao.getById(id) ?: return false

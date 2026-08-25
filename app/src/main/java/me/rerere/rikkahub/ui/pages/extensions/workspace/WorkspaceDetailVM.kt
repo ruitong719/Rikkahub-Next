@@ -63,6 +63,13 @@ class WorkspaceDetailVM(
         }
     }
 
+    /** 覆盖写入安全区（rootfs 绝对路径前缀） */
+    fun setWritableRoots(roots: List<String>) {
+        viewModelScope.launch {
+            runCatching { repository.setWritableRoots(id, roots) }
+        }
+    }
+
     val mounts = mountManager.mountsFlow().stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -256,8 +263,7 @@ class WorkspaceDetailVM(
         }
     }
 
-    fun syncMount(mountId: String, direction: SyncDirection) {
-        viewModelScope.launch {
+    fun syncMount(mountId: String, direction: SyncDirection) {        viewModelScope.launch {
             runCatching { mountManager.syncMount(mountId, direction) }
                 .onSuccess { stats ->
                     _mountMessage.value =

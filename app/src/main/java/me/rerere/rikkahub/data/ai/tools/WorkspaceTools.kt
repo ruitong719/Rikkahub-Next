@@ -17,6 +17,7 @@ import me.rerere.ai.ui.toMetadata
 import me.rerere.rikkahub.data.ai.ShellRunKey
 import me.rerere.rikkahub.data.ai.ShellRunMonitor
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.db.entity.DEFAULT_WRITABLE_ROOTS
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.utils.generateUnifiedDiff
@@ -44,19 +45,8 @@ val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
     "workspace_create_backup" to true,
 )
 
-/** 改名前的工具名（v1）：读取已持久化的按工作区审批覆盖时兜底，避免旧配置失效 */
-private val LEGACY_TOOL_NAME_ALIASES: Map<String, String> = mapOf(
-    "workspace_read_file" to "read",
-    "workspace_write_file" to "write",
-    "workspace_edit_file" to "edit",
-    "workspace_shell" to "bash",
-)
-
 fun resolveWorkspaceToolApproval(name: String, overrides: Map<String, Boolean>): Boolean =
-    overrides[name]
-        ?: LEGACY_TOOL_NAME_ALIASES.entries.firstOrNull { it.value == name }?.let { overrides[it.key] }
-        ?: WorkspaceToolDefaultApprovals[name]
-        ?: false
+    overrides[name] ?: WorkspaceToolDefaultApprovals[name] ?: false
 
 suspend fun createWorkspaceTools(
     workspaceId: String?,
@@ -65,16 +55,18 @@ suspend fun createWorkspaceTools(
     conversationId: String? = null,
 ): List<Tool> {
     if (workspaceId.isNullOrBlank()) return emptyList()
-    val approvalOverrides = workspaceRepository.getById(workspaceId)?.toolApprovalOverrides().orEmpty()
+    val workspace = workspaceRepository.getById(workspaceId)
+    val approvalOverrides = workspace?.toolApprovalOverrides().orEmpty()
     fun needsApproval(name: String) = resolveWorkspaceToolApproval(name, approvalOverrides)
+    val writableRoots = workspace?.writableRootsList() ?: DEFAULT_WRITABLE_ROOTS
 
     val shellCwd = cwd?.removePrefix("/workspace/")?.removePrefix("/workspace")
 
     return listOf(
         createReadFileTool(workspaceId, ::needsApproval, workspaceRepository),
-        createWriteFileTool(workspaceId, ::needsApproval, workspaceRepository),
-        createEditFileTool(workspaceId, ::needsApproval, workspaceRepository),
-        createShellTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd, conversationId),
+        createWriteFileTool(workspaceId, ::needsApproval, workspaceRepository, writableRoots),
+        createEditFileTool(workspaceId, ::needsApproval, workspaceRepository, writableRoots),
+        createShellTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd, conversationId, writableRoots),
         createWorkspaceExportTool(workspaceId, ::needsApproval, workspaceRepository),
     ) + createWorkspaceBgTools(workspaceId, ::needsApproval, workspaceRepository, conversationId) +
         listOf(createWorkspaceBackupTool(workspaceId, ::needsApproval, workspaceRepository))
@@ -106,6 +98,7 @@ private fun createReadFileTool(
         - Output lines are prefixed with their line number like `12: content`; never include that prefix in old_text when editing.
         - Reading a directory lists its entries instead (subdirectories end with `/`).
         - Image files are returned as image attachments; binary files are rejected.
+        - Avoid tiny repeated slices (30-line chunks). If you need more context, read a larger window.
         - Call this tool in parallel when you know there are multiple files you want to read.
     """.trimIndent().replace("\n", " "),
     parameters = {
@@ -315,6 +308,7 @@ private fun createWriteFileTool(
     workspaceId: String,
     needsApproval: (String) -> Boolean,
     workspaceRepository: WorkspaceRepository,
+    writableRoots: List<String>,
 ) = Tool(
     name = "write",
     description = """
@@ -341,7 +335,7 @@ private fun createWriteFileTool(
             required = listOf("path", "text"),
         )
     },
-    needsApproval = { needsApproval("write") || it.pathOutsideWritableRoots("path") },
+    needsApproval = { needsApproval("write") || it.forcedPathApproval("path", writableRoots) },
     execute = {
         val params = it.jsonObject
         val path = params.absolutePath("path")
@@ -356,6 +350,7 @@ private fun createEditFileTool(
     workspaceId: String,
     needsApproval: (String) -> Boolean,
     workspaceRepository: WorkspaceRepository,
+    writableRoots: List<String>,
 ) = Tool(
     name = "edit",
     description = """
@@ -365,6 +360,7 @@ private fun createEditFileTool(
         - The edit fails if old_text is not found, or if it matches multiple locations (set replace_all=true for every occurrence).
         - When a match is ambiguous, include more surrounding lines in old_text to make it unique.
         - If no exact match is found, whitespace-tolerant fallbacks run automatically: trimmed lines, block anchors, normalized whitespace runs, and escaped \\n / \\t literals.
+        - Only use emojis if the user explicitly requests it.
         - ALWAYS prefer editing existing files. NEVER create new files unless explicitly required.
     """.trimIndent().replace("\n", " "),
     parameters = {
@@ -387,7 +383,7 @@ private fun createEditFileTool(
             required = listOf("path", "old_text", "new_text"),
         )
     },
-    needsApproval = { needsApproval("edit") || it.pathOutsideWritableRoots("path") },
+    needsApproval = { needsApproval("edit") || it.forcedPathApproval("path", writableRoots) },
     execute = {
         val params = it.jsonObject
         val path = params.absolutePath("path")
@@ -427,6 +423,7 @@ private fun createShellTool(
     workspaceRepository: WorkspaceRepository,
     defaultCwd: String? = null,
     conversationId: String? = null,
+    writableRoots: List<String>,
 ) = Tool(
     name = "bash",
     description = buildString {
@@ -436,7 +433,8 @@ private fun createShellTool(
         if (!defaultCwd.isNullOrBlank()) {
             append("Defaults to '$defaultCwd'. ")
         }
-        append("Requires Rootfs to be installed and ready.")
+        append("Requires Rootfs to be installed and ready. ")
+        append("Git discipline: only commit, amend, push, or create PRs when explicitly requested. Before committing, inspect 'git status', 'git diff', and 'git log --oneline -10'; stage only intended files and never commit secrets. Write a concise commit message that matches the repo style. Do not update git config, skip hooks, use interactive '-i', force-push, or create empty commits unless explicitly requested. If a commit fails or hooks reject it, fix the issue and create a new commit; do not amend the failed commit.")
     },
     parameters = {
         InputSchema.Obj(
@@ -467,7 +465,7 @@ private fun createShellTool(
             required = listOf("command"),
         )
     },
-    needsApproval = { needsApproval("bash") },
+    needsApproval = { needsApproval("bash") || it.commandTouchesOutsideRoots(writableRoots) },
     execute = {
         val params = it.jsonObject
         val command = params.string("command") ?: error("command is required")
@@ -650,20 +648,20 @@ private fun kotlinx.serialization.json.JsonObject.absolutePath(name: String): St
     return path
 }
 
-// 免强制审批的可写安全区: 工作区文件目录, 以及临时目录 /tmp
-private val WRITABLE_ROOT_PREFIXES = listOf("/workspace", "/tmp")
+// 写入安全区（按工作区配置，见 WorkspaceEntity.writableRoots）：
+// 区外的 write/edit/bash 调用强制审批（即使工具级审批已被用户关闭）
+private fun kotlinx.serialization.json.JsonElement.forcedPathApproval(
+    name: String,
+    writableRoots: List<String>,
+): Boolean = runCatching {
+    !BashPathScanner.isInsideRoots(jsonObject.absolutePath(name), writableRoots)
+}.getOrDefault(true)
 
-private fun kotlinx.serialization.json.JsonElement.pathOutsideWritableRoots(name: String): Boolean =
-    runCatching {
-        jsonObject.absolutePath(name).isOutsideWritableRoots()
-    }.getOrDefault(true)
-
-private fun String.isOutsideWritableRoots(): Boolean {
-    val normalized = trimEnd('/').ifBlank { "/" }
-    return WRITABLE_ROOT_PREFIXES.none { prefix ->
-        normalized == prefix || normalized.startsWith("$prefix/")
-    }
-}
+private fun kotlinx.serialization.json.JsonElement.commandTouchesOutsideRoots(
+    writableRoots: List<String>,
+): Boolean = runCatching {
+    BashPathScanner.touchesOutsideRoots(jsonObject.string("command").orEmpty(), writableRoots)
+}.getOrDefault(true)
 
 private fun String.rootfsName(): String =
     trimEnd('/').substringAfterLast('/').ifBlank { "/" }

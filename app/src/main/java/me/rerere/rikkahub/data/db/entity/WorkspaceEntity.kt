@@ -8,6 +8,10 @@ import me.rerere.rikkahub.utils.JsonInstant
 import me.rerere.workspace.Workspace
 import me.rerere.workspace.WorkspaceShellStatus
 
+/** 写入安全区出厂默认：工作区文件区 + 临时目录 */
+val DEFAULT_WRITABLE_ROOTS: List<String> = listOf("/workspace", "/tmp")
+const val DEFAULT_WRITABLE_ROOTS_JSON: String = "[\"/workspace\",\"/tmp\"]"
+
 @Entity(
     tableName = "workspaces",
     indices = [
@@ -39,10 +43,18 @@ data class WorkspaceEntity(
     // 工具提示词的用户覆盖项 (toolName -> prompt)，未覆盖的工具沿用默认提示词（WorkspaceToolPrompts.kt）
     @ColumnInfo("tool_prompts")
     val toolPrompts: String? = null,
+    // 写入安全区（rootfs 绝对路径前缀 JSON 数组）：区外的 write/edit/bash 调用强制审批。
+    // 空数组 = 全部强制审批（fail-safe）；解析失败回退 DEFAULT_WRITABLE_ROOTS
+    @ColumnInfo("writable_roots", defaultValue = "[\"/workspace\",\"/tmp\"]")
+    val writableRoots: String = DEFAULT_WRITABLE_ROOTS_JSON,
 ) {
     fun toolApprovalOverrides(): Map<String, Boolean> = runCatching {
         JsonInstant.decodeFromString<Map<String, Boolean>>(toolApprovals)
     }.getOrDefault(emptyMap())
+
+    fun writableRootsList(): List<String> = runCatching {
+        JsonInstant.decodeFromString<List<String>>(writableRoots)
+    }.getOrElse { DEFAULT_WRITABLE_ROOTS }
 
     fun toolPromptOverrides(): Map<String, String> = runCatching {
         JsonInstant.decodeFromString<Map<String, String>>(toolPrompts ?: "{}")
