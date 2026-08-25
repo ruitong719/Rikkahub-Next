@@ -38,6 +38,7 @@ import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.data.model.NodeFavoriteTarget
+import me.rerere.rikkahub.data.model.PermissionMode
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.FavoriteRepository
 import me.rerere.rikkahub.service.ChatError
@@ -286,6 +287,14 @@ class ChatVM(
     fun updateTitle(title: String) {
         viewModelScope.launch {
             val updatedConversation = conversation.value.copy(title = title)
+            chatService.saveConversation(_conversationId, updatedConversation)
+        }
+    }
+
+    /** 切换会话权限模式（plan/build/yolo），持久化到对话并即时生效于下一次生成 */
+    fun updatePermissionMode(mode: PermissionMode) {
+        viewModelScope.launch {
+            val updatedConversation = conversation.value.copy(permissionMode = mode)
             chatService.saveConversation(_conversationId, updatedConversation)
         }
     }

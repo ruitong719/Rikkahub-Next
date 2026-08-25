@@ -23,6 +23,7 @@ import me.rerere.rikkahub.data.db.entity.MessageNodeEntity
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.MessageNode
+import me.rerere.rikkahub.data.model.PermissionMode
 import me.rerere.rikkahub.utils.JsonInstant
 import java.time.Instant
 import kotlin.uuid.Uuid
@@ -362,6 +363,7 @@ class ConversationRepository(
             workspaceCwd = conversation.workspaceCwd ?: "",
             folderId = conversation.folderId?.toString() ?: "",
             rollingContextSummary = conversation.rollingContextSummary?.let(JsonInstant::encodeToString) ?: "",
+            permissionMode = conversation.permissionMode.name,
         )
     }
 
@@ -384,6 +386,9 @@ class ConversationRepository(
             rollingContextSummary = conversationEntity.rollingContextSummary.ifEmpty {
                 null
             }?.let { runCatching { JsonInstant.decodeFromString<RollingContextSummary>(it) }.getOrNull() },
+            permissionMode = runCatching {
+                PermissionMode.valueOf(conversationEntity.permissionMode)
+            }.getOrDefault(PermissionMode.BUILD),
         )
     }
 

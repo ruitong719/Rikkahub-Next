@@ -2,6 +2,7 @@ package me.rerere.rikkahub.data.model
 
 import android.net.Uri
 import androidx.core.net.toUri
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import me.rerere.ai.core.MessageRole
@@ -12,6 +13,24 @@ import me.rerere.rikkahub.data.ai.context.RollingContextSummary
 import me.rerere.rikkahub.data.datastore.DEFAULT_ASSISTANT_ID
 import java.time.Instant
 import kotlin.uuid.Uuid
+
+/**
+ * 权限模式（借鉴 opencode 的 plan/build/yolo）：
+ * - PLAN  只读研究模式：变更类工具被禁用，模型应产出计划而非执行改动
+ * - BUILD 默认模式：按各工具的审批配置执行
+ * - YOLO  跳过所有工具审批（危险）
+ */
+@Serializable
+enum class PermissionMode {
+    @SerialName("plan")
+    PLAN,
+
+    @SerialName("build")
+    BUILD,
+
+    @SerialName("yolo")
+    YOLO,
+}
 
 @Serializable
 data class Conversation(
@@ -32,6 +51,8 @@ data class Conversation(
     val folderId: Uuid? = null,
     // 滚动摘要上下文（持久化在 ConversationEntity 中）
     val rollingContextSummary: RollingContextSummary? = null,
+    // 权限模式（plan/build/yolo），持久化在 ConversationEntity 中，会话级生效
+    val permissionMode: PermissionMode = PermissionMode.BUILD,
     @Transient
     val newConversation: Boolean = false
 ) {

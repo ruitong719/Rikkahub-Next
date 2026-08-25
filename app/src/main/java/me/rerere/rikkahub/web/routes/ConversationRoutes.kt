@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import me.rerere.rikkahub.data.datastore.SettingsStore
+import me.rerere.rikkahub.data.model.PermissionMode
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.FolderRepository
 import me.rerere.rikkahub.service.ChatService
@@ -35,6 +36,7 @@ import me.rerere.rikkahub.web.dto.RegenerateRequest
 import me.rerere.rikkahub.web.dto.SelectMessageNodeRequest
 import me.rerere.rikkahub.web.dto.SendMessageRequest
 import me.rerere.rikkahub.web.dto.ToolApprovalRequest
+import me.rerere.rikkahub.web.dto.UpdatePermissionModeRequest
 import me.rerere.rikkahub.web.dto.MessageSearchResultDto
 import me.rerere.rikkahub.web.dto.UpdateConversationTitleRequest
 import me.rerere.rikkahub.web.dto.toDto
@@ -167,6 +169,19 @@ fun Route.conversationRoutes(
 
             chatService.saveConversation(uuid, conversation.copy(isPinned = !conversation.isPinned))
             call.respond(HttpStatusCode.OK, mapOf("status" to "updated"))
+        }
+
+        // POST /api/conversations/{id}/permission-mode - Switch permission mode (plan/build/yolo)
+        post("/{id}/permission-mode") {
+            val uuid = call.parameters["id"].toUuid("conversation id")
+            val request = call.receive<UpdatePermissionModeRequest>()
+            val mode = runCatching { PermissionMode.valueOf(request.mode.uppercase()) }.getOrNull()
+                ?: throw BadRequestException("Invalid permission mode: ${request.mode}, expected PLAN/BUILD/YOLO")
+            val conversation = conversationRepo.getConversationById(uuid)
+                ?: throw NotFoundException("Conversation not found")
+
+            chatService.saveConversation(uuid, conversation.copy(permissionMode = mode))
+            call.respond(HttpStatusCode.OK, mapOf("status" to "updated", "mode" to mode.name))
         }
 
         // POST /api/conversations/{id}/regenerate-title - Regenerate conversation title

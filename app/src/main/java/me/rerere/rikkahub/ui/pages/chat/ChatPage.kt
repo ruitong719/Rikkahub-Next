@@ -457,6 +457,8 @@ private fun ChatPageContent(
                     },
                     todos = todos,
                     onClearTodos = vm::clearTodos,
+                    permissionMode = conversation.permissionMode,
+                    onUpdatePermissionMode = vm::updatePermissionMode,
                     messages = conversation.messageNodes.flatMap { it.messages },
                 )
             },

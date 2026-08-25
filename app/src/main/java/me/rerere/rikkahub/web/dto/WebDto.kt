@@ -55,6 +55,11 @@ data class UpdateConversationTitleRequest(
 )
 
 @Serializable
+data class UpdatePermissionModeRequest(
+    val mode: String
+)
+
+@Serializable
 data class CreateFolderRequest(
     val name: String
 )
@@ -136,6 +141,7 @@ data class ConversationListDto(
     val title: String,
     val isPinned: Boolean,
     val folderId: String? = null,
+    val permissionMode: String = "BUILD",
     val createAt: Long,
     val updateAt: Long,
     val isGenerating: Boolean = false
@@ -182,6 +188,7 @@ data class ConversationDto(
     val customSystemPrompt: String? = null,
     val workspaceCwd: String? = null,
     val folderId: String? = null,
+    val permissionMode: String = "BUILD",
     val createAt: Long,
     val updateAt: Long,
     val isGenerating: Boolean = false
@@ -298,6 +305,7 @@ fun Conversation.toListDto(isGenerating: Boolean = false) = ConversationListDto(
     title = title,
     isPinned = isPinned,
     folderId = folderId?.toString(),
+    permissionMode = permissionMode.name,
     createAt = createAt.toEpochMilli(),
     updateAt = updateAt.toEpochMilli(),
     isGenerating = isGenerating
@@ -321,6 +329,7 @@ fun Conversation.toDto(isGenerating: Boolean = false) = ConversationDto(
     customSystemPrompt = customSystemPrompt,
     workspaceCwd = workspaceCwd,
     folderId = folderId?.toString(),
+    permissionMode = permissionMode.name,
     createAt = createAt.toEpochMilli(),
     updateAt = updateAt.toEpochMilli(),
     isGenerating = isGenerating

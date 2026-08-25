@@ -40,7 +40,7 @@ fun startWebServer(port=8080, host="0.0.0.0", module: suspend Application.() -> 
 | GET /ai-icon?name= | AI 供应商图标资产（免鉴权，带 Cache-Control） |
 | GET /conversations | 分页会话列表（支持 search） |
 | DELETE /conversations/{id} | 删除会话 |
-| POST /conversations/{id}/pin \| regenerate-title \| title \| move \| folder | 置顶/重新生成标题/改标题/移动助手/移动文件夹 |
+| POST /conversations/{id}/pin \| regenerate-title \| title \| move \| folder \| permission-mode | 置顶/重新生成标题/改标题/移动助手/移动文件夹/权限模式(plan/build/yolo) |
 | POST /conversations/{id}/messages | 发送消息(SendMessageRequest) |
 | POST .../messages/{mid}/edit · DELETE .../messages/{mid} | 编辑/删除消息 |
 | POST .../fork · nodes/{nid}/select · regenerate · stop · tool-approval | fork/切换分支/重新生成/打断/工具审批 |
@@ -53,8 +53,8 @@ fun startWebServer(port=8080, host="0.0.0.0", module: suspend Application.() -> 
 | POST /settings/search/enabled \| search/service · model/built-in-tool · favorite-models | 搜索开关/服务、模型内置工具、收藏模型 |
 
 ### DTO（web/dto/WebDto.kt）
-- 请求：SendMessageRequest/RegenerateRequest/**ToolApprovalRequest(approved,reason,answer)**/EditMessageRequest/ForkConversationRequest/SelectMessageNodeRequest/MoveConversationRequest/Update* 系列/WebAuthTokenRequest
-- 响应：ConversationListDto/ConversationDto/MessageNodeDto/MessageDto/PagedResult\<T\>/UploadedFileDto/MessageSearchResultDto/WebAuthTokenResponse/ErrorResponse
+- 请求：SendMessageRequest/RegenerateRequest/**ToolApprovalRequest(approved,reason,answer)**/EditMessageRequest/ForkConversationRequest/SelectMessageNodeRequest/MoveConversationRequest/Update* 系列(含 UpdatePermissionModeRequest)/WebAuthTokenRequest
+- 响应：ConversationListDto/ConversationDto(含 permissionMode 字段)/MessageNodeDto/MessageDto/PagedResult\<T\>/UploadedFileDto/MessageSearchResultDto/WebAuthTokenResponse/ErrorResponse
 - SSE 事件：ConversationUpdateEvent/**SnapshotEvent(seq 增量)**/**NodeUpdateEvent**(单节点变化时替代全量 snapshot，由 routes/ConversationDiff.singleNodeDiffOrNull 计算)/GenerationDoneEvent/ErrorEvent/ListInvalidateEvent/FolderListEvent
 - 工具类：routes/RouteUtils.kt(String?.toUuid)、routes/ConversationDiff.kt
 

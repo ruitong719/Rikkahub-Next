@@ -47,6 +47,8 @@ import me.rerere.common.android.Logging
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.GenerationChunk
+import me.rerere.rikkahub.data.ai.PermissionModePolicy
+import me.rerere.rikkahub.data.model.PermissionMode
 import me.rerere.rikkahub.data.ai.GenerationHandler
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.ai.context.RollingContextSummary
@@ -71,6 +73,7 @@ import me.rerere.rikkahub.data.ai.transformers.ThinkTagTransformer
 import me.rerere.rikkahub.data.ai.transformers.TimeReminderTransformer
 import me.rerere.rikkahub.data.ai.transformers.VisionImageToTextTransformer
 import me.rerere.rikkahub.data.ai.transformers.BackgroundTaskReminderTransformer
+import me.rerere.rikkahub.data.ai.transformers.PlanModeTransformer
 import me.rerere.rikkahub.data.ai.transformers.WorkspaceReminderTransformer
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
@@ -82,6 +85,7 @@ import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.files.WorkspaceBgManager
+import me.rerere.rikkahub.data.files.WorkspaceMountManager
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
@@ -198,10 +202,11 @@ class ChatService(
     private val workspaceRepository: WorkspaceRepository,
     private val folderRepository: FolderRepository,
     private val workspaceBgManager: WorkspaceBgManager,
+    private val workspaceMountManager: WorkspaceMountManager,
     private val subAgentRunMonitor: SubAgentRunMonitor,
 ) {
     // workspace 系统提示注入 (依赖 workspaceRepository, 故在类内构造)
-    private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository)
+    private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository, workspaceMountManager)
 
     // AGENTS.md 注入：/agent 目录下全部 *.md（agent.md 优先），否则用设置里的全局文本
     private val agentMdTransformer = AgentMdTransformer()
@@ -738,10 +743,12 @@ class ChatService(
                     add(agentMdTransformer)
                     add(visionImageToTextTransformer)
                     add(backgroundTaskReminder(conversationId))
+                    add(PlanModeTransformer(conversation.permissionMode == PermissionMode.PLAN))
                 },
                 outputTransformers = outputTransformers,
-                tools = buildList {
-                    // MCP 工具名校验：无效时中止整个生成（保持原行为）
+                tools = PermissionModePolicy.apply(
+                    tools = buildList {
+                        // MCP 工具名校验：无效时中止整个生成（保持原行为）
                     mcpManager.getAllAvailableTools().also { allTools ->
                         val invalidNames = allTools
                             .map { it.second }
@@ -805,7 +812,9 @@ class ChatService(
                             )
                         )
                     }
-                },
+                    },
+                    mode = conversation.permissionMode,
+                ),
             ).onCompletion {
                 // 可能被取消了，或者意外结束，兜底更新
                 val updatedConversation = getConversationFlow(conversationId).value.copy(

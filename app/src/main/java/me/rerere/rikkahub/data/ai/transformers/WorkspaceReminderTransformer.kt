@@ -6,6 +6,7 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.ai.tools.DEFAULT_WORKSPACE_TOOL_PROMPTS
 import me.rerere.rikkahub.data.ai.tools.WORKSPACE_TOOL_NAMES
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
+import me.rerere.rikkahub.data.files.WorkspaceMountManager
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.workspace.WorkspaceShellStatus
 
@@ -13,10 +14,11 @@ import me.rerere.workspace.WorkspaceShellStatus
  * Workspace 系统提示注入转换器
  *
  * 当助手绑定了一个 shell 已就绪的 workspace 时, 在系统提示词中追加一段引导,
- * 让模型了解 workspace 环境与 workspace_* 工具的使用方式。
+ * 让模型了解 workspace 环境、/mnt 挂载点与 workspace 工具的使用方式。
  */
 class WorkspaceReminderTransformer(
     private val workspaceRepository: WorkspaceRepository,
+    private val mountManager: WorkspaceMountManager? = null,
 ) : InputMessageTransformer {
     override suspend fun transform(
         ctx: TransformerContext,
@@ -27,7 +29,7 @@ class WorkspaceReminderTransformer(
         // 与 ChatService.createWorkspaceToolsIfReady 保持一致: 仅在 shell 就绪时注入
         if (workspace.shellStatus != WorkspaceShellStatus.READY.name) return messages
 
-        val prompt = buildWorkspacePrompt(workspace, ctx.workspaceCwd)
+        val prompt = buildWorkspacePrompt(workspace, ctx.workspaceCwd, mountManager)
 
         // 追加到第一条 system 消息; 若不存在则插入一条
         val systemIndex = messages.indexOfFirst { it.role == MessageRole.SYSTEM }
@@ -41,7 +43,11 @@ class WorkspaceReminderTransformer(
     }
 }
 
-private fun buildWorkspacePrompt(workspace: WorkspaceEntity, cwd: String? = null): String = buildString {
+private fun buildWorkspacePrompt(
+    workspace: WorkspaceEntity,
+    cwd: String? = null,
+    mountManager: WorkspaceMountManager? = null,
+): String = buildString {
     appendLine("<workspace>")
     appendLine("You have access to a persistent Linux workspace named \"${workspace.name}\", running in a sandboxed proot rootfs environment.")
     appendLine("- The workspace files area is mounted at `/workspace`. Use it as your working directory; files written there persist across turns of this conversation.")
@@ -54,14 +60,29 @@ private fun buildWorkspacePrompt(workspace: WorkspaceEntity, cwd: String? = null
             appendLine("  - `$name`: $prompt")
         }
     }
-    appendLine("- Prefer `workspace_shell` for tasks that standard Unix tools handle well, and prefer `workspace_edit_file` for targeted edits over rewriting whole files.")
+    appendLine("- Prefer `bash` for tasks that standard Unix tools handle well, and prefer `edit` for targeted edits over rewriting whole files.")
+    appendMountSection(mountManager)
     appendLine("- The skills directory is mounted at `/skills`. Each skill is a subdirectory `/skills/<skill-name>/` containing a `SKILL.md` (with `name` and `description` frontmatter) plus any supporting files. Read a skill's `SKILL.md` before using it, and follow its instructions.")
     appendLine("- Files the user uploaded are mounted at `/upload`. Treat `/upload` as READ-ONLY: read uploaded files from `/upload/<file-name>`, but never modify, overwrite, or delete anything there. If you need to change an uploaded file, copy it into `/workspace` first and edit the copy.")
     appendLine("- The agent instructions directory is mounted at `/agent`. It contains Markdown files (e.g. `agent.md`) that define the assistant's behavior; follow them. You may append to existing files there, but prefer editing `/workspace` files for your own work.")
     if (!cwd.isNullOrBlank()) {
         appendLine("- Current working directory: `$cwd`. Use this as the default context for file operations and shell commands.")
     }
+    appendMountSection(mountManager)
     append("</workspace>")
+}
+
+/**
+ * /mnt 挂载点说明（替代原 workspace_mount_list/sync 工具）：
+ * 列出当前挂载点并说明快照同步语义，让模型对「改动何时落到手机」有正确预期。
+ */
+private fun StringBuilder.appendMountSection(mountManager: WorkspaceMountManager?) {
+    val mounts = mountManager?.listMounts().orEmpty()
+    if (mounts.isEmpty()) return
+    val list = mounts.joinToString(", ") { "`/mnt/${it.name}`" }
+    appendLine("- Phone directories are mirrored into the workspace as bind mounts: $list.")
+    appendLine("  They are snapshot copies synced automatically in the background (push to phone, then pull from phone).")
+    appendLine("  Changes you make under /mnt reach the phone after the next sync cycle; new files on the phone appear the same way. Do not assume immediate consistency, and avoid editing the same file on both sides between syncs.")
 }
 
 private fun UIMessage.appendText(extra: String): UIMessage {

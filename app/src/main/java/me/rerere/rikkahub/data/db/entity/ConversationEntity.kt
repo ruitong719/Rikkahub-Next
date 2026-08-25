@@ -30,4 +30,6 @@ data class ConversationEntity(
     val folderId: String = "",
     @ColumnInfo("rolling_context_summary", defaultValue = "")
     val rollingContextSummary: String = "",
+    @ColumnInfo("permission_mode", defaultValue = "BUILD")
+    val permissionMode: String = "BUILD",
 )

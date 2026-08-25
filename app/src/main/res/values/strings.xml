@@ -1208,6 +1208,8 @@
   <string name="workspace_detail_mount_confirm">OK</string>
   <string name="workspace_detail_mount_cancel">Cancel</string>
   <string name="workspace_detail_mount_empty">No mounts yet</string>
+  <string name="workspace_mount_auto_sync">Auto sync interval</string>
+  <string name="workspace_mount_auto_sync_off">Off</string>
   <string name="workspace_detail_tool_mount_list">List Mounts</string>
   <string name="workspace_detail_tool_mount_sync">Sync Mount</string>
   <string name="workspace_detail_tool_bg_start">Start Background Task</string>
@@ -1306,6 +1308,12 @@
   <string name="todo_sheet_clear_confirm_confirm">Clear</string>
   <string name="todo_sheet_clear_confirm_cancel">Cancel</string>
   <string name="subagent_monitor_button">Subagent monitor</string>
+  <string name="permission_mode_plan">Plan</string>
+  <string name="permission_mode_plan_desc">Read-only research: mutating tools are disabled, present a plan instead</string>
+  <string name="permission_mode_build">Build</string>
+  <string name="permission_mode_build_desc">Default: tools run according to their approval settings</string>
+  <string name="permission_mode_yolo">YOLO</string>
+  <string name="permission_mode_yolo_desc">Skip all tool approvals (dangerous)</string>
   <string name="subagent_monitor_running_badge">Running</string>
   <string name="bg_task_button">Background tasks</string>
   <string name="bg_task_sheet_title">Background tasks (%1$d)</string>

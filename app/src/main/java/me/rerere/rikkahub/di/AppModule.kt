@@ -101,6 +101,7 @@ val appModule = module {
             workspaceRepository = get(),
             folderRepository = get(),
             workspaceBgManager = get(),
+            workspaceMountManager = get(),
             subAgentRunMonitor = get()
         )
     }

@@ -1155,6 +1155,8 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="workspace_detail_mount_confirm">确定</string>
   <string name="workspace_detail_mount_cancel">取消</string>
   <string name="workspace_detail_mount_empty">暂无挂载</string>
+  <string name="workspace_mount_auto_sync">自动同步间隔</string>
+  <string name="workspace_mount_auto_sync_off">关闭</string>
   <string name="workspace_detail_install_rootfs_desc">将下载 tar.gz 并解压到 %s 的 Linux 目录。</string>
   <string name="workspace_detail_download_url">tar.gz 下载链接</string>
   <string name="workspace_detail_area_files">文件</string>
@@ -1307,6 +1309,12 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="todo_sheet_clear_confirm_confirm">清空</string>
   <string name="todo_sheet_clear_confirm_cancel">取消</string>
   <string name="subagent_monitor_button">子智能体监看</string>
+  <string name="permission_mode_plan">计划</string>
+  <string name="permission_mode_plan_desc">只读调研：变更类工具已禁用，产出计划而非执行</string>
+  <string name="permission_mode_build">构建</string>
+  <string name="permission_mode_build_desc">默认：工具按各自审批配置执行</string>
+  <string name="permission_mode_yolo">YOLO</string>
+  <string name="permission_mode_yolo_desc">跳过所有工具审批（危险）</string>
   <string name="subagent_monitor_running_badge">执行中</string>
   <string name="bg_task_button">后台任务</string>
   <string name="bg_task_sheet_title">后台任务（%1$d）</string>
