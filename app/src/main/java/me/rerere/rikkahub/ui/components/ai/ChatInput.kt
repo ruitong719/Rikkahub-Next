@@ -264,14 +264,26 @@ fun ChatInput(
                         completionProviders = completionProviders,
                         onSendMessage = { sendMessage() },
                         trailingContent = {
-                            if (imeVisible && !asrState.isRecording) {
-                                SendButton(
-                                    loading = loading,
-                                    empty = state.isEmpty(),
-                                    queuedCount = queuedCount,
-                                    onClick = { sendMessage() },
-                                    onLongClick = { sendMessageWithoutAnswer() },
-                                )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                // 附件入口常驻输入框行（原在底栏，键盘弹出时不可达）
+                                ActionIconButton(onClick = onMoreClick) {
+                                    Icon(
+                                        imageVector = HugeIcons.Add01,
+                                        contentDescription = stringResource(R.string.more_options)
+                                    )
+                                }
+                                if (imeVisible && !asrState.isRecording) {
+                                    SendButton(
+                                        loading = loading,
+                                        empty = state.isEmpty(),
+                                        queuedCount = queuedCount,
+                                        onClick = { sendMessage() },
+                                        onLongClick = { sendMessageWithoutAnswer() },
+                                    )
+                                }
                             }
                         },
                     )
@@ -474,15 +486,6 @@ fun ChatInput(
                                     }
                                 }
 
-                            }
-
-                            ActionIconButton(
-                                onClick = onMoreClick
-                            ) {
-                                Icon(
-                                    imageVector = HugeIcons.Add01,
-                                    contentDescription = stringResource(R.string.more_options)
-                                )
                             }
 
                             if (asrState.isAvailable || asrState.isRecording) {
