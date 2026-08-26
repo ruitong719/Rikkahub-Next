@@ -71,6 +71,9 @@ sealed interface GenerationChunk {
 internal const val AUTO_RECONNECT_MAX_ATTEMPTS = 4
 internal const val AUTO_RECONNECT_BACKOFF_BASE_MS = 1_000L
 
+/** 流式分片处理（消息转换/UI 更新）失败的包装：不属于网络故障，不能触发自动重连重放请求 */
+private class StreamChunkHandlingException(cause: Throwable) : RuntimeException(cause)
+
 /** 沿 cause 链判断是否网络层错误（IOException 族）；HTTP 错误体解析出的 API 异常不在此列 */
 internal fun Throwable.hasRetryableNetworkCause(): Boolean {
     var cur: Throwable? = this
@@ -105,8 +108,8 @@ class GenerationHandler(
         requestMessageStartIndex: Int = 0,
         /** 实验性：单次 LLM 请求因网络层错误失败时自动整单重发（指数退避，最多 4 次） */
         enableAutoReconnect: Boolean = false,
-        /** 每次自动重连时回调（attempt 从 1 起），UI 用于轻提示 */
-        onAutoReconnect: suspend (attempt: Int, maxAttempts: Int) -> Unit = { _, _ -> },
+        /** 每次自动重连时回调（attempt 从 1 起，error 为触发本次重连的异常），UI 用于轻提示与状态文案 */
+        onAutoReconnect: suspend (attempt: Int, maxAttempts: Int, error: Throwable) -> Unit = { _, _, _ -> },
         /**
          * 生成循环中每轮调用 LLM 前回调：返回需要插入对话的用户补充消息（队列）。
          * 插入点在工具执行完之后、下一轮调用之前，让 LLM 尽快看到用户补充；
@@ -436,7 +439,7 @@ class GenerationHandler(
         conversationSystemPrompt: String? = null,
         conversationId: Uuid? = null,
         enableAutoReconnect: Boolean = false,
-        onAutoReconnect: suspend (attempt: Int, maxAttempts: Int) -> Unit = { _, _ -> },
+        onAutoReconnect: suspend (attempt: Int, maxAttempts: Int, error: Throwable) -> Unit = { _, _, _ -> },
         workspaceCwd: String? = null,
         rollingContextSummary: String? = null,
         requestMessageStartIndex: Int = 0,
@@ -513,6 +516,8 @@ class GenerationHandler(
         while (true) {
             val attemptSnapshot = messages
             try {
+                // 新尝试开始即清除上一轮的重试提示，避免成功后文案残留
+                processingStatus.value = null
                 if (stream) {
                     val streamChunkHandler = StreamChunkHandler(model)
                     providerImpl.streamText(
@@ -520,8 +525,15 @@ class GenerationHandler(
                         messages = internalMessages,
                         params = params
                     ).collect {
-                        messages = streamChunkHandler.handle(messages, it)
-                        onUpdateMessages(messages)
+                        try {
+                            messages = streamChunkHandler.handle(messages, it)
+                            onUpdateMessages(messages)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Throwable) {
+                            // 下游消息转换或 UI 更新失败不属于网络故障，不能重放模型请求
+                            throw StreamChunkHandlingException(e)
+                        }
                     }
                 } else {
                     // 非流式拿不到首包时刻，整轮请求时长计入纯生成时长（不含工具执行间隙）
@@ -540,14 +552,18 @@ class GenerationHandler(
                 }
                 break
             } catch (e: CancellationException) {
+                // 取消发生在退避等待中时，重试文案可能刚被写上，清掉再退出
+                processingStatus.value = null
                 throw e
+            } catch (e: StreamChunkHandlingException) {
+                throw e.cause ?: e
             } catch (e: Exception) {
                 if (reconnectAttempt >= AUTO_RECONNECT_MAX_ATTEMPTS || !e.hasRetryableNetworkCause()) throw e
                 reconnectAttempt += 1
                 // 回滚到本次尝试前：重发是整单重新生成，半截内容由新流覆盖
                 messages = attemptSnapshot
                 onUpdateMessages(messages)
-                onAutoReconnect(reconnectAttempt, AUTO_RECONNECT_MAX_ATTEMPTS)
+                onAutoReconnect(reconnectAttempt, AUTO_RECONNECT_MAX_ATTEMPTS, e)
                 delay(AUTO_RECONNECT_BACKOFF_BASE_MS shl (reconnectAttempt - 1))
             }
         }

@@ -98,6 +98,11 @@ import me.rerere.rikkahub.web.BadRequestException
 import me.rerere.rikkahub.web.NotFoundException
 import me.rerere.rikkahub.utils.applyPlaceholders
 import me.rerere.workspace.WorkspaceShellStatus
+import java.io.IOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.time.Instant
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -333,8 +338,22 @@ class ChatService(
     }
 
     fun getProcessingStatusFlow(conversationId: Uuid): StateFlow<String?> {
-        val session = sessions[conversationId] ?: return MutableStateFlow(null)
-        return session.processingStatus
+        // 用 getOrCreateSession 保证 UI 观察的是生成循环写入的同一份 Flow，否则状态永远到不了界面
+        return getOrCreateSession(conversationId).processingStatus
+    }
+
+    /** 沿 cause 链找网络层异常并给出本地化原因；找不到 IOException 时按"连接中断"兜底 */
+    private fun Throwable.networkErrorMessage(context: Context): String {
+        val io = generateSequence<Throwable>(this) { it.cause }
+            .filterIsInstance<IOException>()
+            .firstOrNull()
+        val res = when (io) {
+            is UnknownHostException -> R.string.chat_generation_network_unknown_host
+            is SocketTimeoutException -> R.string.chat_generation_network_timeout
+            is ConnectException, is NoRouteToHostException -> R.string.chat_generation_network_unreachable
+            else -> R.string.chat_generation_network_disconnected
+        }
+        return context.getString(res)
     }
 
     fun getConversationJobs(): Flow<Map<Uuid, Job?>> {
@@ -740,8 +759,15 @@ class ChatService(
                 conversationId = conversationId,
                 conversationSystemPrompt = conversation.customSystemPrompt,
                 enableAutoReconnect = settingsStore.settingsFlow.value.enableStreamAutoReconnect,
-                onAutoReconnect = { attempt, maxAttempts ->
+                onAutoReconnect = { attempt, maxAttempts, error ->
                     _reconnectNotices.tryEmit(StreamReconnectNotice(conversationId, attempt, maxAttempts))
+                    // 重试原因上屏：下次尝试开始时由 GenerationHandler 清除，取消时也会清
+                    session.processingStatus.value = context.getString(
+                        R.string.chat_generation_network_retrying,
+                        error.networkErrorMessage(context),
+                        attempt,
+                        maxAttempts,
+                    )
                 },
                 workspaceCwd = conversation.workspaceCwd,
                 rollingContextSummary = rollingContextText,
