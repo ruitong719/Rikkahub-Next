@@ -146,6 +146,11 @@
         android:value="local web server for LLM chat UI" />
     </service>
 
+    <!-- Web 服务器通知的「复制地址」按钮 -->
+    <receiver
+      android:name=".service.WebServerCopyReceiver"
+      android:exported="false" />
+
     <!-- 悬浮球前台服务: 系统级悬浮窗, 点击回到软件 -->
     <service
       android:name=".service.FloatingBubbleService"

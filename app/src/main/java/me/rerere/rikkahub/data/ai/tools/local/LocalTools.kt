@@ -24,12 +24,6 @@ class LocalTools(
 
     val askUserTool by lazy { buildAskUserTool() }
 
-    val screenTimeTool by lazy { buildScreenTimeTool(context, eventBus) }
-
-    val calendarQueryTool by lazy { buildCalendarQueryTool(context) }
-
-    val calendarCreateTool by lazy { buildCalendarCreateTool(context) }
-
     fun getTools(options: List<LocalToolOption>, conversationId: Uuid? = null): List<Tool> {
         val tools = mutableListOf<Tool>()
         if (options.contains(LocalToolOption.JavascriptEngine)) {
@@ -47,12 +41,8 @@ class LocalTools(
         if (options.contains(LocalToolOption.AskUser)) {
             tools.add(askUserTool)
         }
-        if (options.contains(LocalToolOption.ScreenTime)) {
-            tools.add(screenTimeTool)
-        }
-        if (options.contains(LocalToolOption.Calendar)) {
-            tools.add(calendarQueryTool)
-            tools.add(calendarCreateTool)
+        if (options.contains(LocalToolOption.Notify)) {
+            tools.add(buildNotifyTool(context, conversationId))
         }
         // todo 工具按对话隔离：必须知道 conversationId 才能定位数据文件
         if (options.contains(LocalToolOption.Todo) && conversationId != null) {

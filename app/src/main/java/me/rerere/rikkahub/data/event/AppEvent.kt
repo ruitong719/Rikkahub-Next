@@ -14,7 +14,7 @@ sealed class AppEvent {
         val error: String?,
     ) : AppEvent()
 
-    /** 聊天生成过程中的流式更新，由 ChatNotificationManager 消费用于 Live Update 通知。 */
+    /** 聊天生成过程中的流式更新，供悬浮球等消费方刷新活动状态。 */
     data class ChatGenerationUpdate(
         val conversationId: Uuid,
         val lastMessage: UIMessage,
@@ -23,7 +23,6 @@ sealed class AppEvent {
 
     /**
      * 聊天生成结束（完成、失败或取消）。
-     * [contentPreview] 为 null 时仅取消 Live Update 通知，不发送完成通知。
      */
     data class ChatGenerationEnded(
         val conversationId: Uuid,

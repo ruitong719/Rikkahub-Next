@@ -36,6 +36,8 @@ import me.rerere.ai.ui.ToolApprovalState
 import me.rerere.ai.ui.StreamChunkHandler
 import me.rerere.ai.ui.handleTextGenerationResult
 import me.rerere.rikkahub.data.ai.context.estimateContextTokens
+import me.rerere.rikkahub.data.ai.tools.local.ASK_USER_TOOL_NAME
+import me.rerere.rikkahub.data.ai.tools.local.formatAskUserAnswer
 import me.rerere.rikkahub.data.ai.transformers.InputMessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.MessageTransformer
 import me.rerere.rikkahub.data.ai.transformers.OutputMessageTransformer
@@ -364,9 +366,16 @@ class GenerationHandler(
                     is ToolApprovalState.Answered -> {
                         // Tool was answered by user (e.g., ask_user tool)
                         val answer = (tool.approvalState as ToolApprovalState.Answered).answer
+                        // ask_user 的应答负载转成自然语言（opencode 同款），模型接续更顺；
+                        // 其余工具的应答即纯文本，原样回填
+                        val outputText = if (tool.toolName == ASK_USER_TOOL_NAME) {
+                            formatAskUserAnswer(tool.input, answer)
+                        } else {
+                            answer
+                        }
                         val answeredTool = tool.copy(
                             output = listOf(
-                                UIMessagePart.Text(answer)
+                                UIMessagePart.Text(outputText)
                             )
                         )
                         executedTools += answeredTool

@@ -6,7 +6,6 @@ import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
 import me.rerere.rikkahub.data.ai.tools.local.TodoStore
 import me.rerere.rikkahub.data.event.AppEventBus
-import me.rerere.rikkahub.service.ChatNotificationManager
 import me.rerere.rikkahub.service.ChatService
 import me.rerere.rikkahub.service.FloatingActivityHub
 import me.rerere.rikkahub.ui.pages.extensions.workspace.WorkspaceTerminalSessionManager
@@ -61,17 +60,6 @@ val appModule = module {
 
     single {
         WorkspaceTerminalSessionManager(get(), get())
-    }
-
-    // 生成通知与业务解耦：ChatService 只发事件，通知由这里消费；
-    // createdAtStart 保证进程启动即订阅，否则后台生成的事件会因无订阅者而丢失
-    single(createdAtStart = true) {
-        ChatNotificationManager(
-            context = get(),
-            appScope = get(),
-            eventBus = get(),
-            settingsStore = get(),
-        )
     }
 
     // 悬浮球展开窗口的全局 AI 活动状态中心；createdAtStart 保证进程启动即订阅生成事件

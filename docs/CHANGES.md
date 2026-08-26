@@ -1212,3 +1212,50 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
   中文散文文档高位字节占比 40–60%，轻松突破 30% 阈值。文件本身解码无任何问题
 - **修复**：比较前 `and 0xFF` 转无符号；NUL 判定与真实控制字符（1-8/14-31）计数不变，
   二进制文件的检出能力不受影响（多数靠 NUL 字节命中）。顺带移除失效的 ZERO_BYTE 常量
+
+## AB. ask_user 吸收 opencode question 精华·第一批（2026-08-26）
+
+- **描述重写**：用途清单（收集偏好/澄清歧义/工作中决策/选方向）+ 使用注意。
+  反向适配一处：opencode 建议「别加 Other 兜底项」因其 custom 恒开，而本 App 的
+  single/multi 无手打框——改为「需要时显式提供退出项」；吸收推荐项置首 + "(Recommended)"
+  后缀、标签 1-5 词等约定
+- **应答输出自然语言化**：GenerationHandler Answered 分支对 ask_user 把
+  {"answers":{id}} 负载连同问题原文排成 `"Q"="A"` 句式并附续跑指令
+  （formatAskUserAnswer，解析失败原样兜底）；其余工具应答仍原样回填。
+  UI 读的是 approvalState.answer 原文，不受影响
+- **暂缓**（与 UI 改造绑定，待第二批）：options{label,description}、header、
+  selection_type 收敛为 multiple/custom、ask_user 专属渲染器
+
+## AC. 下线 calendar/screen_time 本地工具 + 统一渲染器加载态（2026-08-26）
+
+- **工具下线**：删除 calendar_query / calendar_create / get_screen_time 的定义文件与
+  注入分支（LocalTools）、PLAN_DENIED_TOOLS 的 calendar_create、设置页两张开关卡片与
+  日历权限申请 UI（PermissionManager/Manifest 权限声明随删）、三个专属渲染器及其私有组件。
+  ToolGrants 注释示例同步。LocalToolOption.ScreenTime/Calendar 枚举值暂留：
+  多态序列化的 @SerialName 删除会让旧设置 JSON 反序列化失败，清数据后可摘除
+- **加载态统一**：SearchWeb/ScrapeWeb 详情在生成中不再闪通用 JSON 视图，
+  改为「正在搜索…/正在抓取网页…」shimmer 占位（共享 PendingPreview 组件）；
+  仅执行异常仍回退 JSON 默认视图，与 bgt/subagent/backup/JS 渲染器策略一致
+
+## AD. notify 工具：模型可向设备发系统通知（2026-08-26）
+
+- **工具**：notify(message 必填, title 可选)——走新增专用渠道 ai_notify
+  （IMPORTANCE_HIGH+震动），点击深链回发起对话（复用 RouteActivity
+  conversationId extra 模式）；发送经 NotificationUtil.sendNotification DSL，
+  POST_NOTIFICATIONS 未授权时返回 {delivered:false,error:…} 让模型转告用户而非抛错。
+  免审批；不进 PLAN_DENIED_TOOLS（plan 模式下「研究完叫我」是合理场景）。
+  与后台任务完成提醒正交：那个喂模型、这个叫人回来
+- **注册**：LocalToolOption.Notify（新增枚举值安全）→ LocalTools 按开关注入
+ （conversationId 已在 getTools 签名内）→ 设置页开关卡片 → NotifyToolUI 渲染器
+ （标题=正文截断、摘要一行、详情=投递徽章+标题/正文，PendingPreview 提为 internal 复用）
+- **描述从简**降低模型心智负担：「用户要求提醒或需要立即引起注意时使用」
+
+## AE. 删除聊天通知渠道 + Web 服务器通知复制按钮（2026-08-26）
+
+- **渠道下线**：删除 chat_completed（聊天完成）与 chat_live_update（聊天实时状态）
+  两渠道及其整套消费链——ChatNotificationManager 文件、DI 注册、RikkaHubApp 渠道创建、
+  9 条孤儿字符串。生成事件（ChatGenerationUpdate/Ended）保留：悬浮球 FloatingActivityHub
+  仍依赖，相关注释全部改为指向真实消费方
+- **Web 服务器通知**：运行中通知新增「复制地址」动作按钮——URL 随通知重建而更新
+ （state observer 每次状态变化重建），点击经 WebServerCopyReceiver 写入剪贴板并 Toast
+  确认；Manifest 注册 exported=false Receiver

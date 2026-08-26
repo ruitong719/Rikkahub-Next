@@ -23,7 +23,6 @@ object PermissionModePolicy {
         "bgt_start",
         "bgt",
         "create_backup",
-        "calendar_create",
     )
 
     fun apply(tools: List<Tool>, mode: PermissionMode): List<Tool> = when (mode) {

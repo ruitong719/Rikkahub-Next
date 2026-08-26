@@ -72,7 +72,6 @@ data class TodoStoreItem(
  * 订阅 [AppEventBus] 上的聊天生成事件，把流式输出的文本、推理、终端命令整理成
  * 单一 [FloatingActivityState]；同时跟踪当前对话 ID，从 [TodoStore] 订阅该对话的
  * 真实待办列表，供悬浮球展开窗口展示。
- * 与 [ChatNotificationManager] 同源消费，二者互不影响。
  */
 class FloatingActivityHub(
     private val appScope: AppScope,

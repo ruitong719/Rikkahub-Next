@@ -47,10 +47,9 @@ import org.koin.core.context.startKoin
 
 private const val TAG = "RikkaHubApp"
 
-const val CHAT_COMPLETED_NOTIFICATION_CHANNEL_ID = "chat_completed"
-const val CHAT_LIVE_UPDATE_NOTIFICATION_CHANNEL_ID = "chat_live_update"
 const val WEB_SERVER_NOTIFICATION_CHANNEL_ID = "web_server"
 const val FLOATING_BUBBLE_NOTIFICATION_CHANNEL_ID = "floating_bubble"
+const val AI_NOTIFY_NOTIFICATION_CHANNEL_ID = "ai_notify"
 
 class RikkaHubApp : Application() {
     override fun onCreate() {
@@ -235,25 +234,15 @@ class RikkaHubApp : Application() {
 
     private fun createNotificationChannel() {
         val notificationManager = NotificationManagerCompat.from(this)
-        val chatCompletedChannel = NotificationChannelCompat
+        val aiNotifyChannel = NotificationChannelCompat
             .Builder(
-                CHAT_COMPLETED_NOTIFICATION_CHANNEL_ID,
+                AI_NOTIFY_NOTIFICATION_CHANNEL_ID,
                 NotificationManagerCompat.IMPORTANCE_HIGH
             )
-            .setName(getString(R.string.notification_channel_chat_completed))
+            .setName(getString(R.string.notification_channel_ai_notify))
             .setVibrationEnabled(true)
             .build()
-        notificationManager.createNotificationChannel(chatCompletedChannel)
-
-        val chatLiveUpdateChannel = NotificationChannelCompat
-            .Builder(
-                CHAT_LIVE_UPDATE_NOTIFICATION_CHANNEL_ID,
-                NotificationManagerCompat.IMPORTANCE_LOW
-            )
-            .setName(getString(R.string.notification_channel_chat_live_update))
-            .setVibrationEnabled(false)
-            .build()
-        notificationManager.createNotificationChannel(chatLiveUpdateChannel)
+        notificationManager.createNotificationChannel(aiNotifyChannel)
 
         val webServerChannel = NotificationChannelCompat
             .Builder(WEB_SERVER_NOTIFICATION_CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_LOW)

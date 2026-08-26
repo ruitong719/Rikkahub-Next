@@ -853,7 +853,7 @@ class ChatService(
                 )
                 updateConversation(conversationId, updatedConversation)
 
-                // 生成结束：取消 Live Update 通知，后台时发送完成通知
+                // 生成结束：向事件总线广播，供悬浮球等消费者更新状态
                 appEventBus.emit(
                     AppEvent.ChatGenerationEnded(
                         conversationId = conversationId,
@@ -869,8 +869,7 @@ class ChatService(
                             .updateCurrentMessages(chunk.messages)
                         updateConversation(conversationId, updatedConversation)
 
-                        // 通知等边缘副作用由 ChatNotificationManager 消费；
-                        // tryEmit 不挂起，事件丢失只影响单次通知更新，不能反压生成链
+                        // 悬浮球等消费方依赖此事件；tryEmit 不挂起，事件丢失只影响状态刷新，不能反压生成链
                         chunk.messages.lastOrNull()?.let { lastMessage ->
                             appEventBus.tryEmit(
                                 AppEvent.ChatGenerationUpdate(conversationId, lastMessage, senderName)
@@ -880,7 +879,7 @@ class ChatService(
                 }
             }
         }.onFailure {
-            // 兜底取消 Live Update 通知（生成开始前失败时 onCompletion 不会执行）
+            // 兜底广播结束事件（生成开始前失败时 onCompletion 不会执行）
             appEventBus.tryEmit(AppEvent.ChatGenerationEnded(conversationId, senderName, null))
 
             it.printStackTrace()

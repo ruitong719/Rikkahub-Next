@@ -31,8 +31,6 @@ MCP 工具命名约定 **`mcp__<serverName>__<toolName>`**。
 | clipboard_tool | Clipboard | action(read/write), text? | 读免审批；写需明确用户请求语境 | 视参数 |
 | text_to_speech | Tts | text | 发 AppEvent.Speak 后台朗读；systemPrompt 注入当前 TTS provider 的 promptGuidance（语气标记指引） | 否 |
 | ask_user | AskUser | questions[{id,question,options}] | 向用户提问等待回答（ApprovalState.Answered 机制）；**subagent 一律排除** | Pending 等答 |
-| get_screen_time | ScreenTime | begin/end 或 range(today/week) | UsageStats per-app 屏幕时长；无权限自动跳设置页 | 否 |
-| calendar_query / calendar_create | Calendar | 时间范围 / title+start(+end) | 设备日历查询/创建（创建 needsApproval=true） | create 是 |
 | todowrite（2026-08-26 起，替代原 todo_create/update/complete/clear 四工具） | Todo | todos[]（content/status: pending·in_progress·completed·cancelled/priority） | 单工具全量替换，对齐 opencode；返回全量列表；对话隔离待办（TodoStore：filesDir/todo/<convId>.json，StateFlow 供 UI 角标实时同步；旧布尔格式文件加载时自动迁移） | 否（PLAN 模式也不拦截，供模型写执行计划） |
 
 ## 3. 搜索 / 会话 / 记忆 / 技能工具（data/ai/tools/）

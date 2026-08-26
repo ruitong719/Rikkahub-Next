@@ -167,6 +167,15 @@ class WebServerService : Service() {
             stopIntent,
             PendingIntent.FLAG_IMMUTABLE
         )
+        val copyIntent = Intent(this, WebServerCopyReceiver::class.java).apply {
+            putExtra(WebServerCopyReceiver.EXTRA_URL, url)
+        }
+        val copyPendingIntent = PendingIntent.getBroadcast(
+            this,
+            1,
+            copyIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
         return NotificationCompat.Builder(this, WEB_SERVER_NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.small_icon)
             .setContentTitle(getString(R.string.notification_web_server_running))
@@ -175,6 +184,7 @@ class WebServerService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .addAction(0, getString(R.string.notification_web_server_copy), copyPendingIntent)
             .addAction(0, getString(R.string.notification_web_server_stop), stopPendingIntent)
             .build()
     }
