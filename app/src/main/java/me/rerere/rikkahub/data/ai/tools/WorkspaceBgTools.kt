@@ -75,7 +75,12 @@ fun createWorkspaceBgTools(
                     UIMessagePart.Text(
                         buildJsonObject {
                             put("bg_id", taskId)
-                            put("message", "Background task started")
+                            put(
+                                "message",
+                                "Background task started. It runs detached and you will be notified automatically " +
+                                    "when it finishes. DO NOT sleep, poll with workspace_bg_status, or idle-wait for it - " +
+                                    "work on unrelated tasks or end your response; read output via workspace_bg_output when notified."
+                            )
                         }.toString()
                     )
                 )
