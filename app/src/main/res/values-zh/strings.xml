@@ -1222,6 +1222,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="tool_ui_clipboard_pending">正在读取剪贴板…</string>
   <string name="tool_ui_time_pending">正在获取时间…</string>
   <string name="tool_ui_scrape_pending">正在抓取网页…</string>
+  <string name="tool_ui_ask_user_pending">等待用户作答…</string>
   <string name="notification_channel_ai_notify">AI 通知</string>
   <string name="assistant_page_local_tools_notify_title">AI 主动通知</string>
   <string name="assistant_page_local_tools_notify_desc">让 AI 向你的设备发送系统通知</string>

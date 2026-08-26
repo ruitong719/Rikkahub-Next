@@ -30,7 +30,7 @@ MCP 工具命名约定 **`mcp__<serverName>__<toolName>`**。
 | get_time_info | TimeInfo | 无 | 当前日期时间/星期/ISO/时区/时间戳 | 否 |
 | clipboard_tool | Clipboard | action(read/write), text? | 读免审批；写需明确用户请求语境 | 视参数 |
 | text_to_speech | Tts | text | 发 AppEvent.Speak 后台朗读；systemPrompt 注入当前 TTS provider 的 promptGuidance（语气标记指引） | 否 |
-| ask_user | AskUser | questions[{id,question,options}] | 向用户提问等待回答（ApprovalState.Answered 机制）；**subagent 一律排除** | Pending 等答 |
+| ask_user | AskUser | questions[{id,question,header?,options[{label,description}],multiple?,custom?}] | 向用户提问等待回答（ApprovalState.Answered 机制）；schema 对齐 opencode QuestionV2（header 简短标签、选项含说明、multiple/custom 布尔，custom 默认开提供手打框；旧 selection_type 历史数据解析兼容）；**subagent 一律排除**；YOLO 模式拦截返回不可用 | Pending 等答 |
 | todowrite（2026-08-26 起，替代原 todo_create/update/complete/clear 四工具） | Todo | todos[]（content/status: pending·in_progress·completed·cancelled/priority） | 单工具全量替换，对齐 opencode；返回全量列表；对话隔离待办（TodoStore：filesDir/todo/<convId>.json，StateFlow 供 UI 角标实时同步；旧布尔格式文件加载时自动迁移） | 否（PLAN 模式也不拦截，供模型写执行计划） |
 
 ## 3. 搜索 / 会话 / 记忆 / 技能工具（data/ai/tools/）

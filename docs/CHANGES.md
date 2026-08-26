@@ -1298,3 +1298,28 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
   统一 PendingPreview 加载占位，仅异常回退 JSON 默认视图
 - **read 提示词收敛**：工具描述与注入提示词删除目录列举表述，明确「列目录用 bash ls」；
   工具实际的目录分支代码保留未动
+
+## AH. ask_user 第二批：schema 对齐 opencode question + 专属渲染器（2026-08-26）
+
+完成 AB 节暂缓的第二批（与 UI 改造绑定）事项：
+
+- **schema 对齐 opencode QuestionV2**：question 条目新增 `header`（≤30 字符简短标签）、
+  `options` 由纯字符串数组改为 `[{label, description}]`（两者必填，description 为选项说明）、
+  删除 `selection_type`，改为 `multiple: boolean`（默认 false，多选时答案以 label 数组返回）
+  与 `custom: boolean`（默认 true，UI 自动提供手打框——与 opencode 一致，
+  工具描述据此采纳其「别加 Other/catch-all 兜底项」建议，替换首批反向适配文案）
+- **id 保留**：应答仍按 id 键控返回（本地 HITL 兼容；opencode 按题序数组返回，未照搬）
+- **交互表单重写**：header 显示在问题上方的 tertiary 小字；options 渲染为 FilterChip
+  （label 文本）；已选中的选项 description 实时展示帮助确认；
+  custom 开时显示文本输入框（多选时输入内容作为额外 label 追加提交）；
+  提交启用条件=每题已答（单选/文本非空，多选至少一个 label 或自定义文本）
+- **专属渲染器 AskUserToolUI**：注册进 ToolUIRegistry；ChatMessageToolStep 中 ask_user
+  仅在 Pending 待答且需提交回调时走交互表单，已答/YOLO 不可用等终态交给渲染器——
+  标题取 header/首题文本或「Ask N 问题」；摘要展示每题 Q→A（YOLO 则错误色提示）；
+  详情滚动列出题目/选项/答案；加载中 PendingPreview 占位
+- **formatAskUserAnswer 升级**：答案值支持字符串与数组（多选按 ", " 连接），
+  未答题目输出 "Unanswered"（对齐 opencode 句式），解析失败仍原样兜底
+- **旧数据兼容**：parseAskUserQuestions 同时解析旧格式（字符串 options +
+  selection_type=text/single/multi 自动映射为 multiple/custom），历史消息可正常渲染交互
+- **测试**：新增 AskUserToolTest（新格式解析/默认值/旧格式映射/非法输入兜底、
+  答案格式化字符串·多选 join·Unanswered·失败兜底）

@@ -107,6 +107,7 @@ object ToolUIRegistry {
         BackupToolUI,
         JavascriptToolUI,
         NotifyToolUI,
+        AskUserToolUI,
     ).associateBy { it.toolName }
 
     /** 动态名工具按前缀匹配（如预设子代理的 subagent_<slug>），精确名优先 */

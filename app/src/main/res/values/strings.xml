@@ -1291,6 +1291,7 @@
   <string name="tool_ui_clipboard_pending">Reading clipboard…</string>
   <string name="tool_ui_time_pending">Getting time…</string>
   <string name="tool_ui_scrape_pending">Fetching page…</string>
+  <string name="tool_ui_ask_user_pending">Waiting for the user to answer…</string>
   <string name="notification_channel_ai_notify">AI Notifications</string>
   <string name="assistant_page_local_tools_notify_title">AI Notifications</string>
   <string name="assistant_page_local_tools_notify_desc">Let the AI send you system notifications</string>
