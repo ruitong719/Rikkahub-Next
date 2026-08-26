@@ -1258,4 +1258,28 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
   仍依赖，相关注释全部改为指向真实消费方
 - **Web 服务器通知**：运行中通知新增「复制地址」动作按钮——URL 随通知重建而更新
  （state observer 每次状态变化重建），点击经 WebServerCopyReceiver 写入剪贴板并 Toast
-  确认；Manifest 注册 exported=false Receiver
+ 确认；Manifest 注册 exported=false Receiver
+
+## AF. 上游同步批次 e8293d35..c16fe44f：12 提交（2026-08-26）
+
+逐 commit 对账见 UPSTREAM_SYNC.md #37–#48。合入 9、跳过 2、改造 1：
+
+- **IME/输入体验**（daae3749+fa0305ba）：键盘动画期间输入框不再抖动
+ （isImeVisible→imeAnimationTarget）；键盘开着搜模型时弹层不再自动关闭
+ （ModelListSheet 从 TextField trailingContent 提升到 ChatInput 顶层）
+- **模型注册**：Qwen 3.8（非 MAX）与 hy4 能力声明补齐
+- **终端关 Tab 二次确认**：提示会终止 Tab 内仍在跑的进程（对后台任务场景是刚需）
+- **qwen audio 3.0 TTS**：新端点 SpeechSynthesizer + format/sampleRate 设置 +
+ longan* 音色系列；⚠️ 旧 qwen3-tts-* 配置会被有意拒绝，需在 TTS 设置里换新模型，
+ baseUrl 模板中的 {WorkspaceId} 要换成百炼业务空间 ID
+- **workspace stdin EOF**（上游 #1605）：不传 stdin 的命令立即关闭管道，
+ cat/gh/kubectl 等 isatty 工具不再永久挂起；proot 环境追加 CI=true/NO_COLOR/PAGER=cat；
+ workspace 单测本地实跑通过
+- **合成消息跳过消息模板**（isSynthetic @Transient 标记）：系统提示/时间提醒/workspace
+ 提醒不再被消息模板二次渲染，多次请求间 prompt 稳定、利于缓存；PromptInjection 部分
+ 随 fork 删除模式注入而不适用
+- **自动重试增强**（路径 A，保留 fork 重连环主循环）：修 getProcessingStatusFlow
+ 孤儿 Flow bug；重试时状态栏文案带本地化原因上屏（DNS/超时/不可达/断连）；
+ 流式分片转换/UI 异常不再误触发重连重放；取消时清理重试文案无残留
+- **跳过**：CONTRIBUTING.md（政策与 fork 定位相反）、生成前台服务
+ （悬浮球 FGS 已提供等价进程保活，避免第二条常驻通知）

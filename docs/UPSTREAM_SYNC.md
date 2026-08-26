@@ -6,7 +6,7 @@
 ## 当前状态
 
 - **基线**：merge-base `0c52b62b`（上游 2.4.9，v1.00 迭代时整体 merge）
-- **已同步至**：`e8293d35`（2026-08-25）—— 上游 `master` 全部提交处理完毕
+- **已同步至**：`c16fe44f`（2026-08-26）—— 上游 `master` 全部提交处理完毕
 
 ## 全量对账表（`0c52b62b..c167c70e`）
 
@@ -53,6 +53,39 @@
 | 34 | `aab5026e` | fix(notification): Live Update 胶囊图标（#1782） | 已合入 | `d092f176` |
 | 35 | `0c056d08` | chore: bump to 2.4.12 | 已合入（语义） | fork 自行 bump：180 / 2.4.12 |
 | 36 | `e8293d35` | fix(ai): 规范化空 tool schema（#1781） | 已合入 | `4add3eea`，含 ChatCompletionsToolSchemaTest |
+
+## 全量对账表（`e8293d35..c16fe44f`，2026-08-26）
+
+| # | 上游 commit | 主题 | 处理 | fork 落点 |
+|---|---|---|---|---|
+| 37 | `daae3749` | fix: chat input IME 动画稳定性（imeAnimationTarget） | 已合入（适配） | `6259531b`，唯一冲突在 trailingContent：保留 fork 的 Row/附件入口/队列角标，取上游变量与动画改动 |
+| 38 | `fa0305ba` | fix: 模型搜索 IME 打开自动关闭 | 已合入 | `cabe90b7`，**依赖 #37 先行**（新代码插在其 imeTargetVisible 之后）；ModelSelector 拆分对其他 4 个调用方透明 |
+| 39 | `0826a3b9` | feat: Qwen 3.8 模型匹配 | 已合入 | `7add950b`，零冲突；fork 此前只有 QWEN_3_8_MAX |
+| 40 | `86c85236` | chore: hy4 模型注册 | 已合入 | `ee8ba223`，零冲突 |
+| 41 | `bce78766` | feat(workspace): 终端 Tab 关闭确认 | 已合入（适配） | `690675b9`，kt+en+zh 干净；git rm 掉 merge 复活的 ja/ko-rKR/ru/zh-rTW 四个已删 locale |
+| 42 | `e9b98a4b` | fix: qwen tts 音色拼写 Serena | 已合入 | `1839b5d9`，单行；必须先于 #43 |
+| 43 | `03534d14` | feat: qwen audio 3.0 tts | 已合入 | `409f7f96`，4 文件与上游改前逐字节一致故干净；⚠️ 上游有意废弃 qwen3-tts-\*，旧配置会 require 报错提示迁移 |
+| 44 | `b62d29d1` | fix(workspace): 非交互命令 stdin 立即 EOF（#1605） | 已合入 | `2ee17849`，零冲突（fork 的 onOutput 分歧区不重叠）；`:workspace:testDebugUnitTest` 本地实跑通过 |
+| 45 | `942d0d28` | fix: 合成消息不参与消息模版 | 已合入（适配） | `0e14024f`，cherry-pick -n 后 git rm 剔除被静默复活的 PromptInjectionTransformer(+Test)——fork 无该类型必编译失败；GenHandler 冲突取上游标记行保留 fork slicedMessages |
+| 46 | `2dc50126` | docs(contributing) | **跳过** | 上游贡献政策（不收功能 PR）与 fork 定位相反；README 是 fork 重写版无对应段落 |
+| 47 | `c62f1eb1` | chore: 前台服务避免后台生成断开 | **跳过** | fork 悬浮球 FloatingBubbleService 即常驻 specialUse 前台服务，进程保活等价（保护是进程优先级而非通知本身）；再挂一条生成常驻通知属重复。若未来做"无悬浮球用户的保活"再回搬 |
+| 48 | `c16fe44f` | feat: 自动重试 | **部分合入（路径 A）** | 见下方批次说明 |
+
+## #37–#48 批次说明（2026-08-26）
+
+- **#48 自动重试走路径 A**：fork 的自动重连环（`enableAutoReconnect` 开关、cause 链判定、
+  attemptSnapshot 整轮回滚）在判定精度与请求体防污染上优于上游实现，主循环保持不动；
+  从上游摘取三样：① `getProcessingStatusFlow` 改 `getOrCreateSession`（修 UI 观察孤儿
+  Flow 的真 bug）；② 5 条网络错误中英文案；③ 下游错误隔离 + 重试原因上屏：
+  - `onAutoReconnect` 回调签名扩为 `(attempt, maxAttempts, error)`，ChatService 在发
+    StreamReconnectNotice 同时写 `session.processingStatus`（带本地化失败原因）
+  - 文案生命周期：新尝试开始即清（GenerationHandler try 顶部）、取消时清
+    （CancellationException 分支）、成功后无残留；fork 该管道此前无人写入，
+    本次起由这对写/清点全权负责
+  - 新增 `StreamChunkHandlingException` 包装流式 collect 内的转换/UI 异常并重抛原始
+    cause，不再误触发重连（上游同款思路，非流式路径维持 fork 原状未包）
+  - 未采用上游的 responseBaseMessages/预创建 ASSISTANT 设计：fork 的 internalMessages
+    循环外构建，请求体本就不受半截回复污染，语义等价且改动面小
 
 ## #24–#36 批次说明（2026-08-25）
 
