@@ -48,7 +48,6 @@ import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.GenerationChunk
 import me.rerere.rikkahub.data.ai.PermissionModePolicy
-import me.rerere.rikkahub.data.model.PermissionMode
 import me.rerere.rikkahub.data.ai.GenerationHandler
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.ai.context.RollingContextSummary
@@ -73,7 +72,7 @@ import me.rerere.rikkahub.data.ai.transformers.ThinkTagTransformer
 import me.rerere.rikkahub.data.ai.transformers.TimeReminderTransformer
 import me.rerere.rikkahub.data.ai.transformers.VisionImageToTextTransformer
 import me.rerere.rikkahub.data.ai.transformers.BackgroundTaskReminderTransformer
-import me.rerere.rikkahub.data.ai.transformers.PlanModeTransformer
+import me.rerere.rikkahub.data.ai.transformers.PermissionModePromptTransformer
 import me.rerere.rikkahub.data.ai.transformers.WorkspaceReminderTransformer
 import me.rerere.rikkahub.data.event.AppEvent
 import me.rerere.rikkahub.data.event.AppEventBus
@@ -762,7 +761,14 @@ class ChatService(
                     add(agentMdTransformer)
                     add(visionImageToTextTransformer)
                     add(backgroundTaskReminder(conversationId))
-                    add(PlanModeTransformer(conversation.permissionMode == PermissionMode.PLAN))
+                    add(
+                        PermissionModePromptTransformer(
+                            mode = conversation.permissionMode,
+                            planPrompt = settings.planModePrompt,
+                            buildPrompt = settings.buildModePrompt,
+                            yoloPrompt = settings.yoloModePrompt,
+                        )
+                    )
                 },
                 outputTransformers = outputTransformers,
                 tools = applyConversationGrants(

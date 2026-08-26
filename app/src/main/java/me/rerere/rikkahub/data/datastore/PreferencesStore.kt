@@ -27,11 +27,14 @@ import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ProviderSetting
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.data.ai.mcp.McpServerConfig
+import me.rerere.rikkahub.data.ai.prompts.DEFAULT_BUILD_MODE_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_COMPRESS_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_OCR_PROMPT
+import me.rerere.rikkahub.data.ai.prompts.DEFAULT_PLAN_MODE_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_SUGGESTION_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_TITLE_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_TRANSLATION_PROMPT
+import me.rerere.rikkahub.data.ai.prompts.DEFAULT_YOLO_MODE_PROMPT
 import me.rerere.asr.ASRProviderSetting
 import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV1Migration
 import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV2Migration
@@ -123,6 +126,17 @@ class SettingsStore(
 
         // Subagent
         val SUBAGENTS = stringPreferencesKey("subagents")
+
+        // 视觉模型（主模型不支持图片时的降级路由）
+        val VISION_MODEL = stringPreferencesKey("vision_model")
+
+        // 实验性：流式自动重连
+        val ENABLE_STREAM_AUTO_RECONNECT = booleanPreferencesKey("enable_stream_auto_reconnect")
+
+        // 权限模式提示词（plan/build/yolo）
+        val PLAN_MODE_PROMPT = stringPreferencesKey("plan_mode_prompt")
+        val BUILD_MODE_PROMPT = stringPreferencesKey("build_mode_prompt")
+        val YOLO_MODE_PROMPT = stringPreferencesKey("yolo_mode_prompt")
 
         // 搜索
         val SEARCH_SERVICES = stringPreferencesKey("search_services")
@@ -216,6 +230,7 @@ class SettingsStore(
                 enableSuggestion = preferences[ENABLE_SUGGESTION] != false,
                 suggestionModelId = preferences[SUGGESTION_MODEL]?.let { Uuid.parse(it) },
                 subagentModelId = preferences[SUBAGENT_MODEL]?.let { Uuid.parse(it) },
+                visionModelId = preferences[VISION_MODEL]?.let { Uuid.parse(it) },
                 imageGenerationModelId = preferences[IMAGE_GENERATION_MODEL]?.let { Uuid.parse(it) } ?: Uuid.random(),
                 titlePrompt = preferences[TITLE_PROMPT] ?: DEFAULT_TITLE_PROMPT,
                 translatePrompt = preferences[TRANSLATION_PROMPT] ?: DEFAULT_TRANSLATION_PROMPT,
@@ -293,6 +308,10 @@ class SettingsStore(
                 webServerLocalhostOnly = preferences[WEB_SERVER_LOCALHOST_ONLY] == true,
                 updateUrl = preferences[UPDATE_URL] ?: "",
                 globalAgentMd = preferences[GLOBAL_AGENT_MD] ?: "",
+                enableStreamAutoReconnect = preferences[ENABLE_STREAM_AUTO_RECONNECT] ?: false,
+                planModePrompt = preferences[PLAN_MODE_PROMPT] ?: DEFAULT_PLAN_MODE_PROMPT,
+                buildModePrompt = preferences[BUILD_MODE_PROMPT] ?: DEFAULT_BUILD_MODE_PROMPT,
+                yoloModePrompt = preferences[YOLO_MODE_PROMPT] ?: DEFAULT_YOLO_MODE_PROMPT,
                 backupReminderConfig = preferences[BACKUP_REMINDER_CONFIG]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: BackupReminderConfig(),
@@ -438,6 +457,9 @@ class SettingsStore(
             settings.subagentModelId?.let {
                 preferences[SUBAGENT_MODEL] = it.toString()
             } ?: preferences.remove(SUBAGENT_MODEL)
+            settings.visionModelId?.let {
+                preferences[VISION_MODEL] = it.toString()
+            } ?: preferences.remove(VISION_MODEL)
             preferences[IMAGE_GENERATION_MODEL] = settings.imageGenerationModelId.toString()
             preferences[TITLE_PROMPT] = settings.titlePrompt
             preferences[TRANSLATION_PROMPT] = settings.translatePrompt
@@ -481,6 +503,10 @@ class SettingsStore(
             preferences[WEB_SERVER_LOCALHOST_ONLY] = settings.webServerLocalhostOnly
             preferences[UPDATE_URL] = settings.updateUrl
             preferences[GLOBAL_AGENT_MD] = settings.globalAgentMd
+            preferences[ENABLE_STREAM_AUTO_RECONNECT] = settings.enableStreamAutoReconnect
+            preferences[PLAN_MODE_PROMPT] = settings.planModePrompt
+            preferences[BUILD_MODE_PROMPT] = settings.buildModePrompt
+            preferences[YOLO_MODE_PROMPT] = settings.yoloModePrompt
             preferences[BACKUP_REMINDER_CONFIG] = JsonInstant.encodeToString(settings.backupReminderConfig)
             preferences[LAUNCH_COUNT] = settings.launchCount
             preferences[SPONSOR_ALERT_DISMISSED_AT] = settings.sponsorAlertDismissedAt
@@ -666,6 +692,10 @@ data class Settings(
     val floatingBubbleShowLiveTab: Boolean = true,
     val updateUrl: String = "",
     val globalAgentMd: String = "",
+    // 权限模式（plan/build/yolo）每轮注入到最后一条用户消息后的提示词；字段值即生效内容，清空=不注入
+    val planModePrompt: String = DEFAULT_PLAN_MODE_PROMPT,
+    val buildModePrompt: String = DEFAULT_BUILD_MODE_PROMPT,
+    val yoloModePrompt: String = DEFAULT_YOLO_MODE_PROMPT,
     val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
     val launchCount: Int = 0,
     val sponsorAlertDismissedAt: Int = 0,

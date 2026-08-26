@@ -12,7 +12,7 @@ import me.rerere.rikkahub.data.model.PermissionMode
  * - BUILD: 原样透传，审批行为由各工具自身配置决定
  * - YOLO: 全部工具跳过审批（含 subagent 派发、MCP、bash 等高危项）
  * - PLAN: 变更类工具执行时直接返回只读错误（不弹审批），subagent 整体下线，
- *   引导模型进入「只调研、出计划」的工作方式；配合 PlanModeTransformer 注入的提示词
+ *   引导模型进入「只调研、出计划」的工作方式；配合 PermissionModePromptTransformer 注入的提示词
  */
 object PermissionModePolicy {
     /** PLAN 模式下禁用（拒绝执行）的工具名。工具改名后需同步维护 */

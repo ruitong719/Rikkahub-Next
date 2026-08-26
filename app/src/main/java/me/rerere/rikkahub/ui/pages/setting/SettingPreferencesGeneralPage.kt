@@ -271,18 +271,6 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                             }
                         )
                     }
-                    item(
-                        headlineContent = { Text(stringResource(R.string.setting_display_page_shell_live_output_title)) },
-                        supportingContent = { Text(stringResource(R.string.setting_display_page_shell_live_output_desc)) },
-                        trailingContent = {
-                            Switch(
-                                checked = displaySetting.enableShellLiveOutput,
-                                onCheckedChange = {
-                                    updateDisplaySetting(displaySetting.copy(enableShellLiveOutput = it))
-                                }
-                            )
-                        },
-                    )
                 }
             }
 
@@ -614,25 +602,6 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                             )
                         }
                     }
-                }
-            }
-
-            item {
-                CardGroup(
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                ) {
-                    item(
-                        headlineContent = { Text("流式自动重连（实验性）") },
-                        supportingContent = { Text("网络波动中断生成时自动重试（最多 4 次，指数退避），重连时以轻提示告知") },
-                        trailingContent = {
-                            Switch(
-                                checked = settings.enableStreamAutoReconnect,
-                                onCheckedChange = { checked ->
-                                    vm.updateSettings(settings.copy(enableStreamAutoReconnect = checked))
-                                }
-                            )
-                        },
-                    )
                 }
             }
         }

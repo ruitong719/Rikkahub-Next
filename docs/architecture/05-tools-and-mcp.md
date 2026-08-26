@@ -148,4 +148,7 @@ Idle / Connecting / Connected / Reconnecting(attempt,max) / Error(message,detail
 
 会话级权限模式 PermissionMode（plan/build/yolo，Conversation 字段）：ChatService
 装配完工具后经 PermissionModePolicy.apply 统一改写——PLAN 拒绝变更类工具并下线
-subagent + 注入 <plan_mode> 提示；YOLO 全部 needsApproval=false。详见 CHANGES.md N 节。
+subagent；YOLO 全部 needsApproval=false。三种模式各有一段提示词（内置默认见
+data/ai/prompts/PermissionModePrompts.kt，可在 设置-模型与服务-提示词 自定义），
+由 PermissionModePromptTransformer 每轮包 <system-reminder> 追加到最后一条用户消息
+之后（对齐 opencode reminders.ts，保持 system 前缀稳定利于缓存）。详见 CHANGES.md N/R 节。

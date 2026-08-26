@@ -694,6 +694,8 @@
   <string name="setting_display_page_volume_key_scroll_title">Volume Key Page Scroll</string>
   <string name="setting_display_page_shell_live_output_title">Live Shell Output (Experimental)</string>
   <string name="setting_display_page_shell_live_output_desc">Stream workspace shell stdout/stderr in chat while commands run</string>
+  <string name="setting_experimental_stream_reconnect_title">Stream Auto Reconnect (Experimental)</string>
+  <string name="setting_experimental_stream_reconnect_desc">Automatically retry generation interrupted by network issues (up to 4 times, exponential backoff); a light notice shows on reconnect</string>
   <string name="setting_files_page_cancel_action">Cancel</string>
   <string name="setting_files_page_clean_action">Clean</string>
   <string name="setting_files_page_clean_confirmation">All files in this category will be permanently deleted. This action cannot be undone.</string>
@@ -830,6 +832,8 @@
   <string name="setting_page_preferences_ui_desc">Message display, fonts, code blocks</string>
   <string name="setting_page_preferences_network">Network</string>
   <string name="setting_page_preferences_network_desc">User-Agent and network request settings</string>
+  <string name="setting_page_preferences_experimental">Experimental</string>
+  <string name="setting_page_preferences_experimental_desc">Try out features that are still being evaluated</string>
   <string name="setting_page_preferences_network_user_agent">User-Agent</string>
   <string name="setting_page_preferences_network_user_agent_desc">Leave blank to use %1$s</string>
   <string name="setting_page_preferences_network_proxy">Proxy</string>
@@ -1145,6 +1149,10 @@
   <string name="setting_model_page_prompt_suggestion">Chat Reply Suggestions</string>
   <string name="setting_model_page_prompt_ocr">OCR Recognition</string>
   <string name="setting_model_page_prompt_compress">Context Compression</string>
+  <string name="setting_model_page_prompt_permission_plan">Permission Mode: Plan</string>
+  <string name="setting_model_page_prompt_permission_build">Permission Mode: Build</string>
+  <string name="setting_model_page_prompt_permission_yolo">Permission Mode: YOLO</string>
+  <string name="setting_model_page_prompt_permission_desc">Injected after the latest user message on every turn while this mode is active; used as-is, clearing it disables the reminder</string>
   <string name="setting_display_page_bubble_opacity_title">Bubble Opacity</string>
   <string name="setting_provider_page_include_history_reasoning">Include History Reasoning</string>
   <string name="assistant_page_gradient_background">Gradient Background</string>
@@ -1320,6 +1328,8 @@
   <string name="permission_mode_build_desc">Default: tools run according to their approval settings</string>
   <string name="permission_mode_yolo">YOLO</string>
   <string name="permission_mode_yolo_desc">Skip all tool approvals (dangerous)</string>
+  <string name="permission_mode_picker_title">Permission Mode</string>
+  <string name="permission_mode_picker_desc">Controls how tools are approved and executed</string>
   <string name="subagent_monitor_running_badge">Running</string>
   <string name="bg_task_button">Background tasks</string>
   <string name="bg_task_sheet_title">Background tasks (%1$d)</string>

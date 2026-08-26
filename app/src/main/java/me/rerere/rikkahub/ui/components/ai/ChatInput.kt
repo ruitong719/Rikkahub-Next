@@ -98,10 +98,7 @@ import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Add01
 import me.rerere.hugeicons.stroke.ArrowUp02
 import me.rerere.hugeicons.stroke.Cancel01
-import me.rerere.hugeicons.stroke.Eye
 import me.rerere.hugeicons.stroke.Fullscreen
-import me.rerere.hugeicons.stroke.Wrench01
-import me.rerere.hugeicons.stroke.Zap
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
@@ -622,110 +619,6 @@ private fun ActionIconButton(
             content()
         }
     }
-}
-
-/**
- * 权限模式按钮（plan/build/yolo）：显示当前模式，点击弹出切换菜单。
- * BUILD 用低调中性色，PLAN/YOLO 分别用 secondary/error 色提示「非默认状态」。
- */
-@Composable
-private fun PermissionModeButton(
-    mode: PermissionMode,
-    onUpdate: (PermissionMode) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    val (icon, labelRes) = when (mode) {
-        PermissionMode.PLAN -> HugeIcons.Eye to R.string.permission_mode_plan
-        PermissionMode.BUILD -> HugeIcons.Wrench01 to R.string.permission_mode_build
-        PermissionMode.YOLO -> HugeIcons.Zap to R.string.permission_mode_yolo
-    }
-    val containerColor = when (mode) {
-        PermissionMode.PLAN -> MaterialTheme.colorScheme.secondaryContainer
-        PermissionMode.BUILD -> MaterialTheme.colorScheme.surfaceContainerHigh
-        PermissionMode.YOLO -> MaterialTheme.colorScheme.errorContainer
-    }
-    val contentColor = when (mode) {
-        PermissionMode.PLAN -> MaterialTheme.colorScheme.onSecondaryContainer
-        PermissionMode.BUILD -> MaterialTheme.colorScheme.onSurfaceVariant
-        PermissionMode.YOLO -> MaterialTheme.colorScheme.onErrorContainer
-    }
-
-    Box {
-        Surface(
-            onClick = { expanded = true },
-            shape = MaterialTheme.shapes.small,
-            color = if (mode == PermissionMode.BUILD) Color.Transparent else containerColor,
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = contentColor,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(
-                    text = stringResource(labelRes),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = contentColor,
-                    maxLines = 1,
-                )
-            }
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            listOf(PermissionMode.PLAN, PermissionMode.BUILD, PermissionMode.YOLO).forEach { option ->
-                DropdownMenuItem(
-                    text = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Icon(
-                                imageVector = when (option) {
-                                    PermissionMode.PLAN -> HugeIcons.Eye
-                                    PermissionMode.BUILD -> HugeIcons.Wrench01
-                                    PermissionMode.YOLO -> HugeIcons.Zap
-                                },
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                            )
-                            Column {
-                                Text(stringResource(option.labelRes()))
-                                Text(
-                                    text = stringResource(option.descriptionRes()),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    },
-                    onClick = {
-                        expanded = false
-                        onUpdate(option)
-                    },
-                )
-            }
-        }
-    }
-}
-
-private fun PermissionMode.labelRes(): Int = when (this) {
-    PermissionMode.PLAN -> R.string.permission_mode_plan
-    PermissionMode.BUILD -> R.string.permission_mode_build
-    PermissionMode.YOLO -> R.string.permission_mode_yolo
-}
-
-private fun PermissionMode.descriptionRes(): Int = when (this) {
-    PermissionMode.PLAN -> R.string.permission_mode_plan_desc
-    PermissionMode.BUILD -> R.string.permission_mode_build_desc
-    PermissionMode.YOLO -> R.string.permission_mode_yolo_desc
 }
 
 @Composable

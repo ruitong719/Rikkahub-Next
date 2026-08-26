@@ -645,6 +645,8 @@
   <string name="setting_display_page_volume_key_scroll_title">音量键翻页</string>
   <string name="setting_display_page_shell_live_output_title">Shell 实时输出（实验性）</string>
   <string name="setting_display_page_shell_live_output_desc">shell 命令执行中在聊天内实时显示 stdout/stderr 输出</string>
+  <string name="setting_experimental_stream_reconnect_title">流式自动重连（实验性）</string>
+  <string name="setting_experimental_stream_reconnect_desc">网络波动中断生成时自动重试（最多 4 次，指数退避），重连时以轻提示告知</string>
   <string name="setting_files_page_cancel_action">取消</string>
   <string name="setting_files_page_clean_action">清理</string>
   <string name="setting_files_page_clean_confirmation">将永久删除此分类中的全部文件，此操作无法撤销。</string>
@@ -1081,6 +1083,10 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_model_page_prompt_suggestion">聊天回复建议</string>
   <string name="setting_model_page_prompt_ocr">OCR识别</string>
   <string name="setting_model_page_prompt_compress">上下文压缩</string>
+  <string name="setting_model_page_prompt_permission_plan">权限模式：Plan</string>
+  <string name="setting_model_page_prompt_permission_build">权限模式：Build</string>
+  <string name="setting_model_page_prompt_permission_yolo">权限模式：YOLO</string>
+  <string name="setting_model_page_prompt_permission_desc">该模式下每轮生成追加到最新用户消息之后的提示词；内容原样注入，清空即不注入</string>
   <string name="setting_display_page_bubble_opacity_title">气泡不透明度</string>
   <string name="setting_provider_page_include_history_reasoning">回传历史思考过程</string>
   <string name="setting_model_page_fast_model">快速模型</string>
@@ -1315,12 +1321,14 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="todo_sheet_clear_confirm_confirm">清空</string>
   <string name="todo_sheet_clear_confirm_cancel">取消</string>
   <string name="subagent_monitor_button">子智能体监看</string>
-  <string name="permission_mode_plan">计划</string>
+  <string name="permission_mode_plan">Plan</string>
   <string name="permission_mode_plan_desc">只读调研：变更类工具已禁用，产出计划而非执行</string>
-  <string name="permission_mode_build">构建</string>
+  <string name="permission_mode_build">Build</string>
   <string name="permission_mode_build_desc">默认：工具按各自审批配置执行</string>
   <string name="permission_mode_yolo">YOLO</string>
   <string name="permission_mode_yolo_desc">跳过所有工具审批（危险）</string>
+  <string name="permission_mode_picker_title">权限模式</string>
+  <string name="permission_mode_picker_desc">控制工具的审批与执行方式</string>
   <string name="subagent_monitor_running_badge">执行中</string>
   <string name="bg_task_button">后台任务</string>
   <string name="bg_task_sheet_title">后台任务（%1$d）</string>
@@ -1388,6 +1396,8 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_page_client_identity_disabled_hint">未启用，使用 RikkaHub 默认标识</string>
   <string name="setting_page_preferences_network">网络</string>
   <string name="setting_page_preferences_network_desc">User-Agent 和网络请求设置</string>
+  <string name="setting_page_preferences_experimental">实验性功能</string>
+  <string name="setting_page_preferences_experimental_desc">试用仍在评估中的新特性开关</string>
   <string name="setting_page_preferences_network_user_agent">User-Agent</string>
   <string name="setting_page_preferences_network_user_agent_desc">留空以使用 %1$s</string>
   <string name="setting_page_preferences_network_proxy">代理</string>

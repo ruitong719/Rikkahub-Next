@@ -16,6 +16,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.Atom01
 import me.rerere.hugeicons.stroke.Notification01
 import me.rerere.hugeicons.stroke.Internet
 import me.rerere.hugeicons.stroke.PaintBoard
@@ -88,6 +89,12 @@ fun SettingPreferencesPage() {
                         leadingContent = { Icon(HugeIcons.Internet, null) },
                         headlineContent = { Text(stringResource(R.string.setting_page_preferences_network)) },
                         supportingContent = { Text(stringResource(R.string.setting_page_preferences_network_desc)) },
+                    )
+                    item(
+                        onClick = { navController.navigate(Screen.SettingPreferencesExperimental) },
+                        leadingContent = { Icon(HugeIcons.Atom01, null) },
+                        headlineContent = { Text(stringResource(R.string.setting_page_preferences_experimental)) },
+                        supportingContent = { Text(stringResource(R.string.setting_page_preferences_experimental_desc)) },
                     )
                 }
             }

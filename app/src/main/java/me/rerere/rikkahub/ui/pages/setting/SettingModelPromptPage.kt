@@ -27,11 +27,14 @@ import me.rerere.ai.core.ReasoningLevel
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.prompts.DEFAULT_BUILD_MODE_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_COMPRESS_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_OCR_PROMPT
+import me.rerere.rikkahub.data.ai.prompts.DEFAULT_PLAN_MODE_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_SUGGESTION_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_TITLE_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_TRANSLATION_PROMPT
+import me.rerere.rikkahub.data.ai.prompts.DEFAULT_YOLO_MODE_PROMPT
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.ui.components.ai.ReasoningButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
@@ -100,6 +103,33 @@ internal fun PromptSettingsPage(settings: Settings, vm: SettingVM, contentPaddin
                 onPromptChange = { vm.updateSettings(settings.copy(globalAgentMd = it)) },
                 onResetPrompt = { vm.updateSettings(settings.copy(globalAgentMd = "")) },
                 resetLabel = stringResource(R.string.setting_page_agent_md_clear),
+            )
+        }
+        item {
+            PromptSettingItem(
+                title = stringResource(R.string.setting_model_page_prompt_permission_plan),
+                promptDescription = stringResource(R.string.setting_model_page_prompt_permission_desc),
+                promptValue = settings.planModePrompt,
+                onPromptChange = { vm.updateSettings(settings.copy(planModePrompt = it)) },
+                onResetPrompt = { vm.updateSettings(settings.copy(planModePrompt = DEFAULT_PLAN_MODE_PROMPT)) },
+            )
+        }
+        item {
+            PromptSettingItem(
+                title = stringResource(R.string.setting_model_page_prompt_permission_build),
+                promptDescription = stringResource(R.string.setting_model_page_prompt_permission_desc),
+                promptValue = settings.buildModePrompt,
+                onPromptChange = { vm.updateSettings(settings.copy(buildModePrompt = it)) },
+                onResetPrompt = { vm.updateSettings(settings.copy(buildModePrompt = DEFAULT_BUILD_MODE_PROMPT)) },
+            )
+        }
+        item {
+            PromptSettingItem(
+                title = stringResource(R.string.setting_model_page_prompt_permission_yolo),
+                promptDescription = stringResource(R.string.setting_model_page_prompt_permission_desc),
+                promptValue = settings.yoloModePrompt,
+                onPromptChange = { vm.updateSettings(settings.copy(yoloModePrompt = it)) },
+                onResetPrompt = { vm.updateSettings(settings.copy(yoloModePrompt = DEFAULT_YOLO_MODE_PROMPT)) },
             )
         }
     }

@@ -1054,3 +1054,34 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
   已授权覆盖的调用直接放行；并行批次中一旦一个「全部同意」，同批其余 Pending
   在生成恢复后的下一轮自动通过，无需逐个点
 - YOLO 整体跳过、PLAN 整体禁用的语义不受影响；todowrite 不受安全区约束
+
+---
+
+## R. 三模式专属提示词可自定义 + 注入点对齐 opencode + 实验性独立页 + 模式选单重构（2026-08-26）
+
+### 1. 权限模式提示词（PLAN/BUILD/YOLO）
+
+- 内置默认文案集中到 `data/ai/prompts/PermissionModePrompts.kt`：
+  PLAN 沿用原 `<plan_mode>` 规则并补 opencode 的 "supersedes any other instructions"；
+  BUILD/YOLO 新增短提示词（BUILD 说明审批等待语义，YOLO 声明免审批 + 破坏性操作先简述）
+- Settings 新增 `planModePrompt/buildModePrompt/yoloModePrompt`，默认值即内置文案
+  （titlePrompt 同模式），「设置-模型与服务-提示词」页新增三个条目可编辑、可恢复默认；
+  字段内容即注入内容，清空=该模式不注入
+- PlanModeTransformer 重构为 **PermissionModePromptTransformer**：按当前模式取对应文案，
+  包 `<system-reminder>` 标签后**追加到最后一条 user 消息末尾**（新 Text part）——
+  对齐 opencode session/reminders.ts 的注入点；不再改动 system prompt，
+  模式切换不影响前缀缓存。无 user 消息的边缘场景退回插入 system 消息
+
+### 2. 实验性功能独立设置页
+
+- 新增 `SettingPreferencesExperimentalPage` + 路由，偏好设置主页入口排在网络之后（Atom01 图标），
+  与主题/通知/常规同级
+- 「流式自动重连」（原硬编码中文）与「Shell 实时输出」两个开关从常规页迁入并补齐双语字符串；
+  后续新实验性开关默认加到此页
+
+### 3. 聊天栏模式选单重构
+
+- PermissionModeButton 从 DropdownMenu 迁出为独立组件 PermissionModePicker.kt：
+  ModalBottomSheet + 卡片列表，复用 SearchPicker 设计语言
+  （选中 primaryContainer + 2dp primary 描边 + 打勾，未选中 surfaceContainerHigh）
+- 中文标签「计划/构建」改为 Plan/Build，与英文一致；新增选单标题/副标题双语字符串
