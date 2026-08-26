@@ -1404,18 +1404,18 @@ class ChatService(
     }
 
     suspend fun saveConversation(conversationId: Uuid, conversation: Conversation) {
+        // 内存态无条件更新：权限模式等设置在首条消息发送前也要即时生效于 UI 与下一次生成
+        updateConversation(conversationId, conversation)
+
         val exists = conversationRepo.existsConversationById(conversation.id)
         if (!exists && conversation.title.isBlank() && conversation.messageNodes.isEmpty()) {
-            return // 新会话且为空时不保存
+            return // 新会话且为空时仅更新内存态不落库，避免空会话塞满对话列表
         }
 
-        val updatedConversation = conversation.copy()
-        updateConversation(conversationId, updatedConversation)
-
         if (!exists) {
-            conversationRepo.insertConversation(updatedConversation)
+            conversationRepo.insertConversation(conversation)
         } else {
-            conversationRepo.updateConversation(updatedConversation)
+            conversationRepo.updateConversation(conversation)
         }
     }
 

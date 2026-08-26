@@ -1322,7 +1322,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="todo_sheet_clear_confirm_cancel">取消</string>
   <string name="subagent_monitor_button">子智能体监看</string>
   <string name="permission_mode_plan">Plan</string>
-  <string name="permission_mode_plan_desc">只读调研：变更类工具已禁用，产出计划而非执行</string>
+  <string name="permission_mode_plan_desc">只读调研：仅产出计划而非执行</string>
   <string name="permission_mode_build">Build</string>
   <string name="permission_mode_build_desc">默认：工具按各自审批配置执行</string>
   <string name="permission_mode_yolo">YOLO</string>

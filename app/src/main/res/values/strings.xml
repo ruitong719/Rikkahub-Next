@@ -1323,7 +1323,7 @@
   <string name="todo_sheet_clear_confirm_cancel">Cancel</string>
   <string name="subagent_monitor_button">Subagent monitor</string>
   <string name="permission_mode_plan">Plan</string>
-  <string name="permission_mode_plan_desc">Read-only research: mutating tools are disabled, present a plan instead</string>
+  <string name="permission_mode_plan_desc">Read-only research: present a plan instead of executing</string>
   <string name="permission_mode_build">Build</string>
   <string name="permission_mode_build_desc">Default: tools run according to their approval settings</string>
   <string name="permission_mode_yolo">YOLO</string>
