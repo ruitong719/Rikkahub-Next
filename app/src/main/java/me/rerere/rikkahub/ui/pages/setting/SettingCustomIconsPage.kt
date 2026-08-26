@@ -111,7 +111,6 @@ fun SettingCustomIconsPage(vm: SettingVM = koinViewModel()) {
                         showEditor = true
                     }) {
                         ListItem(
-                            headlineContent = { Text(icon.pattern) },
                             supportingContent = { Text(describeCustomAIIcon(icon)) },
                             leadingContent = {
                                 IconSourceImage(source = icon.source)
@@ -121,7 +120,9 @@ fun SettingCustomIconsPage(vm: SettingVM = koinViewModel()) {
                                     Icon(HugeIcons.Delete01, contentDescription = "删除")
                                 }
                             },
-                        )
+                        ) {
+                            Text(icon.pattern)
+                        }
                     }
                 }
             }

@@ -173,9 +173,9 @@ object ReadFileToolUI : ToolUIRenderer {
         return if (path != null) stringResource(R.string.tool_ui_read_file, path) else stringResource(R.string.tool_ui_read_file_default)
     }
 
-    /** 已执行时从输出 JSON 读取文件内容 */
+    /** 已执行时从输出 JSON 读取文件内容（对齐 opencode 后输出字段为 content，带行号前缀） */
     private fun textOf(context: ToolUIContext): String? =
-        context.content.getStringContent("text")
+        context.content.getStringContent("content")
 
     override fun hasSummary(context: ToolUIContext): Boolean = textOf(context) != null
 

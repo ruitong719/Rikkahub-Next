@@ -428,7 +428,6 @@ class FloatingBubbleService : Service() {
                     val data = when (source) {
                         is IconSource.Svg -> svgToDataUri(source.code)
                         is IconSource.Url -> source.url
-                        else -> return@runCatching null
                     }
                     val request = ImageRequest.Builder(this)
                         .data(data)

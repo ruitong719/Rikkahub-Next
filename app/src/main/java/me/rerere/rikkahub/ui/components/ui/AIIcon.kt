@@ -134,7 +134,6 @@ fun IconSourceImage(
                             when (source) {
                                 is IconSource.Svg -> svgToDataUri(source.code)
                                 is IconSource.Url -> source.url
-                                else -> ""
                             }
                         )
                         .build()
