@@ -27,7 +27,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.longOrNull
 import me.rerere.common.http.jsonObjectOrNull
 import me.rerere.common.http.jsonPrimitiveOrNull
 import me.rerere.highlight.CodeHighlightText
@@ -349,9 +352,137 @@ object BgtToolUI : ToolUIRenderer {
 
     @Composable
     override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
-        val output = context.content?.getStringContent("output")
-        if (actionOf(context) == "output" && output != null) {
-            Column(
+        // 仅执行异常（无输出且不在加载中）时回退通用 JSON 视图，正常流程各 action 均有专属详情
+        val fallback = context.content == null && !context.loading
+        when (actionOf(context)) {
+            "status" -> if (fallback) DefaultToolPreview(context = context) else StatusPreview(context.content)
+            "list" -> if (fallback) DefaultToolPreview(context = context) else ListPreview(context.content)
+            "kill" -> if (fallback) DefaultToolPreview(context = context) else KillPreview(context.content)
+            else -> OutputPreview(context)
+        }
+    }
+
+    /** status 详情：状态徽章 + 完整命令 + 进程元信息 */
+    @Composable
+    private fun StatusPreview(content: JsonElement?) {
+        val status = content.getStringContent("status")
+        val exitCode = content?.let { parseExitCode(it) } ?: -1
+        val pid = content?.let { parseLong(it, "pid") } ?: 0L
+        val duration = content?.let { parseLong(it, "durationSeconds") } ?: 0L
+        val stdoutBytes = content?.let { parseLong(it, "stdoutBytes") } ?: 0L
+        val command = content.getStringContent("command").orEmpty()
+        Column(
+            modifier = Modifier
+                .fillMaxHeight(0.6f)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(statusColor(status)),
+                )
+                Text(
+                    text = buildString {
+                        append(status ?: "…")
+                        if (exitCode != 0 && !status.isNullOrBlank() && status != "running") {
+                            append(" (exit $exitCode)")
+                        }
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+            if (command.isNotBlank()) {
+                HighlightCodeBlock(
+                    code = command,
+                    language = "bash",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Text(
+                text = "pid $pid · ${duration}s · stdout $stdoutBytes B",
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+
+    /** list 详情：逐任务一行（色点 + 短 id + 状态 + 耗时 + 命令预览） */
+    @Composable
+    private fun ListPreview(content: JsonElement?) {
+        val tasks = remember(content) { parseTasks(content) }
+        Column(
+            modifier = Modifier
+                .fillMaxHeight(0.7f)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.tool_ui_bgt_tasks_count, tasks.size),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            tasks.forEach { task ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(statusColor(task.status)),
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = "${task.taskId.take(8)} · ${task.status} · ${task.durationSeconds}s",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                        Text(
+                            text = task.command,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /** kill 详情：结果文案 */
+    @Composable
+    private fun KillPreview(content: JsonElement?) {
+        Column(
+            modifier = Modifier
+                .fillMaxHeight(0.3f)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = content.getStringContent("message")
+                    ?: stringResource(R.string.tool_ui_bgt_kill_pending),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+    }
+
+    /** output 详情：完整输出代码块；加载中给占位文本，执行异常回退通用视图 */
+    @Composable
+    private fun OutputPreview(context: ToolUIContext) {
+        val output = context.content.getStringContent("output")
+        when {
+            output != null -> Column(
                 modifier = Modifier
                     .fillMaxHeight(0.8f)
                     .padding(16.dp)
@@ -364,16 +495,46 @@ object BgtToolUI : ToolUIRenderer {
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-        } else {
-            DefaultToolPreview(context = context)
+
+            context.loading -> Text(
+                text = stringResource(R.string.tool_ui_bgt_output_pending),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(16.dp)
+                    .shimmer(isLoading = context.loading),
+            )
+
+            else -> DefaultToolPreview(context = context)
         }
     }
 
-    private fun parseExitCode(content: kotlinx.serialization.json.JsonElement): Int =
+    private fun parseExitCode(content: JsonElement): Int =
         content.jsonObjectOrNull?.get("exitCode")?.jsonPrimitiveOrNull?.intOrNull ?: -1
 
-    private fun parseCount(content: kotlinx.serialization.json.JsonElement): Int? =
+    private fun parseCount(content: JsonElement): Int? =
         content.jsonObjectOrNull?.get("count")?.jsonPrimitiveOrNull?.intOrNull
+
+    private fun parseLong(content: JsonElement, key: String): Long? =
+        content.jsonObjectOrNull?.get(key)?.jsonPrimitiveOrNull?.longOrNull
+
+    private fun parseTasks(content: JsonElement?): List<BgtListEntry> =
+        content?.jsonObjectOrNull?.get("tasks")?.jsonObjectOrNull.orEmpty().map { (id, obj) ->
+            BgtListEntry(
+                taskId = id,
+                status = obj.jsonObjectOrNull.getStringContent("status") ?: "unknown",
+                durationSeconds = obj.jsonObjectOrNull?.get("durationSeconds")?.jsonPrimitiveOrNull?.longOrNull ?: 0L,
+                command = obj.jsonObjectOrNull.getStringContent("command").orEmpty(),
+            )
+        }
 
     private const val OUTPUT_SUMMARY_LINES = 6
 }
+
+/** bgt list 详情的条目 */
+private data class BgtListEntry(
+    val taskId: String,
+    val status: String,
+    val durationSeconds: Long,
+    val command: String,
+)

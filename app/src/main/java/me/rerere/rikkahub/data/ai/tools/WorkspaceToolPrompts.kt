@@ -7,7 +7,7 @@ package me.rerere.rikkahub.data.ai.tools
  * 注意：这里的文本是 `<workspace>` 提示词块中 "Available tools" 列表的内容，
  * 与各工具的 Tool.description（函数定义，模型经 function calling schema 看到）相互独立。
  *
- * 命名对齐 opencode：read/write/edit/bash 为裸名，App 特有基础设施保留 workspace_ 前缀。
+ * 命名对齐 opencode：read/write/edit/bash/create_backup 为裸名，后台任务系列为 bgt/bgt_start。
  */
 val WORKSPACE_TOOL_NAMES = listOf(
     "read",
@@ -16,7 +16,7 @@ val WORKSPACE_TOOL_NAMES = listOf(
     "bash",
     "bgt_start",
     "bgt",
-    "workspace_create_backup",
+    "create_backup",
 )
 
 val DEFAULT_WORKSPACE_TOOL_PROMPTS: Map<String, String> = mapOf(
@@ -35,6 +35,6 @@ val DEFAULT_WORKSPACE_TOOL_PROMPTS: Map<String, String> = mapOf(
     "bgt" to
         "Query or manage background tasks: action=status/output/kill/list. " +
         "status and output need bg_id; list takes no arguments.",
-    "workspace_create_backup" to
+    "create_backup" to
         "Create a full app backup (settings, database and files) as /workspace/backup.zip.",
 )

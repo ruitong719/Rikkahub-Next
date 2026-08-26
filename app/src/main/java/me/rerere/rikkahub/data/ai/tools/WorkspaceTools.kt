@@ -38,7 +38,7 @@ val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
     "bash" to true,
     "bgt_start" to true,
     "bgt" to false,
-    "workspace_create_backup" to true,
+    "create_backup" to true,
 )
 
 fun resolveWorkspaceToolApproval(name: String, overrides: Map<String, Boolean>): Boolean =
@@ -243,14 +243,16 @@ private fun isBinaryContent(bytes: ByteArray): Boolean {
     if (sample.isEmpty()) return false
     var nonPrintable = 0
     for (b in sample) {
-        if (b == ZERO_BYTE) return true
-        if (b < 9.toByte() || (b in 14..31)) nonPrintable++
+        // Byte 有符号：必须转无符号再比较，否则 >=0x80 的字节为负数，
+        // 会被当成控制字符计入——UTF-8 中文文档因此被整体误判为二进制
+        val u = b.toInt() and 0xFF
+        if (u == 0) return true
+        if (u < 9 || u in 14..31) nonPrintable++
     }
     return nonPrintable.toDouble() / sample.size > BINARY_NON_PRINTABLE_RATIO
 }
 
 private const val BINARY_NON_PRINTABLE_RATIO = 0.3
-private val ZERO_BYTE: Byte = 0
 
 /**
  * 文本分页: 返回带行号前缀 `N: content` 的窗口, 截断时附续读提示(opencode 同款交互)。

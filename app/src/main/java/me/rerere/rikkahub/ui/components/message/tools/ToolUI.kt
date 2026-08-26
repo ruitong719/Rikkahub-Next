@@ -106,10 +106,21 @@ object ToolUIRegistry {
         TodoWriteToolUI,
         BgtStartToolUI,
         BgtToolUI,
+        SubAgentToolUI,
+        BackupToolUI,
+        JavascriptToolUI,
     ).associateBy { it.toolName }
 
-    /** 查找工具对应的渲染器, 未注册时返回默认渲染器（历史遗留的旧工具名也走这里兜底） */
-    fun resolve(toolName: String): ToolUIRenderer = renderers[toolName] ?: DefaultToolUIRenderer
+    /** 动态名工具按前缀匹配（如预设子代理的 subagent_<slug>），精确名优先 */
+    private val prefixes: List<Pair<String, ToolUIRenderer>> = listOf(
+        "subagent_" to SubAgentToolUI,
+    )
+
+    /** 查找工具对应的渲染器: 精确名 → 前缀 → 未注册时返回默认渲染器（历史遗留旧工具名也走兜底） */
+    fun resolve(toolName: String): ToolUIRenderer =
+        renderers[toolName]
+            ?: prefixes.firstOrNull { (prefix, renderer) -> toolName.startsWith(prefix) }?.second
+            ?: DefaultToolUIRenderer
 }
 
 internal fun JsonElement?.getStringContent(key: String): String? =

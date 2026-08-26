@@ -1281,6 +1281,15 @@
   <string name="tool_ui_bgt_kill_pending">Sending kill signal…</string>
   <string name="tool_ui_bgt_list">Task list</string>
   <string name="tool_ui_bgt_tasks_count">%1$d background tasks</string>
+  <string name="tool_ui_subagent">Subagent · %s</string>
+  <string name="tool_ui_subagent_running">Running subagent…</string>
+  <string name="tool_ui_backup">Create backup</string>
+  <string name="tool_ui_backup_running">Creating backup…</string>
+  <string name="tool_ui_js">JS · %s</string>
+  <string name="tool_ui_js_default">Run JavaScript</string>
+  <string name="tool_ui_js_running">Running…</string>
+  <string name="tool_ui_js_logs">Console</string>
+  <string name="tool_ui_js_result">Result</string>
   <string name="tool_ui_write_file">Write: %s</string>
   <string name="tool_ui_write_file_default">Write file</string>
   <string name="tool_ui_list_files">List: %s</string>

@@ -1153,3 +1153,62 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
   审批默认 bgt_start=true、bgt=false；PLAN_DENIED_TOOLS 同步（bgt 整体禁用）；
   BackgroundTaskReminderTransformer 提醒文本改用新调用方式；
   历史消息中的旧名由通用渲染器兜底，工作区覆盖中的旧键自然失效
+
+## W. bgt 三项修复：kill 后状态失真 / 输出缓冲说明 / 详情视图补全（2026-08-26）
+
+- **kill 后状态滞后**：kill 掉的正是负责写 exit_code 的包装子 shell，文件永不产生 →
+  永远报 RUNNING、耗时持续累加。两层修复：① killTask 在会话内补守卫子命令
+  （1s 后仍存活升级 kill -9；仅当 exit_code 未产生时落 143，不覆盖自然完成的真实退出码）；
+  ② readTaskInfo 以 /proc/<pid> 实际存在性兜底（proot 无 PID 虚拟化，guest pid 即 host pid）——
+  进程已死且无退出码时持久化 143 标记 FAILED，写入前复查防竞争。
+  外部杀进程/信号杀/App 重启三条路径统一收敛为「以进程实际存在为准」
+- **输出缓冲**：非 TTY 下子程序 stdio 块缓冲属固有行为（bash 内建 echo 不缓冲），
+  bgt_start 描述写明限制与对策（stdbuf -oL / python -u）；bgt output 结果新增 status 字段，
+  让模型能区分「还在跑、输出滞后」与「已结束、这就是全部输出」
+- **bgt 详情视图补全**：上一版仅 output 有专属详情，status/list/kill 落回通用 JSON 视图。
+  补齐四个 action：status=状态徽章+完整命令+pid/耗时/输出体积；list=逐任务色点行；
+  kill=结果文案；output 维持完整代码块。仅执行异常（无输出且非加载中）才回退 JSON 默认视图
+
+## X. 工具执行错误瘦身：不再向消息注入完整堆栈（2026-08-26）
+
+- **问题**：GenerationHandler.runApprovedTool 的 onFailure 把
+  `[完整类名] message + stackTraceToString` 整段写进工具结果的 error 字段——
+  运行时经 R8 混淆，一条 read 二进制文件的报错能带出上百行 okhttp/r8 栈帧，
+  模型上下文与聊天 UI 都被噪音淹没
+- **修复**：只回 `异常简单类名: 消息`（如
+  `IllegalArgumentException: Cannot read binary file: ...`），无消息时落 (no message)；
+  完整堆栈保留在 Logcat（printStackTrace 不动）。所有工具（内置/MCP/subagent 内部调用）
+  共用此路径，一处修复全局生效
+
+## Y. subagent 专属渲染器 + 注册表前缀匹配（2026-08-26）
+
+- **Registry 前缀匹配**：ToolUIRegistry.resolve 改为 精确名 → 前缀 → 默认 三级；
+  预设子代理的工具名是动态拼接的 subagent_<slug>，此前想注册都挂不上，全部落通用 JSON 视图。
+  新增 prefixes 表（当前仅 "subagent_"），后续再有动态名工具照此扩展
+- **SubAgentToolUI**：标题「子代理 · label/slug」（general 用入参 label，预设用 slug）；
+  摘要为状态徽章（success 绿 / error·timeout 红 / 执行中主题色）+ steps + 结果首行；
+  详情为任务原文 + result 正文（markdown 高亮块）+ steps/tokens/runId 元信息行；
+  加载中显示占位文本，仅执行异常才回退 JSON 默认视图。图标 AiBrain01
+
+## Z. workspace_create_backup 更名 + backup/JS 专属渲染器（2026-08-26）
+
+- **工具更名**：workspace_create_backup → create_backup（命名继续对齐 opencode 裸名风格）；
+  同步 WorkspaceBackupTool 定义、PLAN_DENIED_TOOLS、默认审批表、注入提示词默认值、
+  工作区详情审批项展示键与两处架构文档。用户已存的旧键覆盖自然失效，
+  历史消息中的旧名调用由通用渲染器兜底
+- **BackupToolUI**：摘要为产物一行（backup.zip · 大小，等宽）；详情为成功卡片
+  （产物名 + 路径 + 大小 · 本地时间 + 说明文案）；加载中占位，仅执行异常回退 JSON。
+  图标 Package01
+- **JavascriptToolUI**：标题「执行 JS · 代码截断 40 字符」；摘要为代码单行块（同 bgt_start 样式）；
+  详情为完整代码（javascript 高亮）+ console 输出块 + 结果块（json 高亮）；
+  加载中占位，仅执行异常回退 JSON。图标 ComputerTerminal01
+
+## AA. read 二进制误判修复：有符号字节比较 bug（2026-08-26）
+
+- **现象**：中文为主的 UTF-8 文档（架构 docs、SKILL.md 等）被 read 工具误报
+  "Cannot read binary file"，纯英文代码文件全部正常
+- **根因**：isBinaryContent 用 Kotlin 有符号 Byte 做 `b < 9` 控制字符判定——
+  >=0x80 的字节（UTF-8 多字节序列的每个字节）均为负数，恒被计入"非打印"；
+  中文散文文档高位字节占比 40–60%，轻松突破 30% 阈值。文件本身解码无任何问题
+- **修复**：比较前 `and 0xFF` 转无符号；NUL 判定与真实控制字符（1-8/14-31）计数不变，
+  二进制文件的检出能力不受影响（多数靠 NUL 字节命中）。顺带移除失效的 ZERO_BYTE 常量

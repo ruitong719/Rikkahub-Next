@@ -177,6 +177,14 @@ class WorkspaceBgManager(
             if (pid.isNullOrBlank()) return@withContext false
             val session = ensureSession(workspaceRoot)
             session.submit("kill ${pid.shellQuote()} 2>/dev/null || true\n")
+            // 被杀的正是负责写 exit_code 的包装子 shell，文件将永不产生；
+            // 会话内补一个守卫：1s 后仍存活则升级 kill -9，
+            // 仅当 exit_code 尚未产生时落 143（SIGTERM 约定值），避免覆盖自然完成的真实退出码
+            val ecPath = taskAbsPath(workspaceRoot, taskId, "exit_code")
+            session.submit(
+                "( sleep 1; kill -0 ${pid.shellQuote()} 2>/dev/null && kill -9 ${pid.shellQuote()} 2>/dev/null; " +
+                    "[ -f ${ecPath.shellQuote()} ] || echo 143 > ${ecPath.shellQuote()} ) &\n"
+            )
             true
         }
 
@@ -268,8 +276,19 @@ class WorkspaceBgManager(
                 Json.decodeFromString(WorkspaceBgTaskMeta.serializer(), f.readText())
             }.getOrNull()
         }
-        val exitCodeFile = File(dir, "exit_code")
-        val exitCode = exitCodeFile.takeIf { it.exists() }?.readText()?.trim()?.toIntOrNull()
+        var exitCode = File(dir, "exit_code").takeIf { it.exists() }?.readText()?.trim()?.toIntOrNull()
+        val pid = File(dir, "pid").takeIf { it.exists() }?.readText()?.trim()?.toLongOrNull()
+        // 进程实际存在性优先于标记文件：包装子 shell 被外部杀死后无法再写 exit_code，
+        // 会一直被误判为 RUNNING。以 /proc/<pid>（proot 无 PID 虚拟化，guest pid 即 host pid）
+        // 兜底判定死亡并持久化 143；写入前复查一次，避免与自然完成写入的真实退出码竞争
+        if (exitCode == null && pid != null && !File("/proc/$pid").exists()) {
+            exitCode = File(dir, "exit_code").takeIf { it.exists() }?.readText()?.trim()?.toIntOrNull()
+            if (exitCode == null) {
+                File(dir, "exit_code").writeText("143")
+                exitCode = 143
+                Log.i(TAG, "task ${dir.name}: pid $pid gone without exit_code, marked as failed(143)")
+            }
+        }
         val status = when {
             exitCode == null -> BgTaskStatus.RUNNING
             exitCode == 0 -> BgTaskStatus.DONE
@@ -282,7 +301,7 @@ class WorkspaceBgManager(
             startedAt = meta?.startedAt ?: 0L,
             status = status,
             exitCode = exitCode,
-            pid = File(dir, "pid").takeIf { it.exists() }?.readText()?.trim()?.toLongOrNull(),
+            pid = pid,
             notified = File(dir, "notified").exists(),
             stdoutSizeBytes = File(dir, "stdout.log").length(),
         )

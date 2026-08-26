@@ -72,7 +72,7 @@ ConversationSession）按目录子树或整工具记录授予，ChatService.appl
 needsApproval 实现已授权调用免审批、同批 Pending 连带放行。
 | bgt_start | true | 启动常驻后台任务（.l2s.bg/<taskId>/），立即返回 bg_id |
 | bgt | false | 后台任务查询/管理：action=status\|output\|kill\|list |
-| workspace_create_backup | true | 复用 WebDavSync.prepareBackupFile(DATABASE) → `/workspace/backup.zip` |
+| create_backup | true | 复用 WebDavSync.prepareBackupFile(DATABASE) → `/workspace/backup.zip` |
 
 挂载点不再基于 SAF（2026-08-26 起）：MANAGE_EXTERNAL_STORAGE「所有文件访问」授权后，
 `/storage/emulated/0` 作为真实路径直接 proot `-b` 到 `/mnt/storage`——实时读写、支持删除

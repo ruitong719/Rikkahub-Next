@@ -889,7 +889,7 @@ private fun workspaceToolApprovalItems() = listOf(
     "bash" to stringResource(R.string.workspace_detail_tool_shell),
     "bgt_start" to stringResource(R.string.workspace_detail_tool_bg_start),
     "bgt" to stringResource(R.string.workspace_detail_tool_bgt),
-    "workspace_create_backup" to stringResource(R.string.workspace_detail_tool_create_backup),
+    "create_backup" to stringResource(R.string.workspace_detail_tool_create_backup),
 )
 
 @Composable

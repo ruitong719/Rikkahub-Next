@@ -137,4 +137,4 @@ workspaces.export_target_uri 列（AutoMigrationSpec Migration_33_34）。
 - native 目录还有 workspace.cpp（模板占位，无实际 JNI）
 
 ## 11. 备份一致性快照
-workspace_create_backup 工具复用 WebDavSync.prepareBackupFile(DATABASE scope) 产出 `/workspace/backup.zip`（DB 一致快照 wal_checkpoint 后复制）。
+create_backup 工具复用 WebDavSync.prepareBackupFile(DATABASE scope) 产出 `/workspace/backup.zip`（DB 一致快照 wal_checkpoint 后复制）。

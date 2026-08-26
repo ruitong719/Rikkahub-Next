@@ -315,12 +315,11 @@ class GenerationHandler(
                             UIMessagePart.Text(
                                 json.encodeToString(
                                     buildJsonObject {
+                                        // 只回「异常类型 + 消息」：完整堆栈对模型和用户都是噪音
+                                        // （运行时经 R8 混淆，动辄上百行），排查靠上面的 Logcat
                                         put(
                                             "error",
-                                            JsonPrimitive(buildString {
-                                                append("[${it.javaClass.name}] ${it.message}")
-                                                append("\n${it.stackTraceToString()}")
-                                            })
+                                            "${it.javaClass.simpleName}: ${it.message ?: "(no message)"}"
                                         )
                                     }
                                 )

@@ -41,7 +41,9 @@ fun createWorkspaceBgTools(
                 "Use bgt(action=\"status\"/\"output\") to check progress, bgt(action=\"kill\") to stop it. " +
                 "The task is bound to this conversation: when it finishes you will be notified automatically. " +
                 "Max ${WorkspaceBgManager.MAX_CONCURRENT_TASKS} concurrent tasks per workspace. " +
-                "Only suitable for non-interactive commands (no TTY).",
+                "Only suitable for non-interactive commands (no TTY): without a TTY many programs " +
+                "(python, node, grep pipelines...) block-buffer stdout, so mid-run reads may lag or be empty; " +
+                "use unbuffered modes like `stdbuf -oL` or `python -u` when you need incremental logs.",
             parameters = {
                 InputSchema.Obj(
                     properties = buildJsonObject {
@@ -89,7 +91,8 @@ fun createWorkspaceBgTools(
             description = "Query or manage background tasks started with bgt_start.\n" +
                 "Actions:\n" +
                 "- status: running/done/failed, exit code, pid, elapsed time (requires bg_id)\n" +
-                "- output: read task output, supports tail_lines / max_bytes (requires bg_id)\n" +
+                "- output: read task output, supports tail_lines / max_bytes (requires bg_id); " +
+                        "result carries the task status so you can tell finished from still-running\n" +
                 "- kill: terminate a running task with SIGTERM (requires bg_id)\n" +
                 "- list: list all tasks of the current workspace (no bg_id needed)",
             parameters = {
@@ -139,8 +142,13 @@ fun createWorkspaceBgTools(
                         val tailLines = params.string("tail_lines")?.toIntOrNull()
                         val maxBytes = params.string("max_bytes")?.toIntOrNull()
                         val text = bgManager.output(rootOf(), bgId, tailLines, maxBytes)
+                        // 非 TTY 下子程序块缓冲会让中途读取滞后甚至为空，
+                        // 附带状态让模型能区分「还在跑、稍后再读」与「已结束、这就是全部输出」
+                        val taskStatus = runCatching { bgManager.taskInfo(rootOf(), bgId) }
+                            .getOrNull()?.status?.name?.lowercase() ?: "unknown"
                         buildJsonObject {
                             put("bg_id", bgId)
+                            put("status", taskStatus)
                             put("output", text)
                             put("truncated", text.length >= (maxBytes ?: WorkspaceBgManager.MAX_OUTPUT_READ_BYTES))
                         }

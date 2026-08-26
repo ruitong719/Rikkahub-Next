@@ -22,7 +22,7 @@ object PermissionModePolicy {
         "bash",
         "bgt_start",
         "bgt",
-        "workspace_create_backup",
+        "create_backup",
         "calendar_create",
     )
 

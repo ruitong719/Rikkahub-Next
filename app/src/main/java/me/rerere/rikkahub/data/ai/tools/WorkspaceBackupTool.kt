@@ -14,7 +14,7 @@ import org.koin.java.KoinJavaComponent.getKoin
 import java.io.File
 
 /**
- * workspace_create_backup: 复用"备份与恢复—导出到本地"的备份生成逻辑，
+ * create_backup: 复用"备份与恢复—导出到本地"的备份生成逻辑，
  * 在 /workspace 下生成 backup.zip，并返回文件路径供 LLM 处理。
  *
  * 注意：只导出 rikka_hub.db 数据库一致性快照（不含设置/上传文件等隐私数据）。
@@ -25,14 +25,14 @@ fun createWorkspaceBackupTool(
     needsApproval: (String) -> Boolean,
     workspaceRepository: WorkspaceRepository,
 ): Tool = Tool(
-    name = "workspace_create_backup",
+    name = "create_backup",
     description = buildString {
         append("Create a database-only backup (rikka_hub.db consistent snapshot) as /workspace/backup.zip inside the workspace. ")
         append("Returns the file path. ")
         append("Use bash (e.g. unzip -l) to inspect it; the database inside is a consistent snapshot.")
     },
     parameters = { InputSchema.Obj(properties = buildJsonObject {}, required = emptyList()) },
-    needsApproval = { needsApproval("workspace_create_backup") },
+    needsApproval = { needsApproval("create_backup") },
     execute = {
         val workspace = workspaceRepository.getById(workspaceId)
             ?: error("Workspace not found: $workspaceId")
