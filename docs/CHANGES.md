@@ -1132,3 +1132,24 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
 - **警告清理**：FloatingBubbleService/AIIcon 两处内层 when 冗余 else 分支删除
   （Kotlin 2.x 流分析已由外层分支排除 Emoji）；SettingCustomIconsPage 迁移到
   Material3 新版 ListItem API（headlineContent 尾 lambda 重载），弃用告警消除
+
+## V. todowrite/bgt 专属渲染器 + export 工具下线 + bg 五合二（2026-08-26）
+
+- **专属渲染器**（ui/components/message/tools/TodoBgtToolUIs.kt，注册进 ToolUIRegistry）：
+  - TodoWriteToolUI：折叠标题「任务清单 · N/M 完成」；摘要为进度条 + 当前进行项；
+    详情复用 TodoSheet 的分组清单（TodoRow 改 internal 共享）；数据输出优先、入参兜底
+    （审批中也能预览 AI 打算建立的清单）
+  - BgtStartToolUI：标题/摘要展示启动命令（bash 高亮 + loading shimmer），
+    详情为命令代码块 + 返回说明
+  - BgtToolUI：按 action 区分标题；status 显示状态色点+退出码、output 显示尾部 6 行、
+    kill/list 就地显示结果文案；output 详情为完整输出代码块
+- **export 工具整体下线**：手机存储直连挂载（T 节）后无存在必要。删除
+  WorkspaceExportTools.kt / WorkspacePhoneExporter.kt / 导出目标设置 UI 卡片与 SAF 选择器 /
+  VM 与 Repository 的 setExportTargetUri 链路 / DAO 查询；DB v33→34 AutoMigration
+  （@DeleteColumn spec Migration_33_34）移除 workspaces.export_target_uri 列
+- **bg 五合二并改名**：workspace_bg_start→bgt_start（行为不变）；
+  workspace_bg_status/output/kill/list 合并为 bgt(action=status|output|kill|list，
+  bg_id 除 list 外必填，tail_lines/max_bytes 仅 output)。
+  审批默认 bgt_start=true、bgt=false；PLAN_DENIED_TOOLS 同步（bgt 整体禁用）；
+  BackgroundTaskReminderTransformer 提醒文本改用新调用方式；
+  历史消息中的旧名由通用渲染器兜底，工作区覆盖中的旧键自然失效

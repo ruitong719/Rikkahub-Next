@@ -70,8 +70,8 @@ shell_status=READY 才创建。11 个工具（2026-08-26 起对齐 opencode 命�
 会话级授权：审批 UI 三选项（拒绝/本次会话内全部同意/单次同意），ToolGrants（内存态挂
 ConversationSession）按目录子树或整工具记录授予，ChatService.applyConversationGrants 包装
 needsApproval 实现已授权调用免审批、同批 Pending 连带放行。
-| workspace_export_to_phone | true | SAF 导出到手机 |
-| workspace_bg_start/status/output/kill/list | start,kill=true 其余 false | 常驻后台任务管理（.l2s.bg/<taskId>/） |
+| bgt_start | true | 启动常驻后台任务（.l2s.bg/<taskId>/），立即返回 bg_id |
+| bgt | false | 后台任务查询/管理：action=status\|output\|kill\|list |
 | workspace_create_backup | true | 复用 WebDavSync.prepareBackupFile(DATABASE) → `/workspace/backup.zip` |
 
 挂载点不再基于 SAF（2026-08-26 起）：MANAGE_EXTERNAL_STORAGE「所有文件访问」授权后，

@@ -12,7 +12,7 @@ import me.rerere.rikkahub.data.ai.tools.BashPathScanner
  * 两种授权粒度：
  * - 目录子树：对带路径概念的工具（read/write/edit/export/bash），授予目标文件父目录的完全访问；
  *   之后同会话内落在该前缀下的调用不再弹审批
- * - 整工具：无路径概念的审批型工具（calendar_create、workspace_bg_start 等）按工具名整会话放行
+ * - 整工具：无路径概念的审批型工具（calendar_create、bgt_start 等）按工具名整会话放行
  *
  * 内存态，挂在 ConversationSession 上随进程/会话回收而失效——即「本次会话」语义。
  */
@@ -53,7 +53,6 @@ class ToolGrants {
                 (obj[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
             val key = when (toolName) {
                 "read", "write", "edit" -> "path"
-                "workspace_export_to_phone" -> "source"
                 "bash" -> return BashPathScanner.extractPaths(str("command") ?: "")
                 else -> return emptyList()
             }

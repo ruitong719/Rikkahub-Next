@@ -103,6 +103,9 @@ object ToolUIRegistry {
         ReadFileToolUI,
         WriteFileToolUI,
         ShellToolUI,
+        TodoWriteToolUI,
+        BgtStartToolUI,
+        BgtToolUI,
     ).associateBy { it.toolName }
 
     /** 查找工具对应的渲染器, 未注册时返回默认渲染器（历史遗留的旧工具名也走这里兜底） */

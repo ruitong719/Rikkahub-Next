@@ -52,7 +52,7 @@ class BackgroundTaskReminderTransformer(
             if (info.command.isNotBlank()) {
                 appendLine("  command: ${info.command.take(200)}")
             }
-            append("  read output with workspace_bg_output(bg_id=\"${info.taskId}\")")
+            append("  read output with bgt(action=\"output\", bg_id=\"${info.taskId}\")")
         }
     }
 }

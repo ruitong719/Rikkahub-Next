@@ -58,7 +58,7 @@ class SubAgentLogicTest {
     @Test
     fun `SHELL category matches only workspace_shell`() {
         assertTrue(matchesToolAllowlist("workspace_shell", setOf(SubAgentToolCategory.SHELL)))
-        assertFalse(matchesToolAllowlist("workspace_bg_start", setOf(SubAgentToolCategory.SHELL)))
+        assertFalse(matchesToolAllowlist("bgt_start", setOf(SubAgentToolCategory.SHELL)))
     }
 
     @Test
@@ -68,7 +68,6 @@ class SubAgentLogicTest {
         assertTrue(matchesToolAllowlist("workspace_edit_file", all))
         assertTrue(matchesToolAllowlist("workspace_shell", all))
         // 白名单之外的工具任何类别都不放行
-        assertFalse(matchesToolAllowlist("workspace_export_to_phone", all))
         assertFalse(matchesToolAllowlist("clipboard_tool", all))
         assertFalse(matchesToolAllowlist("text_to_speech", all))
     }

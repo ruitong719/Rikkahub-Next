@@ -36,12 +36,8 @@ val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
     "write" to false,
     "edit" to false,
     "bash" to true,
-    "workspace_export_to_phone" to true,
-    "workspace_bg_start" to true,
-    "workspace_bg_status" to false,
-    "workspace_bg_output" to false,
-    "workspace_bg_kill" to true,
-    "workspace_bg_list" to false,
+    "bgt_start" to true,
+    "bgt" to false,
     "workspace_create_backup" to true,
 )
 
@@ -67,7 +63,6 @@ suspend fun createWorkspaceTools(
         createWriteFileTool(workspaceId, ::needsApproval, workspaceRepository, writableRoots),
         createEditFileTool(workspaceId, ::needsApproval, workspaceRepository, writableRoots),
         createShellTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd, conversationId, writableRoots),
-        createWorkspaceExportTool(workspaceId, ::needsApproval, workspaceRepository),
     ) + createWorkspaceBgTools(workspaceId, ::needsApproval, workspaceRepository, conversationId) +
         listOf(createWorkspaceBackupTool(workspaceId, ::needsApproval, workspaceRepository))
 }

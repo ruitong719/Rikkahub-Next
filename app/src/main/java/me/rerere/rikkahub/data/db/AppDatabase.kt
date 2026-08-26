@@ -24,6 +24,7 @@ import me.rerere.rikkahub.data.db.migrations.Migration_16_17
 import me.rerere.rikkahub.data.db.migrations.Migration_22_23
 import me.rerere.rikkahub.data.db.migrations.Migration_26_27
 import me.rerere.rikkahub.data.db.migrations.Migration_27_28
+import me.rerere.rikkahub.data.db.migrations.Migration_33_34
 import me.rerere.rikkahub.data.db.migrations.Migration_8_9
 import me.rerere.rikkahub.utils.JsonInstant
 
@@ -37,7 +38,7 @@ import me.rerere.rikkahub.utils.JsonInstant
         WorkspaceEntity::class,
         FolderEntity::class,
     ],
-    version = 33,
+    version = 34,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
@@ -63,6 +64,7 @@ import me.rerere.rikkahub.utils.JsonInstant
         AutoMigration(from = 29, to = 30),
         AutoMigration(from = 31, to = 32),
         AutoMigration(from = 32, to = 33),
+        AutoMigration(from = 33, to = 34, spec = Migration_33_34::class),
     ]
 )
 @TypeConverters(TokenUsageConverter::class)

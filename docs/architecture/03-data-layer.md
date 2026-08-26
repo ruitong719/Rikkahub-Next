@@ -112,7 +112,6 @@
 | SkillPaths/SkillFrontmatterParser | canonical path 防穿越 / 极简 YAML frontmatter |
 | **WorkspaceBgManager**(single) | 持久后台任务：每工作区常驻 headless proot bash，任务以 `(cmd > log 2>&1; echo $? > exit_code) &` 运行于 `.l2s.bg/<taskId>/`；MAX_CONCURRENT_TASKS=3；listUnNotifiedFinishedTasks/markNotified/truncateOutputIfLarge/killSession/cleanupOrphanTasks |
 | WorkspaceMountManager(single) | MANAGE_EXTERNAL_STORAGE 直连挂载：授权后把 `/storage/emulated/0` bind 到 `/mnt/storage`（无缓存无同步）；activeBindMounts() 供 shell 动态挂载，未授权返回空 |
-| WorkspacePhoneExporter(single) | rootfs→SAF 导出（拒绝绝对路径/../..，跳过 .l2s.* 与 symlink） |
 
 ## 7. service/ 包
 
@@ -162,7 +161,7 @@
 |---|---|
 | **AppModule** | Json(JsonInstant)、AppEventBus、LocalTools、TodoStore、UpdateChecker、AppScope(SupervisorJob+Main)、EmojiData、TTSManager、SoundEffectPlayer、ChatNotificationManager(createdAtStart)、FloatingActivityHub(createdAtStart)、ChatService(17 依赖)、WebServerManager |
 | **DataSourceModule** | SettingsStore、AppDatabase(Room builder WAL+requery+libsimple+migrations+onOpen 建 FTS/载词典)、AssistantTemplateLoader、PebbleEngine、TemplateTransformer、全部 8 个 DAO、MessageFtsManager、DatabaseBackupManager、McpManager、GenerationHandler、共享 OkHttpClient(代理 selector/authenticator/Accept-Language/UA/身份拦截/RequestLogging/HttpLogging HEADERS + SearchService.init)、SponsorAPI、ProviderManager(ai)、WebDavSync、Ktor HttpClient、Retrofit |
-| **RepositoryModule** | ConversationRepo、FolderRepo、MemoryRepo、GenMediaRepo、FilesRepo、FavoriteRepo、WorkspaceManager(filesDir/workspaces + ProotShellRunner(nativeLibraryDir) + 固定 bindMounts /skills,/tool_outputs,/upload,/agent)、RootfsInstaller、WorkspaceRepository、FilesManager、SubAgentRunMonitor、ShellRunMonitor、WorkspacePhoneExporter、WorkspaceMountManager、WorkspaceBgManager、SkillManager |
+| **RepositoryModule** | ConversationRepo、FolderRepo、MemoryRepo、GenMediaRepo、FilesRepo、FavoriteRepo、WorkspaceManager(filesDir/workspaces + ProotShellRunner(nativeLibraryDir) + 固定 bindMounts /skills,/tool_outputs,/upload,/agent)、RootfsInstaller、WorkspaceRepository、FilesManager、SubAgentRunMonitor、ShellRunMonitor、WorkspaceMountManager、WorkspaceBgManager、SkillManager |
 | **ViewModelModule** | viewModel：ChatVM(带参 conversationId)、ChatDrawerVM、SettingVM、DebugVM、HistoryVM、AssistantVM、AssistantDetailVM(带参)、TranslatorVM、ShareHandlerVM(带参 text)、BackupVM、ImgGenVM、SubAgentsVM、SubAgentEditVM、QuickMessagesVM、SkillsVM、SkillDetailVM、WorkspaceVM、WorkspaceDetailVM(带参)、FavoriteVM、SearchVM、StatsVM |
 
 带参 VM 注入方式：`viewModel<ChatVM> { params -> ChatVM(id = params.get(), ...) }`，UI 侧 `koinViewModel(parameters = { parametersOf(id.toString()) })`。

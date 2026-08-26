@@ -14,12 +14,8 @@ val WORKSPACE_TOOL_NAMES = listOf(
     "write",
     "edit",
     "bash",
-    "workspace_export_to_phone",
-    "workspace_bg_start",
-    "workspace_bg_status",
-    "workspace_bg_output",
-    "workspace_bg_kill",
-    "workspace_bg_list",
+    "bgt_start",
+    "bgt",
     "workspace_create_backup",
 )
 
@@ -34,18 +30,11 @@ val DEFAULT_WORKSPACE_TOOL_PROMPTS: Map<String, String> = mapOf(
     "bash" to
         "Run a shell command inside the workspace PRoot Linux environment (files area mounted at /workspace). " +
         "For terminal operations only; use read/write/edit for file contents.",
-    "workspace_export_to_phone" to
-        "Export a file or folder from the workspace to the phone directory the user configured (SAF).",
-    "workspace_bg_start" to
-        "Start a long-running command as a persistent background task in the workspace.",
-    "workspace_bg_status" to
-        "Query the status of a background task (running/done/failed, exit code, pid).",
-    "workspace_bg_output" to
-        "Read the output of a background task (supports tail).",
-    "workspace_bg_kill" to
-        "Terminate a running background task.",
-    "workspace_bg_list" to
-        "List all background tasks of the current workspace with their status.",
+    "bgt_start" to
+        "Start a long-running command as a persistent background task in the workspace (returns a bg_id immediately).",
+    "bgt" to
+        "Query or manage background tasks: action=status/output/kill/list. " +
+        "status and output need bg_id; list takes no arguments.",
     "workspace_create_backup" to
         "Create a full app backup (settings, database and files) as /workspace/backup.zip.",
 )

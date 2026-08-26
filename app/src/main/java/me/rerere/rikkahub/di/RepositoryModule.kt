@@ -8,7 +8,6 @@ import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.files.WorkspaceBgManager
 import me.rerere.rikkahub.data.files.WorkspaceMountManager
-import me.rerere.rikkahub.data.files.WorkspacePhoneExporter
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.FavoriteRepository
 import me.rerere.rikkahub.data.repository.FolderRepository
@@ -92,10 +91,6 @@ val repositoryModule = module {
     // bash 执行直播注册表（进程内共享，供 ShellToolUI 在执行中实时展示输出）
     single {
         ShellRunMonitor()
-    }
-
-    single {
-        WorkspacePhoneExporter(get(), get())
     }
 
     single {

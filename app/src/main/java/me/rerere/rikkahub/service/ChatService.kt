@@ -942,7 +942,7 @@ class ChatService(
     // ---- 后台任务完成自动拉起 ----
 
     /**
-     * 后台任务完成自动拉起：模型调用 workspace_bg_start 后结束回合等待时，
+     * 后台任务完成自动拉起：模型调用 bgt_start 后结束回合等待时，
      * 任务一完成就自动触发一次生成，无需用户发消息。提醒内容由
      * [BackgroundTaskReminderTransformer] 在生成前注入并标记 notified。
      *

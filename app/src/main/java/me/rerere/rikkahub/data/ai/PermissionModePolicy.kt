@@ -20,9 +20,8 @@ object PermissionModePolicy {
         "write",
         "edit",
         "bash",
-        "workspace_export_to_phone",
-        "workspace_bg_start",
-        "workspace_bg_kill",
+        "bgt_start",
+        "bgt",
         "workspace_create_backup",
         "calendar_create",
     )

@@ -174,8 +174,9 @@ fun TodoSheet(
     }
 }
 
+/** 单条 todo 行渲染，供 TodoSheet 与消息内 todowrite 工具卡片共用 */
 @Composable
-private fun TodoRow(item: TodoItem) {
+internal fun TodoRow(item: TodoItem) {
     val finished = item.status == TodoStatus.COMPLETED || item.status == TodoStatus.CANCELLED
     Row(
         modifier = Modifier

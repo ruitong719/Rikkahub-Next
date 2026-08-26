@@ -238,20 +238,6 @@ class WorkspaceDetailVM(
         }
     }
 
-    fun setExportTargetUri(uri: android.net.Uri) {
-        viewModelScope.launch {
-            repository.setExportTargetUri(id, uri.toString())
-            loadWorkspace()
-        }
-    }
-
-    fun clearExportTargetUri() {
-        viewModelScope.launch {
-            repository.setExportTargetUri(id, null)
-            loadWorkspace()
-        }
-    }
-
     fun installRootfs(url: String) {
         viewModelScope.launch {
             _installError.value = null

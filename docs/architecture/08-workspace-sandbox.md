@@ -124,8 +124,11 @@ LINUX 区（WorkspaceStorageArea）提供 rootfs 内只读列举/读取辅助。
 - 设置页「手机存储挂载」卡片显示状态并可跳转系统授权页（返回自动刷新）
 - 已知限制：Android/data 与 Android/obb 被 MediaProvider 额外屏蔽（Shizuku/root 才能突破）
 
-## 9. 导出到手机（WorkspacePhoneExporter.kt）
-rootfs/FILES → WorkspaceEntity.exportTargetUri(SAF 树)：拒绝绝对路径与 ../..、跳过 `.l2s.` 与符号链接、总量上限流式拷贝。
+## 9. 导出到手机（已下线）
+
+workspace_export_to_phone 工具与导出目标目录设置随手机存储直连挂载（见第 8 节）整体移除：
+AI 直接读写 /mnt/storage 即可把工作区产物落到手机任意位置。DB v34 删除
+workspaces.export_target_uri 列（AutoMigrationSpec Migration_33_34）。
 
 ## 10. 交互终端页（ui/pages/extensions/workspace/WorkspaceTerminalPage + WorkspaceTerminalSession.kt）
 

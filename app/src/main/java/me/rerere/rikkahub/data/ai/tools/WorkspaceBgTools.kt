@@ -15,11 +15,9 @@ import org.koin.java.KoinJavaComponent.getKoin
 
 /**
  * 持久化后台任务工具组：
- * - workspace_bg_start: 启动长任务，立即返回任务 id，不阻塞
- * - workspace_bg_status: 查询状态/耗时/退出码
- * - workspace_bg_output: 读取输出（支持 tail）
- * - workspace_bg_kill: 终止任务
- * - workspace_bg_list: 列出本工作区的任务
+ * - bgt_start: 启动长任务，立即返回任务 id，不阻塞
+ * - bgt: 查询/管理入口，action=status|output|kill|list
+ *   （status 查状态、output 读输出支持 tail、kill 终止、list 列出全部）
  *
  * 任务完成后，绑定对话的下一次生成会自动收到完成提醒（BackgroundTaskReminderTransformer）。
  */
@@ -37,10 +35,10 @@ fun createWorkspaceBgTools(
 
     return listOf(
         Tool(
-            name = "workspace_bg_start",
+            name = "bgt_start",
             description = "Start a long-running command as a persistent background task in the workspace. " +
                 "Returns immediately with a bg_id; the command keeps running in a persistent proot session. " +
-                "Use workspace_bg_status / workspace_bg_output to check progress, workspace_bg_kill to stop it. " +
+                "Use bgt(action=\"status\"/\"output\") to check progress, bgt(action=\"kill\") to stop it. " +
                 "The task is bound to this conversation: when it finishes you will be notified automatically. " +
                 "Max ${WorkspaceBgManager.MAX_CONCURRENT_TASKS} concurrent tasks per workspace. " +
                 "Only suitable for non-interactive commands (no TTY).",
@@ -59,7 +57,7 @@ fun createWorkspaceBgTools(
                     required = listOf("command"),
                 )
             },
-            needsApproval = { needsApproval("workspace_bg_start") },
+            needsApproval = { needsApproval("bgt_start") },
             execute = {
                 val params = it.jsonObject
                 val command = params.string("command") ?: error("command is required")
@@ -78,8 +76,8 @@ fun createWorkspaceBgTools(
                             put(
                                 "message",
                                 "Background task started. It runs detached and you will be notified automatically " +
-                                    "when it finishes. DO NOT sleep, poll with workspace_bg_status, or idle-wait for it - " +
-                                    "work on unrelated tasks or end your response; read output via workspace_bg_output when notified."
+                                    "when it finishes. DO NOT sleep, poll with bgt(action=\"status\"), or idle-wait for it - " +
+                                    "work on unrelated tasks or end your response; read output via bgt(action=\"output\") when notified."
                             )
                         }.toString()
                     )
@@ -87,26 +85,44 @@ fun createWorkspaceBgTools(
             },
         ),
         Tool(
-            name = "workspace_bg_status",
-            description = "Query the status of a background task: running/done/failed, exit code, pid, elapsed time.",
+            name = "bgt",
+            description = "Query or manage background tasks started with bgt_start.\n" +
+                "Actions:\n" +
+                "- status: running/done/failed, exit code, pid, elapsed time (requires bg_id)\n" +
+                "- output: read task output, supports tail_lines / max_bytes (requires bg_id)\n" +
+                "- kill: terminate a running task with SIGTERM (requires bg_id)\n" +
+                "- list: list all tasks of the current workspace (no bg_id needed)",
             parameters = {
                 InputSchema.Obj(
                     properties = buildJsonObject {
+                        put("action", buildJsonObject {
+                            put("type", "string")
+                            put("description", "One of: status, output, kill, list")
+                        })
                         put("bg_id", buildJsonObject {
                             put("type", "string")
-                            put("description", "Task id returned by workspace_bg_start")
+                            put("description", "Task id returned by bgt_start. Required by status/output/kill; omit for list.")
+                        })
+                        put("tail_lines", buildJsonObject {
+                            put("type", "integer")
+                            put("description", "action=output only: return only the last N lines. Defaults to all (capped at 2MB).")
+                        })
+                        put("max_bytes", buildJsonObject {
+                            put("type", "integer")
+                            put("description", "action=output only: maximum bytes to read from the end of the output. Defaults to 2MB.")
                         })
                     },
-                    required = listOf("bg_id"),
+                    required = listOf("action"),
                 )
             },
-            needsApproval = { needsApproval("workspace_bg_status") },
+            needsApproval = { needsApproval("bgt") },
             execute = {
-                val bgId = it.jsonObject.string("bg_id") ?: error("bg_id is required")
+                val params = it.jsonObject
                 val bgManager = getKoin().get<WorkspaceBgManager>()
-                val info = bgManager.taskInfo(rootOf(), bgId)
-                listOf(
-                    UIMessagePart.Text(
+                when (params.string("action")) {
+                    "status" -> {
+                        val bgId = params.string("bg_id") ?: error("bg_id is required for action=status")
+                        val info = bgManager.taskInfo(rootOf(), bgId)
                         buildJsonObject {
                             put("bg_id", info.taskId)
                             put("status", info.status.name.lowercase())
@@ -115,91 +131,32 @@ fun createWorkspaceBgTools(
                             put("durationSeconds", (System.currentTimeMillis() - info.startedAt) / 1000)
                             put("command", info.command)
                             put("stdoutBytes", info.stdoutSizeBytes)
-                        }.toString()
-                    )
-                )
-            },
-        ),
-        Tool(
-            name = "workspace_bg_output",
-            description = "Read the output of a background task. Use tail_lines to get only the last N lines.",
-            parameters = {
-                InputSchema.Obj(
-                    properties = buildJsonObject {
-                        put("bg_id", buildJsonObject {
-                            put("type", "string")
-                            put("description", "Task id returned by workspace_bg_start")
-                        })
-                        put("tail_lines", buildJsonObject {
-                            put("type", "integer")
-                            put("description", "Only return the last N lines. Defaults to all (capped at 2MB).")
-                        })
-                        put("max_bytes", buildJsonObject {
-                            put("type", "integer")
-                            put("description", "Maximum bytes to read from the end of the output. Defaults to 2MB.")
-                        })
-                    },
-                    required = listOf("bg_id"),
-                )
-            },
-            needsApproval = { needsApproval("workspace_bg_output") },
-            execute = {
-                val params = it.jsonObject
-                val bgId = params.string("bg_id") ?: error("bg_id is required")
-                val tailLines = params.string("tail_lines")?.toIntOrNull()
-                val maxBytes = params.string("max_bytes")?.toIntOrNull()
-                val bgManager = getKoin().get<WorkspaceBgManager>()
-                val text = bgManager.output(rootOf(), bgId, tailLines, maxBytes)
-                listOf(
-                    UIMessagePart.Text(
+                        }
+                    }
+
+                    "output" -> {
+                        val bgId = params.string("bg_id") ?: error("bg_id is required for action=output")
+                        val tailLines = params.string("tail_lines")?.toIntOrNull()
+                        val maxBytes = params.string("max_bytes")?.toIntOrNull()
+                        val text = bgManager.output(rootOf(), bgId, tailLines, maxBytes)
                         buildJsonObject {
                             put("bg_id", bgId)
                             put("output", text)
                             put("truncated", text.length >= (maxBytes ?: WorkspaceBgManager.MAX_OUTPUT_READ_BYTES))
-                        }.toString()
-                    )
-                )
-            },
-        ),
-        Tool(
-            name = "workspace_bg_kill",
-            description = "Terminate a running background task (sends SIGTERM to the task process).",
-            parameters = {
-                InputSchema.Obj(
-                    properties = buildJsonObject {
-                        put("bg_id", buildJsonObject {
-                            put("type", "string")
-                            put("description", "Task id returned by workspace_bg_start")
-                        })
-                    },
-                    required = listOf("bg_id"),
-                )
-            },
-            needsApproval = { needsApproval("workspace_bg_kill") },
-            execute = {
-                val bgId = it.jsonObject.string("bg_id") ?: error("bg_id is required")
-                val bgManager = getKoin().get<WorkspaceBgManager>()
-                bgManager.killTask(rootOf(), bgId)
-                listOf(
-                    UIMessagePart.Text(
+                        }
+                    }
+
+                    "kill" -> {
+                        val bgId = params.string("bg_id") ?: error("bg_id is required for action=kill")
+                        bgManager.killTask(rootOf(), bgId)
                         buildJsonObject {
                             put("bg_id", bgId)
                             put("message", "Kill signal sent")
-                        }.toString()
-                    )
-                )
-            },
-        ),
-        Tool(
-            name = "workspace_bg_list",
-            description = "List all background tasks of the current workspace with their status.",
-            parameters = { null },
-            needsApproval = { needsApproval("workspace_bg_list") },
-            execute = {
-                val bgManager = getKoin().get<WorkspaceBgManager>()
-                val tasks = bgManager.listTasks(rootOf())
-                listOf(
-                    UIMessagePart.Text(
+                        }
+                    }
+
+                    "list" -> {
+                        val tasks = bgManager.listTasks(rootOf())
                         buildJsonObject {
                             put("tasks", buildJsonObject {
                                 tasks.forEach { info ->
@@ -213,9 +170,13 @@ fun createWorkspaceBgTools(
                                 }
                             })
                             put("count", tasks.size)
-                        }.toString()
-                    )
-                )
+                        }
+                    }
+
+                    else -> error("action must be one of: status, output, kill, list")
+                }.let { json ->
+                    listOf(UIMessagePart.Text(json.toString()))
+                }
             },
         ),
     )
