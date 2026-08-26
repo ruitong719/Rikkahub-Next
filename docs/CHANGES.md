@@ -1283,3 +1283,18 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
  流式分片转换/UI 异常不再误触发重连重放；取消时清理重试文案无残留
 - **跳过**：CONTRIBUTING.md（政策与 fork 定位相反）、生成前台服务
  （悬浮球 FGS 已提供等价进程保活，避免第二条常驻通知）
+
+## AG. ask_user YOLO 拦截 + 三工具渲染器 + read 提示词收敛（2026-08-26）
+
+- **ask_user × YOLO**：YOLO 分支特判——此前审批被剥离后掉进 execute 抛错
+ （"should be handled by HITL flow"），现改为直接替换 execute 返回结构化不可用结果：
+  模型收到「YOLO 模式不交互、请切模式」说明；聊天步骤检测到错误输出时展示
+  「当前处于 YOLO 模式，不支持 ask_user，请切换模式」提示而非问答表单。
+  BUILD/PLAN 两模式行为不变（HITL 正常）
+- **use_skill/clipboard/get_time_info 渲染器**：三者此前仅标题定制、详情落通用 JSON。补齐：
+  get_time_info=日期(大字)/星期/时间/时区卡片；clipboard 按 action 区分读取内容与写入回执
+ （surfaceContainer mono 块）；use_skill 从原始输出读 markdown 正文用 MarkdownBlock 渲染
+ （正文非 JSON，content 解析为空对象，需走 tool.output）；失败态显示 colorScheme.error。
+  统一 PendingPreview 加载占位，仅异常回退 JSON 默认视图
+- **read 提示词收敛**：工具描述与注入提示词删除目录列举表述，明确「列目录用 bash ls」；
+  工具实际的目录分支代码保留未动

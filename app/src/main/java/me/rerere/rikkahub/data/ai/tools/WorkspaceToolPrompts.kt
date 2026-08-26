@@ -21,15 +21,16 @@ val WORKSPACE_TOOL_NAMES = listOf(
 
 val DEFAULT_WORKSPACE_TOOL_PROMPTS: Map<String, String> = mapOf(
     "read" to
-        "Read a file or directory from the workspace files area (absolute paths inside Rootfs). " +
-        "Returns line-numbered content with offset/limit paging; directories are listed instead.",
+        "Read a file from the workspace files area (absolute paths inside Rootfs). " +
+        "Returns line-numbered content with offset/limit paging. " +
+        "Directories cannot be read with this tool; use bash ls instead.",
     "write" to
         "Write a UTF-8 text file into the workspace files area. Prefer edit for existing files.",
     "edit" to
         "Make precise string replacements in an existing file (old_text/new_text; whitespace-tolerant fallbacks).",
     "bash" to
         "Run a shell command inside the workspace PRoot Linux environment (files area mounted at /workspace). " +
-        "For terminal operations only; use read/write/edit for file contents.",
+        "For terminal operations only; use read/write/edit for file contents and ls for directory listings.",
     "bgt_start" to
         "Start a long-running command as a persistent background task in the workspace (returns a bg_id immediately).",
     "bgt" to

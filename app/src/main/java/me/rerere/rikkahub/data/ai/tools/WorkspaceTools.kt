@@ -85,13 +85,12 @@ private fun createReadFileTool(
 ) = Tool(
     name = "read",
     description = """
-        Read a file or directory from the workspace Rootfs. Paths must be absolute inside Rootfs.
+        Read a file from the workspace Rootfs. Paths must be absolute inside Rootfs.
         Usage:
         - The path parameter must be an absolute path inside Rootfs; use /workspace for the workspace files area.
         - By default, up to $DEFAULT_READ_LIMIT_LINES lines are returned from the start of the file.
         - Use offset (1-indexed line number) with limit to page through large files.
         - Output lines are prefixed with their line number like `12: content`; never include that prefix in old_text when editing.
-        - Reading a directory lists its entries instead (subdirectories end with `/`).
         - Image files are returned as image attachments; binary files are rejected.
         - Avoid tiny repeated slices (30-line chunks). If you need more context, read a larger window.
         - Call this tool in parallel when you know there are multiple files you want to read.

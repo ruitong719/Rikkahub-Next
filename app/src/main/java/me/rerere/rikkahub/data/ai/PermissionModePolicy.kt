@@ -4,6 +4,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import me.rerere.ai.core.Tool
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.rikkahub.data.ai.tools.local.ASK_USER_TOOL_NAME
 import me.rerere.rikkahub.data.model.PermissionMode
 
 /**
@@ -29,7 +30,17 @@ object PermissionModePolicy {
         PermissionMode.BUILD -> tools
 
         PermissionMode.YOLO -> tools.map { tool ->
-            tool.copy(needsApproval = { false })
+            when {
+                // ask_user 是 HITL 交互工具，YOLO 下没有审批流程可走；
+                // 直接放行会掉进 execute 抛错。改为返回结构化提示：
+                // 模型收到「不可用」说明，用户界面展示切换模式提示
+                tool.name == ASK_USER_TOOL_NAME -> tool.copy(
+                    needsApproval = { false },
+                    execute = { yoloAskUserDenied() },
+                )
+
+                else -> tool.copy(needsApproval = { false })
+            }
         }
 
         PermissionMode.PLAN -> tools
@@ -53,6 +64,19 @@ object PermissionModePolicy {
                     "error",
                     "Tool '$toolName' is unavailable in plan mode (read-only research). " +
                         "Explore and read instead, then present a plan; the user will switch to build mode to execute it."
+                )
+            }.toString()
+        )
+    )
+
+    /** YOLO 模式下 ask_user 的替代执行结果：不进交互流程，模型收到不可用说明 */
+    private fun yoloAskUserDenied(): List<UIMessagePart> = listOf(
+        UIMessagePart.Text(
+            buildJsonObject {
+                put(
+                    "error",
+                    "ask_user is unavailable in YOLO mode (tools run without user interaction). " +
+                        "Switch the permission mode if you need to ask the user questions."
                 )
             }.toString()
         )

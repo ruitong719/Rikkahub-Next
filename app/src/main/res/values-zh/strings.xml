@@ -206,6 +206,7 @@
   <string name="chat_message_tool_approve">批准</string>
   <string name="chat_message_tool_approve_always">本次会话内全部同意</string>
   <string name="chat_message_tool_ask_questions">询问 %d 个问题</string>
+  <string name="chat_message_tool_ask_user_yolo">当前处于 YOLO 模式，不支持 ask_user，请切换模式</string>
   <string name="chat_message_tool_call_generic">调用工具 %1$s</string>
   <string name="chat_message_tool_call_label">调用工具 %1$s</string>
   <string name="chat_message_tool_call_result">调用结果</string>
@@ -1217,6 +1218,9 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="tool_ui_js_logs">控制台输出</string>
   <string name="tool_ui_js_result">结果</string>
   <string name="tool_ui_search_pending">正在搜索…</string>
+  <string name="tool_ui_skill_pending">正在加载技能…</string>
+  <string name="tool_ui_clipboard_pending">正在读取剪贴板…</string>
+  <string name="tool_ui_time_pending">正在获取时间…</string>
   <string name="tool_ui_scrape_pending">正在抓取网页…</string>
   <string name="notification_channel_ai_notify">AI 通知</string>
   <string name="assistant_page_local_tools_notify_title">AI 主动通知</string>

@@ -279,6 +279,18 @@ private fun ChainOfThoughtScope.AskUserToolStep(
     val isAnswered = tool.approvalState is ToolApprovalState.Answered
     val arguments = tool.inputAsJson()
 
+    // YOLO 模式下 ask_user 不进交互流程（execute 被策略层替换为错误结果）；
+    // 据此展示「请切换模式」提示而非问答表单
+    val yoloDenied = remember(tool) {
+        val noInteractiveState = tool.approvalState !is ToolApprovalState.Pending &&
+            tool.approvalState !is ToolApprovalState.Answered
+        noInteractiveState && runCatching {
+            JsonInstant.parseToJsonElement(
+                tool.output.filterIsInstance<UIMessagePart.Text>().joinToString("\n") { it.text }
+            ).jsonObject.containsKey("error")
+        }.getOrDefault(false)
+    }
+
     // Parse questions from arguments
     val questions = remember(arguments) {
         runCatching {
@@ -446,6 +458,15 @@ private fun ChainOfThoughtScope.AskUserToolStep(
                             )
                         }
                     }
+                }
+
+                if (yoloDenied) {
+                    Text(
+                        text = stringResource(R.string.chat_message_tool_ask_user_yolo),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
                 }
 
                 // Submit button
