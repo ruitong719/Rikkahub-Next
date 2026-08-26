@@ -1102,3 +1102,33 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
 - 工作区详情新增第三个 tab「提示词」（基本/文件之间，Edit02 图标）：
   上半区六段引导提示词（行内预览 + 已自定义角标 + AlertDialog 编辑器，
   含恢复默认）；下半区工具提示词从基本页的审批卡迁入（审批卡瘦身为纯开关）
+
+## T. 手机存储直连挂载取代 SAF 物化同步（2026-08-26）
+
+- **动机**：原方案把 SAF 树物化到 filesDir 缓存再 push/pull 同步，删除操作永远到不了手机
+  （v1 刻意不做删除同步），且大文件双份占用空间；MANAGE_EXTERNAL_STORAGE 授权后
+  `/storage/emulated/0` 本身就是真实路径，可直接 proot `-b`，整套同步机制失去存在必要
+- **WorkspaceMountManager 重写**：删除 WorkspaceMountConfig/SyncDirection/pull/push/
+  addMount/removeMount/自动同步循环（startAutoSyncLoop/pullAllAtStartup）全部 SAF 机制；
+  新 API 仅 `isStorageAccessGranted()` / `activeBindMounts()`（授权时返回
+  `/storage/emulated/0 → /mnt/storage` 单条直连挂载）/ `buildAllFilesAccessSettingsIntent()`
+- **权限**：Manifest 新增 MANAGE_EXTERNAL_STORAGE + READ_EXTERNAL_STORAGE(≤32)；
+  设置页「手机存储挂载」卡片显示授权状态、一键跳系统授权页，
+  LifecycleResumeEffect 从设置页返回自动刷新
+- **提示词**：新增可覆盖分段 `mount`（WorkspacePromptSegment.MOUNT，默认文案说明
+  /mnt/storage 实时读写语义与 Android/data 不可见限制）；仅在授权生效时注入
+- **清理**：Settings 删除 workspaceMounts/workspaceAutoSyncIntervalSeconds 两字段与对应
+  DataStore 键（ignoreUnknownKeys=true 保证旧备份 settings.json 可恢复）；
+  设置页移除挂载列表/添加对话框/手动同步按钮/自动同步间隔选择器；
+  字符串资源清理 mount_add/remove/pull/push/sync/auto_sync/tool_mount_* 等
+- 已知限制（写入文档与提示词）：Android/data、Android/obb 系统级屏蔽不可见；
+  FUSE 无符号链接创建能力
+
+## U. read 工具专属渲染器修复 + 编译警告清零（2026-08-26）
+
+- **read 渲染器断链**：c0c1394c 改名对齐 opencode 时输出字段 text→content（新增行号
+  前缀与分页元数据），ReadFileToolUI.textOf 仍读 "text" 恒为 null → 永远落到通用兜底卡片；
+  改读 "content" 恢复摘要首部预览 + 语法高亮详情的专属展示
+- **警告清理**：FloatingBubbleService/AIIcon 两处内层 when 冗余 else 分支删除
+  （Kotlin 2.x 流分析已由外层分支排除 Emoji）；SettingCustomIconsPage 迁移到
+  Material3 新版 ListItem API（headlineContent 尾 lambda 重载），弃用告警消除

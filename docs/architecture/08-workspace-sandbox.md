@@ -20,7 +20,7 @@ WorkspaceManager (门面: 文件双存储区 + shell 执行 + 路径映射)
         │
 app 侧常驻会话:
  ├─ WorkspaceBgManager    headless proot bash 常驻 → 后台任务 (.l2s.bg/<taskId>/)
- └─ WorkspaceMountManager SAF 手机目录 ↔ /mnt/<name> 物化缓存
+ └─ WorkspaceMountManager 手机存储直连挂载 /mnt/storage
 ```
 
 磁盘布局：`filesDir/workspaces/<root>/`
@@ -114,14 +114,15 @@ LINUX 区（WorkspaceStorageArea）提供 rootfs 内只读列举/读取辅助。
 - MAX_CONCURRENT_TASKS=3；输出尾部窗口截断
 - 完成自动拉起 LLM 的 watcher 见 04 文档 §9；`.l2s.` 前缀文件对 AI 的文件列表不可见（过滤规则）
 
-## 8. SAF 挂载（app/data/files/WorkspaceMountManager.kt）
+## 8. 手机存储直连挂载（app/data/files/WorkspaceMountManager.kt）
 
-- 手机 SAF 树 URI ↔ 工作区 `/mnt/<name>`；SAF 无法直接进 proot，先物化到 `filesDir/mnt/<mountId>/` 缓存
-- 快照式双向同步 PULL/PUSH（size+mtime 增量；push 不删手机文件）；配置存 settings.workspaceMounts
-- **后台自动同步**（2026-08-26 起，替代已删除的 mount 工具）：startAutoSyncLoop 由
-  App 启动拉起，每周期先 PUSH 再 PULL；间隔 settings.workspaceAutoSyncIntervalSeconds
-  （0=关闭/30/60/300，默认 60s），运行时读值即改即生效；设置页挂载卡片可选手动同步
-- 启动自动 pullAllAtStartup（RikkaHubApp 清理阶段调用）；activeBindMounts() 注入每次 shell 执行
+- MANAGE_EXTERNAL_STORAGE（所有文件访问，系统设置页授予）→ `/storage/emulated/0`
+  是宿主机真实路径，直接 `proot -b /storage/emulated/0:/mnt/storage`
+- **实时双向**：读写/删除/重命名立即作用于手机文件；无物化缓存、无 PULL/PUSH 同步
+  （2026-08-26 取代原 SAF 物化+快照同步方案，旧 settings.workspaceMounts 键废弃不迁移）
+- 未授权时 activeBindMounts() 返回空，/mnt/storage 不存在；API < 30 无此权限模型视为可用
+- 设置页「手机存储挂载」卡片显示状态并可跳转系统授权页（返回自动刷新）
+- 已知限制：Android/data 与 Android/obb 被 MediaProvider 额外屏蔽（Shizuku/root 才能突破）
 
 ## 9. 导出到手机（WorkspacePhoneExporter.kt）
 rootfs/FILES → WorkspaceEntity.exportTargetUri(SAF 树)：拒绝绝对路径与 ../..、跳过 `.l2s.` 与符号链接、总量上限流式拷贝。

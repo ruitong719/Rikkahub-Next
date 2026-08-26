@@ -99,7 +99,7 @@ val repositoryModule = module {
     }
 
     single {
-        WorkspaceMountManager(get(), get())
+        WorkspaceMountManager(get())
     }
 
     single {

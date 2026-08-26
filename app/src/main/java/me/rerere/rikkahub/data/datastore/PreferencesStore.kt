@@ -39,7 +39,6 @@ import me.rerere.asr.ASRProviderSetting
 import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV1Migration
 import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV2Migration
 import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV3Migration
-import me.rerere.rikkahub.data.files.WorkspaceMountConfig
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.CustomAIIcon
@@ -62,9 +61,6 @@ import org.koin.core.component.get
 import kotlin.uuid.Uuid
 
 private const val TAG = "PreferencesStore"
-
-/** 挂载点自动同步间隔上限(秒), 防止误存离谱数值 */
-private const val MAX_AUTO_SYNC_INTERVAL_SECONDS = 3600
 
 private val Context.settingsStore by preferencesDataStore(
     name = "settings",
@@ -148,10 +144,6 @@ class SettingsStore(
 
         // WebDAV
         val WEBDAV_CONFIG = stringPreferencesKey("webdav_config")
-
-        // 工作区 SAF 挂载点（全局共享，所有工作区可见 /mnt/<name>）
-        val WORKSPACE_MOUNTS = stringPreferencesKey("workspace_mounts")
-        val WORKSPACE_AUTO_SYNC_INTERVAL = intPreferencesKey("workspace_auto_sync_interval_seconds")
 
         // 更新检查地址（为空时回退到 DEFAULT_UPDATE_URL）
         val UPDATE_URL = stringPreferencesKey("update_url")
@@ -281,10 +273,6 @@ class SettingsStore(
                 webDavConfig = preferences[WEBDAV_CONFIG]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: WebDavConfig(),
-                workspaceMounts = preferences[WORKSPACE_MOUNTS]?.let {
-                    JsonInstant.decodeFromString<List<WorkspaceMountConfig>>(it)
-                } ?: emptyList(),
-                workspaceAutoSyncIntervalSeconds = preferences[WORKSPACE_AUTO_SYNC_INTERVAL] ?: 60,
                 ttsProviders = preferences[TTS_PROVIDERS]?.let {
                     JsonInstant.decodeFromString(it)
                 } ?: emptyList(),
@@ -485,9 +473,6 @@ class SettingsStore(
 
             preferences[MCP_SERVERS] = JsonInstant.encodeToString(settings.mcpServers)
             preferences[WEBDAV_CONFIG] = JsonInstant.encodeToString(settings.webDavConfig)
-            preferences[WORKSPACE_MOUNTS] = JsonInstant.encodeToString(settings.workspaceMounts)
-            preferences[WORKSPACE_AUTO_SYNC_INTERVAL] =
-                settings.workspaceAutoSyncIntervalSeconds.coerceIn(0, MAX_AUTO_SYNC_INTERVAL_SECONDS)
             preferences[TTS_PROVIDERS] = JsonInstant.encodeToString(settings.ttsProviders)
             preferences[SELECTED_TTS_PROVIDER] = settings.selectedTTSProviderId.toString()
             preferences[DEFAULT_TTS_PLAYBACK_SPEED] = settings.defaultTTSPlaybackSpeed.coerceIn(0.5f, 2.0f)
@@ -659,9 +644,6 @@ data class Settings(
     val searchServiceSelected: Int = 0,
     val mcpServers: List<McpServerConfig> = emptyList(),
     val webDavConfig: WebDavConfig = WebDavConfig(),
-    val workspaceMounts: List<WorkspaceMountConfig> = emptyList(),
-    // 挂载点自动同步间隔(秒); 0=关闭; 30/60/300 为 UI 预设, 默认 60
-    val workspaceAutoSyncIntervalSeconds: Int = 60,
     val ttsProviders: List<TTSProviderSetting> = DEFAULT_TTS_PROVIDERS,
     val selectedTTSProviderId: Uuid = DEFAULT_SYSTEM_TTS_ID,
     val defaultTTSPlaybackSpeed: Float = 1.0f,

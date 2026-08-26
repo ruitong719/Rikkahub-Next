@@ -13,8 +13,9 @@ object WorkspacePromptSegment {
     const val SKILLS = "skills"
     const val UPLOAD = "upload"
     const val AGENT = "agent"
+    const val MOUNT = "mount"
 
-    val ALL = listOf(IDENTITY, FILES_AREA, USAGE_HINT, SKILLS, UPLOAD, AGENT)
+    val ALL = listOf(IDENTITY, FILES_AREA, USAGE_HINT, SKILLS, UPLOAD, AGENT, MOUNT)
 }
 
 fun defaultWorkspacePromptSegment(key: String): String = when (key) {
@@ -40,6 +41,13 @@ fun defaultWorkspacePromptSegment(key: String): String = when (key) {
         "- The agent instructions directory is mounted at `/agent`. It contains Markdown files " +
             "(e.g. `agent.md`) that define the assistant's behavior; follow them. You may append to " +
             "existing files there, but prefer editing `/workspace` files for your own work."
+    WorkspacePromptSegment.MOUNT ->
+        "- Phone directories are mounted under `/mnt`: the device's shared storage root is bound " +
+            "at `/mnt/storage` (equivalent to `/sdcard`). This is a live bind mount of the real phone " +
+            "filesystem, not a synced snapshot: reads always see the current phone state, and writes, " +
+            "renames, and deletions take effect immediately on the phone. Note that `Android/data` and " +
+            "`Android/obb` are inaccessible due to system restrictions; paths outside shared storage " +
+            "(app-private data) are not visible here."
     else -> ""
 }
 

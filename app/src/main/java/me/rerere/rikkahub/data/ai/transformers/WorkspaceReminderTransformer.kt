@@ -71,22 +71,18 @@ private fun buildWorkspacePrompt(
         if (!cwd.isNullOrBlank()) {
             appendLine("- Current working directory: `$cwd`. Use this as the default context for file operations and shell commands.")
         }
-        appendMountSection(mountManager)
+        appendMountSection(mountManager, overrides, workspace.name)
         append("</workspace>")
     }
 }
 
 /**
- * /mnt 挂载点说明（替代原 workspace_mount_list/sync 工具）：
- * 列出当前挂载点并说明快照同步语义，让模型对「改动何时落到手机」有正确预期。
+ * /mnt 挂载点说明（可覆盖分段）：手机存储根目录直连挂载到 /mnt/storage，
+ * 仅在全部文件访问权限已授予（挂载实际生效）时拼接，让模型了解实时读写语义。
  */
-private fun StringBuilder.appendMountSection(mountManager: WorkspaceMountManager?) {
-    val mounts = mountManager?.listMounts().orEmpty()
-    if (mounts.isEmpty()) return
-    val list = mounts.joinToString(", ") { "`/mnt/${it.name}`" }
-    appendLine("- Phone directories are mirrored into the workspace as bind mounts: $list.")
-    appendLine("  They are snapshot copies synced automatically in the background (push to phone, then pull from phone).")
-    appendLine("  Changes you make under /mnt reach the phone after the next sync cycle; new files on the phone appear the same way. Do not assume immediate consistency, and avoid editing the same file on both sides between syncs.")
+private fun StringBuilder.appendMountSection(mountManager: WorkspaceMountManager?, overrides: Map<String, String>, workspaceName: String) {
+    if (mountManager?.isStorageAccessGranted() != true) return
+    appendLine(resolveWorkspacePromptSegment(WorkspacePromptSegment.MOUNT, overrides, workspaceName))
 }
 
 private fun UIMessage.appendText(extra: String): UIMessage {

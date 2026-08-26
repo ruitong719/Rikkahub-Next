@@ -56,7 +56,6 @@
 | 搜索 | search_services, search_common, search_selected |
 | MCP | mcp_servers(JSON List\<McpServerConfig\>) |
 | 备份 | webdav_config(WebDavConfig{url,username,password,path="rikkahub_backups",items=[DATABASE,ATTACHMENTS]}) |
-| 工作区 | workspace_mounts |
 | 语音 | tts_providers, selected_tts_provider, default_tts_playback_speed, asr_providers, selected_asr_provider |
 | Web 服务器 | web_server_enabled/port/jwt_enabled/access_password/localhost_only |
 | 悬浮球 | floating_bubble_enabled/color/size/opacity/icon_path/expand_width/expand_height/show_todo_tab/show_live_tab |
@@ -112,7 +111,7 @@
 | SkillManager(single) | Claude-Code 式技能目录 `filesDir/skills/<name>/SKILL.md`(frontmatter name/description 必填)；listSkills/readSkillBody/saveSkill/deleteSkill(联动清 enabledSkills)/pruneOrphanedEnabledSkills/saveSkillFilesAtomically(staging+rename 原子替换) |
 | SkillPaths/SkillFrontmatterParser | canonical path 防穿越 / 极简 YAML frontmatter |
 | **WorkspaceBgManager**(single) | 持久后台任务：每工作区常驻 headless proot bash，任务以 `(cmd > log 2>&1; echo $? > exit_code) &` 运行于 `.l2s.bg/<taskId>/`；MAX_CONCURRENT_TASKS=3；listUnNotifiedFinishedTasks/markNotified/truncateOutputIfLarge/killSession/cleanupOrphanTasks |
-| WorkspaceMountManager(single) | SAF 手机目录 ↔ 工作区 `/mnt/<name>`；物化到 filesDir/mnt/<mountId>/；快照式手动 PULL/PUSH(size+mtime 增量)；activeBindMounts() 供 shell 动态挂载 |
+| WorkspaceMountManager(single) | MANAGE_EXTERNAL_STORAGE 直连挂载：授权后把 `/storage/emulated/0` bind 到 `/mnt/storage`（无缓存无同步）；activeBindMounts() 供 shell 动态挂载，未授权返回空 |
 | WorkspacePhoneExporter(single) | rootfs→SAF 导出（拒绝绝对路径/../..，跳过 .l2s.* 与 symlink） |
 
 ## 7. service/ 包

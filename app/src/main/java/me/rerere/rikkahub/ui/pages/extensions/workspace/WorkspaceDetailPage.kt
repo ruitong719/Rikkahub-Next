@@ -56,6 +56,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -80,8 +81,7 @@ import me.rerere.rikkahub.data.ai.tools.resolveWorkspaceToolApproval
 import me.rerere.rikkahub.data.ai.tools.WorkspacePromptSegment
 import me.rerere.rikkahub.data.ai.tools.resolveWorkspacePromptSegment
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
-import me.rerere.rikkahub.data.files.SyncDirection
-import me.rerere.rikkahub.data.files.WorkspaceMountConfig
+import me.rerere.rikkahub.data.files.WorkspaceMountManager
 import androidx.compose.ui.res.stringResource
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.nav.BackButton
@@ -149,60 +149,12 @@ fun WorkspaceDetailPage(id: String) {
         }
         vm.setExportTargetUri(uri)
     }
-    // 手机目录挂载选择器：先输入挂载名，再从系统选择器选目录
-    var pendingMountName by remember { mutableStateOf<String?>(null) }
-    var showMountNameDialog by remember { mutableStateOf(false) }
-    val mountDirPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree(),
-    ) { uri ->
-        val name = pendingMountName.also { pendingMountName = null } ?: return@rememberLauncherForActivityResult
-        if (uri == null) return@rememberLauncherForActivityResult
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-        }.onFailure { e ->
-            android.util.Log.w("WorkspaceDetailPage", "takePersistableUriPermission failed: ${e.message}")
-        }
-        vm.addMount(name, uri)
-    }
-    val mounts by vm.mounts.collectAsStateWithLifecycle()
-    val mountMessage by vm.mountMessage.collectAsStateWithLifecycle()
-    val autoSyncInterval by vm.autoSyncIntervalSeconds.collectAsStateWithLifecycle()
 
-    if (showMountNameDialog) {
-        var name by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showMountNameDialog = false },
-            title = { Text(stringResource(R.string.workspace_detail_mount_add)) },
-            text = {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.workspace_detail_mount_name_hint)) },
-                    singleLine = true,
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showMountNameDialog = false
-                        if (name.isNotBlank()) {
-                            pendingMountName = name
-                            mountDirPicker.launch(null)
-                        }
-                    }
-                ) {
-                    Text(stringResource(R.string.workspace_detail_mount_confirm))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showMountNameDialog = false }) {
-                    Text(stringResource(R.string.workspace_detail_mount_cancel))
-                }
-            },
-        )
+    // 手机存储挂载状态：从系统「所有文件访问」设置页返回时自动刷新
+    val storageAccessGranted by vm.storageAccessGranted.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(Unit) {
+        vm.refreshStorageAccess()
+        onPauseOrDispose { }
     }
 
     BackHandler(enabled = pagerState.currentPage == 2 && state.path.isNotBlank()) {
@@ -279,14 +231,9 @@ fun WorkspaceDetailPage(id: String) {
                     onToolApprovalChange = vm::setToolApproval,
                     onChooseExportTarget = { exportDirPicker.launch(null) },
                     onClearExportTarget = vm::clearExportTargetUri,
-                    mounts = mounts,
-                    mountMessage = mountMessage,
-                    autoSyncIntervalSeconds = autoSyncInterval,
-                    onAutoSyncIntervalChange = vm::updateAutoSyncInterval,
                     onUpdateWritableRoots = vm::setWritableRoots,
-                    onAddMount = { showMountNameDialog = true },
-                    onRemoveMount = vm::removeMount,
-                    onSyncMount = vm::syncMount,
+                    storageAccessGranted = storageAccessGranted,
+                    onGrantStorageAccess = { vm.grantStorageAccess(context) },
                 )
 
                 1 -> WorkspacePromptsPage(
@@ -421,14 +368,9 @@ private fun WorkspaceBasicPage(
     onToolApprovalChange: (String, Boolean) -> Unit,
     onChooseExportTarget: () -> Unit,
     onClearExportTarget: () -> Unit,
-    mounts: List<WorkspaceMountConfig>,
-    mountMessage: String?,
-    autoSyncIntervalSeconds: Int,
-    onAutoSyncIntervalChange: (Int) -> Unit,
+    storageAccessGranted: Boolean,
+    onGrantStorageAccess: () -> Unit,
     onUpdateWritableRoots: (List<String>) -> Unit,
-    onAddMount: () -> Unit,
-    onRemoveMount: (String) -> Unit,
-    onSyncMount: (String, SyncDirection) -> Unit,
 ) {
     val shellStatus = workspace?.shellStatus
     val installing = installProgress != null || shellStatus == WorkspaceShellStatus.INSTALLING.name
@@ -514,14 +456,9 @@ private fun WorkspaceBasicPage(
         }
 
         item {
-            WorkspaceMountCard(
-                mounts = mounts,
-                message = mountMessage,
-                autoSyncIntervalSeconds = autoSyncIntervalSeconds,
-                onAutoSyncIntervalChange = onAutoSyncIntervalChange,
-                onAdd = onAddMount,
-                onRemove = onRemoveMount,
-                onSync = onSyncMount,
+            WorkspaceStorageMountCard(
+                granted = storageAccessGranted,
+                onGrant = onGrantStorageAccess,
             )
         }
 
@@ -615,14 +552,9 @@ private fun WorkspaceExportTargetCard(
 }
 
 @Composable
-private fun WorkspaceMountCard(
-    mounts: List<WorkspaceMountConfig>,
-    message: String?,
-    autoSyncIntervalSeconds: Int,
-    onAutoSyncIntervalChange: (Int) -> Unit,
-    onAdd: () -> Unit,
-    onRemove: (String) -> Unit,
-    onSync: (String, SyncDirection) -> Unit,
+private fun WorkspaceStorageMountCard(
+    granted: Boolean,
+    onGrant: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -646,94 +578,38 @@ private fun WorkspaceMountCard(
                 )
             }
 
-            // 自动同步间隔：push->pull 周期由 WorkspaceMountManager 后台循环执行
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = stringResource(R.string.workspace_mount_auto_sync),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    val options = listOf(0, 30, 60, 300)
-                    val labels = listOf(
-                        stringResource(R.string.workspace_mount_auto_sync_off),
-                        "30s", "1min", "5min",
-                    )
-                    options.forEachIndexed { index, seconds ->
-                        SegmentedButton(
-                            selected = autoSyncIntervalSeconds == seconds,
-                            onClick = { onAutoSyncIntervalChange(seconds) },
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                        ) {
-                            Text(labels[index])
-                        }
-                    }
-                }
-            }
-
-            if (mounts.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.workspace_detail_mount_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            mounts.forEach { mount ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(
-                            text = "/mnt/${mount.name}",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Text(
-                            text = mount.lastSyncAt?.let { formatMountSyncTime(it) } ?: stringResource(
-                                R.string.workspace_detail_export_not_set
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    TextButton(onClick = { onSync(mount.id, SyncDirection.PULL) }) {
-                        Text(stringResource(R.string.workspace_detail_mount_pull))
-                    }
-                    TextButton(onClick = { onSync(mount.id, SyncDirection.PUSH) }) {
-                        Text(stringResource(R.string.workspace_detail_mount_push))
-                    }
-                    TextButton(onClick = { onRemove(mount.id) }) {
-                        Text(stringResource(R.string.workspace_detail_mount_remove))
+                    Text(
+                        text = WorkspaceMountManager.PHONE_MOUNT_TARGET,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = if (granted) {
+                            stringResource(R.string.workspace_detail_mount_granted)
+                        } else {
+                            stringResource(R.string.workspace_detail_mount_need_permission)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (!granted) {
+                    Button(onClick = onGrant) {
+                        Text(stringResource(R.string.workspace_detail_mount_grant))
                     }
                 }
-            }
-
-            Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) {
-                Icon(HugeIcons.Folder01, contentDescription = null)
-                Text(
-                    text = stringResource(R.string.workspace_detail_mount_add),
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
-
-            message?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
             }
         }
     }
 }
-
-private fun formatMountSyncTime(timestamp: Long): String =
-    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-        .format(java.util.Date(timestamp))
 
 /** 解析 SAF 树目录的显示名（DocumentsContract），失败返回 null（可能权限失效） */
 private fun resolveTreeDisplayName(context: Context, treeUri: android.net.Uri): String? {
@@ -998,6 +874,7 @@ private fun promptSegmentLabel(key: String): Int = when (key) {
     WorkspacePromptSegment.USAGE_HINT -> R.string.workspace_prompt_segment_usage
     WorkspacePromptSegment.SKILLS -> R.string.workspace_prompt_segment_skills
     WorkspacePromptSegment.UPLOAD -> R.string.workspace_prompt_segment_upload
+    WorkspacePromptSegment.MOUNT -> R.string.workspace_prompt_segment_mount
     else -> R.string.workspace_prompt_segment_agent
 }
 

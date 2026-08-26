@@ -74,10 +74,11 @@ needsApproval 实现已授权调用免审批、同批 Pending 连带放行。
 | workspace_bg_start/status/output/kill/list | start,kill=true 其余 false | 常驻后台任务管理（.l2s.bg/<taskId>/） |
 | workspace_create_backup | true | 复用 WebDavSync.prepareBackupFile(DATABASE) → `/workspace/backup.zip` |
 
-挂载点（SAF → /mnt/<name>）不再有 AI 工具（2026-08-26 删除 mount_list/mount_sync）：
-`<workspace>` 系统块注入挂载点列表与快照同步语义，后台循环自动 push→pull，
-间隔设置项 Settings.workspaceAutoSyncIntervalSeconds（关闭/30s/1min/5min，默认 60s）；
-设置页手动同步按钮保留。
+挂载点不再基于 SAF（2026-08-26 起）：MANAGE_EXTERNAL_STORAGE「所有文件访问」授权后，
+`/storage/emulated/0` 作为真实路径直接 proot `-b` 到 `/mnt/storage`——实时读写、支持删除
+重命名，无物化缓存、无 push/pull 同步循环；未授权时挂载点不存在。
+`<workspace>` 系统块的 mount 分段（可覆盖）注入实时读写语义说明。
+已知限制：Android/data、Android/obb 系统级屏蔽不可见。
 
 旧名兼容（2026-08-26 二次调整）：Migration_30_31 启动时直接改写消息与工作区覆盖中的
 旧工具名，运行时别名/渲染双匹配已移除，未知旧名由通用渲染器兜底。

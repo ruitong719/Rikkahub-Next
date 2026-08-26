@@ -84,10 +84,6 @@ class RikkaHubApp : Application() {
         // mark orphan background tasks (killed with the previous process) as failed
         cleanupOrphanBgTasks()
 
-        // materialize phone SAF mount caches so /mnt/<name> works right after launch
-        refreshMountedPhoneDirs()
-        startMountAutoSync()
-
         // check workspace integrity (mark workspaces with missing files as broken after backup restore)
         checkWorkspaceIntegrity()
 
@@ -137,22 +133,6 @@ class RikkaHubApp : Application() {
                 Log.w(TAG, "cleanupOrphanBgTasks failed", it)
             }
         }
-    }
-
-    /** 启动时对每个已配置的手机目录挂载点 PULL 一次，物化缓存目录供 shell/文件工具使用 */
-    private fun refreshMountedPhoneDirs() {
-        get<AppScope>().launch(Dispatchers.IO) {
-            runCatching {
-                get<WorkspaceMountManager>().pullAllAtStartup()
-            }.onFailure {
-                Log.e(TAG, "refreshMountedPhoneDirs failed", it)
-            }
-        }
-    }
-
-    /** 挂载点后台自动同步循环：间隔由 workspaceAutoSyncIntervalSeconds 控制（0=关闭） */
-    private fun startMountAutoSync() {
-        get<WorkspaceMountManager>().startAutoSyncLoop(get<AppScope>())
     }
 
     private fun checkWorkspaceIntegrity() {
