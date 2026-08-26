@@ -30,6 +30,9 @@ interface WorkspaceDAO {
     @Query("UPDATE workspaces SET tool_prompts = :toolPrompts, updated_at = :updatedAt WHERE id = :id")
     suspend fun updateToolPrompts(id: String, toolPrompts: String?, updatedAt: Long): Int
 
+    @Query("UPDATE workspaces SET prompt_overrides = :promptOverrides, updated_at = :updatedAt WHERE id = :id")
+    suspend fun updatePromptOverrides(id: String, promptOverrides: String?, updatedAt: Long): Int
+
     @Query("DELETE FROM workspaces WHERE id = :id")
     suspend fun deleteById(id: String): Int
 }

@@ -233,6 +233,24 @@ class WorkspaceDetailVM(
         }
     }
 
+    /** 覆盖一段引导提示词（key 见 WorkspacePromptSegment） */
+    fun setPromptSegment(key: String, text: String) {
+        viewModelScope.launch {
+            val workspace = state.value.workspace ?: return@launch
+            repository.setPromptSegment(workspace.id, key, text)
+            loadWorkspace()
+        }
+    }
+
+    /** 清除某段引导提示词的覆盖，恢复内置默认 */
+    fun clearPromptSegment(key: String) {
+        viewModelScope.launch {
+            val workspace = state.value.workspace ?: return@launch
+            repository.clearPromptSegment(workspace.id, key)
+            loadWorkspace()
+        }
+    }
+
     fun setExportTargetUri(uri: android.net.Uri) {
         viewModelScope.launch {
             repository.setExportTargetUri(id, uri.toString())

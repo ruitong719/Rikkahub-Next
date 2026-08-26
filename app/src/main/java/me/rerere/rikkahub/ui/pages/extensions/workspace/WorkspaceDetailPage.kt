@@ -66,6 +66,7 @@ import me.rerere.hugeicons.stroke.ArrowTurnBackward
 import me.rerere.hugeicons.stroke.Bash
 import me.rerere.hugeicons.stroke.ComputerTerminal01
 import me.rerere.hugeicons.stroke.Delete01
+import me.rerere.hugeicons.stroke.Edit02
 import me.rerere.hugeicons.stroke.File02
 import me.rerere.hugeicons.stroke.FileImport
 import me.rerere.hugeicons.stroke.Folder01
@@ -76,6 +77,8 @@ import me.rerere.hugeicons.stroke.Share08
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.ai.tools.DEFAULT_WORKSPACE_TOOL_PROMPTS
 import me.rerere.rikkahub.data.ai.tools.resolveWorkspaceToolApproval
+import me.rerere.rikkahub.data.ai.tools.WorkspacePromptSegment
+import me.rerere.rikkahub.data.ai.tools.resolveWorkspacePromptSegment
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.files.SyncDirection
 import me.rerere.rikkahub.data.files.WorkspaceMountConfig
@@ -103,7 +106,7 @@ fun WorkspaceDetailPage(id: String) {
     val state by vm.state.collectAsStateWithLifecycle()
     val installProgress by vm.installProgress.collectAsStateWithLifecycle()
     val installError by vm.installError.collectAsStateWithLifecycle()
-    val pagerState = rememberPagerState { 2 }
+    val pagerState = rememberPagerState { 3 }
     val scope = rememberCoroutineScope()
     var deleteTarget by remember { mutableStateOf<WorkspaceFileEntry?>(null) }
     var showInstallDialog by remember { mutableStateOf(false) }
@@ -202,7 +205,7 @@ fun WorkspaceDetailPage(id: String) {
         )
     }
 
-    BackHandler(enabled = pagerState.currentPage == 1 && state.path.isNotBlank()) {
+    BackHandler(enabled = pagerState.currentPage == 2 && state.path.isNotBlank()) {
         vm.goUp()
     }
 
@@ -218,7 +221,7 @@ fun WorkspaceDetailPage(id: String) {
                 },
                 navigationIcon = { BackButton() },
                 actions = {
-                    if (pagerState.currentPage == 1) {
+                    if (pagerState.currentPage == 2) {
                         IconButton(onClick = { filePicker.launch(arrayOf("*/*")) }) {
                             Icon(
                                 HugeIcons.FileImport,
@@ -248,9 +251,15 @@ fun WorkspaceDetailPage(id: String) {
                 )
                 NavigationBarItem(
                     selected = pagerState.currentPage == 1,
+                    label = { Text(stringResource(R.string.workspace_detail_tab_prompts)) },
+                    icon = { Icon(HugeIcons.Edit02, contentDescription = null) },
+                    onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
+                )
+                NavigationBarItem(
+                    selected = pagerState.currentPage == 2,
                     label = { Text(stringResource(R.string.workspace_detail_tab_files)) },
                     icon = { Icon(HugeIcons.File02, contentDescription = null) },
-                    onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
+                    onClick = { scope.launch { pagerState.animateScrollToPage(2) } },
                 )
             }
         },
@@ -268,8 +277,6 @@ fun WorkspaceDetailPage(id: String) {
                     installProgress = installProgress,
                     onInstallRootfs = { showInstallDialog = true },
                     onToolApprovalChange = vm::setToolApproval,
-                    onToolPromptChange = vm::setToolPrompt,
-                    onResetToolPrompt = vm::clearToolPrompt,
                     onChooseExportTarget = { exportDirPicker.launch(null) },
                     onClearExportTarget = vm::clearExportTargetUri,
                     mounts = mounts,
@@ -282,7 +289,16 @@ fun WorkspaceDetailPage(id: String) {
                     onSyncMount = vm::syncMount,
                 )
 
-                1 -> WorkspaceFilesPage(
+                1 -> WorkspacePromptsPage(
+                    workspace = state.workspace,
+                    contentPadding = PaddingValues(),
+                    onSegmentChange = vm::setPromptSegment,
+                    onSegmentReset = vm::clearPromptSegment,
+                    onToolPromptChange = vm::setToolPrompt,
+                    onResetToolPrompt = vm::clearToolPrompt,
+                )
+
+                2 -> WorkspaceFilesPage(
                     state = state,
                     contentPadding = PaddingValues(),
                     onSelectArea = vm::selectArea,
@@ -403,8 +419,6 @@ private fun WorkspaceBasicPage(
     installProgress: RootfsInstallProgress?,
     onInstallRootfs: () -> Unit,
     onToolApprovalChange: (String, Boolean) -> Unit,
-    onToolPromptChange: (String, String) -> Unit,
-    onResetToolPrompt: (String) -> Unit,
     onChooseExportTarget: () -> Unit,
     onClearExportTarget: () -> Unit,
     mounts: List<WorkspaceMountConfig>,
@@ -522,8 +536,6 @@ private fun WorkspaceBasicPage(
             WorkspaceToolApprovalCard(
                 workspace = workspace,
                 onToolApprovalChange = onToolApprovalChange,
-                onToolPromptChange = onToolPromptChange,
-                onResetToolPrompt = onResetToolPrompt,
             )
         }
     }
@@ -741,12 +753,8 @@ private fun resolveTreeDisplayName(context: Context, treeUri: android.net.Uri): 
 private fun WorkspaceToolApprovalCard(
     workspace: WorkspaceEntity?,
     onToolApprovalChange: (String, Boolean) -> Unit,
-    onToolPromptChange: (String, String) -> Unit,
-    onResetToolPrompt: (String) -> Unit,
 ) {
     val overrides = workspace?.toolApprovalOverrides().orEmpty()
-    val promptOverrides = workspace?.toolPromptOverrides().orEmpty()
-    var editingTool by remember { mutableStateOf<String?>(null) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -768,18 +776,11 @@ private fun WorkspaceToolApprovalCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Text(
-                    text = stringResource(R.string.workspace_detail_tool_prompt_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
 
             workspaceToolApprovalItems().forEach { (toolName, label) ->
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = workspace != null) { editingTool = toolName },
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -808,28 +809,251 @@ private fun WorkspaceToolApprovalCard(
             }
         }
     }
+}
 
-    val editing = editingTool
-    if (editing != null) {
-        val label = workspaceToolApprovalItems()
-            .firstOrNull { it.first == editing }?.second ?: editing
+/**
+ * 「提示词」页：引导提示词分段覆盖 + 工具提示词编辑。
+ * 段落缺失/空白时注入内置默认（WorkspacePromptSegments.kt）。
+ */
+@Composable
+private fun WorkspacePromptsPage(
+    workspace: WorkspaceEntity?,
+    contentPadding: PaddingValues,
+    onSegmentChange: (String, String) -> Unit,
+    onSegmentReset: (String) -> Unit,
+    onToolPromptChange: (String, String) -> Unit,
+    onResetToolPrompt: (String) -> Unit,
+) {
+    val overrides = workspace?.promptSegmentOverrides().orEmpty()
+    val toolOverrides = workspace?.toolPromptOverrides().orEmpty()
+    var editingSegment by remember { mutableStateOf<String?>(null) }
+    var editingTool by remember { mutableStateOf<String?>(null) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = contentPadding + PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CustomColors.cardColorsOnSurfaceContainer,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = stringResource(R.string.workspace_prompt_section_guidance),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            text = stringResource(R.string.workspace_prompt_section_guidance_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    WorkspacePromptSegment.ALL.forEach { key ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = workspace != null) { editingSegment = key }
+                                .padding(vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(promptSegmentLabel(key)),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                if (key in overrides) {
+                                    Text(
+                                        text = stringResource(R.string.workspace_prompt_customized),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                            Text(
+                                text = resolveWorkspacePromptSegment(key, overrides, workspace?.name.orEmpty()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CustomColors.cardColorsOnSurfaceContainer,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = stringResource(R.string.workspace_prompt_section_tools),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            text = stringResource(R.string.workspace_detail_tool_prompt_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    workspaceToolApprovalItems().forEach { (toolName, label) ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = workspace != null) { editingTool = toolName }
+                                .padding(vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                if (toolName in toolOverrides) {
+                                    Text(
+                                        text = stringResource(R.string.workspace_prompt_customized),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                            Text(
+                                text = toolOverrides[toolName]
+                                    ?: DEFAULT_WORKSPACE_TOOL_PROMPTS[toolName].orEmpty(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    val segment = editingSegment
+    if (segment != null && workspace != null) {
+        WorkspacePromptSegmentEditDialog(
+            title = stringResource(promptSegmentLabel(segment)),
+            currentText = resolveWorkspacePromptSegment(segment, overrides, workspace.name),
+            isDefault = segment !in overrides,
+            onSave = { text ->
+                onSegmentChange(segment, text)
+                editingSegment = null
+            },
+            onReset = {
+                onSegmentReset(segment)
+                editingSegment = null
+            },
+            onDismiss = { editingSegment = null },
+        )
+    }
+
+    val tool = editingTool
+    if (tool != null && workspace != null) {
         ToolPromptEditDialog(
-            toolName = editing,
-            label = label,
-            currentPrompt = promptOverrides[editing]
-                ?: DEFAULT_WORKSPACE_TOOL_PROMPTS[editing].orEmpty(),
-            isDefault = editing !in promptOverrides,
+            toolName = tool,
+            label = workspaceToolApprovalItems().firstOrNull { it.first == tool }?.second ?: tool,
+            currentPrompt = toolOverrides[tool] ?: DEFAULT_WORKSPACE_TOOL_PROMPTS[tool].orEmpty(),
+            isDefault = tool !in toolOverrides,
             onSave = { prompt ->
-                onToolPromptChange(editing, prompt)
+                onToolPromptChange(tool, prompt)
                 editingTool = null
             },
             onReset = {
-                onResetToolPrompt(editing)
+                onResetToolPrompt(tool)
                 editingTool = null
             },
             onDismiss = { editingTool = null },
         )
     }
+}
+
+private fun promptSegmentLabel(key: String): Int = when (key) {
+    WorkspacePromptSegment.IDENTITY -> R.string.workspace_prompt_segment_identity
+    WorkspacePromptSegment.FILES_AREA -> R.string.workspace_prompt_segment_files
+    WorkspacePromptSegment.USAGE_HINT -> R.string.workspace_prompt_segment_usage
+    WorkspacePromptSegment.SKILLS -> R.string.workspace_prompt_segment_skills
+    WorkspacePromptSegment.UPLOAD -> R.string.workspace_prompt_segment_upload
+    else -> R.string.workspace_prompt_segment_agent
+}
+
+@Composable
+private fun WorkspacePromptSegmentEditDialog(
+    title: String,
+    currentText: String,
+    isDefault: Boolean,
+    onSave: (String) -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember(currentText) { mutableStateOf(currentText) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 4,
+                    maxLines = 12,
+                )
+                Text(
+                    text = if (isDefault) {
+                        stringResource(R.string.workspace_detail_tool_prompt_using_default)
+                    } else {
+                        stringResource(R.string.workspace_detail_tool_prompt_customized)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(text) }) {
+                Text(stringResource(R.string.common_save))
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (!isDefault) {
+                    TextButton(onClick = onReset) {
+                        Text(stringResource(R.string.workspace_detail_tool_prompt_reset))
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            }
+        },
+    )
 }
 
 @Composable

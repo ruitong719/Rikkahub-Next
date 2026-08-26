@@ -1171,6 +1171,17 @@
   <string name="workspace_detail_title">Workspace Details</string>
   <string name="workspace_detail_tab_basic">Basic</string>
   <string name="workspace_detail_tab_files">Files</string>
+  <string name="workspace_detail_tab_prompts">Prompts</string>
+  <string name="workspace_prompt_section_guidance">Guidance prompts</string>
+  <string name="workspace_prompt_section_guidance_desc">These sections form the &lt;workspace&gt; block injected into the system prompt. Saving blank or resetting falls back to built-in defaults. The identity line supports the {name} placeholder</string>
+  <string name="workspace_prompt_segment_identity">Identity line</string>
+  <string name="workspace_prompt_segment_files">Files area rules</string>
+  <string name="workspace_prompt_segment_usage">Usage hints</string>
+  <string name="workspace_prompt_segment_skills">Skills note</string>
+  <string name="workspace_prompt_segment_upload">Upload note</string>
+  <string name="workspace_prompt_segment_agent">Agent note</string>
+  <string name="workspace_prompt_customized">Customized</string>
+  <string name="workspace_prompt_section_tools">Tool prompts</string>
   <string name="workspace_detail_import_file">Import File</string>
   <string name="workspace_detail_rootfs_install_failed">Rootfs Installation Failed</string>
   <string name="workspace_detail_delete_directory">Delete Directory</string>

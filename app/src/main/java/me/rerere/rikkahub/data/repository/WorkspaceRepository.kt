@@ -158,6 +158,28 @@ class WorkspaceRepository(
         ) > 0
     }
 
+    /** 覆盖一段 <workspace> 引导提示词（key 见 WorkspacePromptSegment），空白视为回退默认 */
+    suspend fun setPromptSegment(id: String, key: String, text: String): Boolean {
+        val workspace = dao.getById(id) ?: return false
+        val overrides = workspace.promptSegmentOverrides() + (key to text)
+        return dao.updatePromptOverrides(
+            id = id,
+            promptOverrides = JsonInstant.encodeToString(overrides),
+            updatedAt = System.currentTimeMillis(),
+        ) > 0
+    }
+
+    /** 清除某段引导提示词的覆盖，恢复内置默认 */
+    suspend fun clearPromptSegment(id: String, key: String): Boolean {
+        val workspace = dao.getById(id) ?: return false
+        val overrides = workspace.promptSegmentOverrides() - key
+        return dao.updatePromptOverrides(
+            id = id,
+            promptOverrides = JsonInstant.encodeToString(overrides),
+            updatedAt = System.currentTimeMillis(),
+        ) > 0
+    }
+
     suspend fun installRootfs(
         id: String,
         url: String,

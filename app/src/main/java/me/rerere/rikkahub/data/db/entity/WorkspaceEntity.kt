@@ -43,6 +43,9 @@ data class WorkspaceEntity(
     // 工具提示词的用户覆盖项 (toolName -> prompt)，未覆盖的工具沿用默认提示词（WorkspaceToolPrompts.kt）
     @ColumnInfo("tool_prompts")
     val toolPrompts: String? = null,
+    // <workspace> 引导提示词的分段用户覆盖 (segmentKey -> text)，缺失/空白段沿用默认（WorkspacePromptSegments.kt）
+    @ColumnInfo("prompt_overrides")
+    val promptOverrides: String? = null,
     // 写入安全区（rootfs 绝对路径前缀 JSON 数组）：区外的 write/edit/bash 调用强制审批。
     // 空数组 = 全部强制审批（fail-safe）；解析失败回退 DEFAULT_WRITABLE_ROOTS
     @ColumnInfo("writable_roots", defaultValue = "[\"/workspace\",\"/tmp\"]")
@@ -58,6 +61,10 @@ data class WorkspaceEntity(
 
     fun toolPromptOverrides(): Map<String, String> = runCatching {
         JsonInstant.decodeFromString<Map<String, String>>(toolPrompts ?: "{}")
+    }.getOrDefault(emptyMap())
+
+    fun promptSegmentOverrides(): Map<String, String> = runCatching {
+        JsonInstant.decodeFromString<Map<String, String>>(promptOverrides ?: "{}")
     }.getOrDefault(emptyMap())
 
     fun toWorkspace(): Workspace = Workspace(

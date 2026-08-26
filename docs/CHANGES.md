@@ -1054,6 +1054,9 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
   已授权覆盖的调用直接放行；并行批次中一旦一个「全部同意」，同批其余 Pending
   在生成恢复后的下一轮自动通过，无需逐个点
 - YOLO 整体跳过、PLAN 整体禁用的语义不受影响；todowrite 不受安全区约束
+- bg_start 返回文案加入反轮询守则（对齐 opencode BACKGROUND_STARTED）：告知模型
+  任务完成会自动提醒，禁止 sleep/轮询 bg_status 空转；extend 续跑与结构化通知
+  标签经评估不做（无真实需求，徒增状态机复杂度）
 
 ---
 
@@ -1085,3 +1088,17 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
   ModalBottomSheet + 卡片列表，复用 SearchPicker 设计语言
   （选中 primaryContainer + 2dp primary 描边 + 打勾，未选中 surfaceContainerHigh）
 - 中文标签「计划/构建」改为 Plan/Build，与英文一致；新增选单标题/副标题双语字符串
+
+---
+
+## S. 工作区「提示词」页——<workspace> 引导分段可自定义（2026-08-26）
+
+- DB v32→33：WorkspaceEntity 新增 `prompt_overrides`（segmentKey→text JSON），AutoMigration(32,33)
+- 分段键与内置默认集中在 `data/ai/tools/WorkspacePromptSegments.kt`：
+  identity（支持 {name} 占位符）/ files_area / usage_hint / skills / upload / agent 六段；
+  覆盖缺失或空白时回退默认，渲染时统一替换 {name}
+- WorkspaceReminderTransformer.buildWorkspacePrompt 改为按段解析拼接，
+  工具清单与挂载点/cwd 动态段保持原逻辑；顺带修复挂载段被注入两次的问题
+- 工作区详情新增第三个 tab「提示词」（基本/文件之间，Edit02 图标）：
+  上半区六段引导提示词（行内预览 + 已自定义角标 + AlertDialog 编辑器，
+  含恢复默认）；下半区工具提示词从基本页的审批卡迁入（审批卡瘦身为纯开关）

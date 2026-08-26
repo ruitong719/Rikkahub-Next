@@ -1108,6 +1108,17 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="workspace_detail_title">工作区详情</string>
   <string name="workspace_detail_tab_basic">基本</string>
   <string name="workspace_detail_tab_files">文件</string>
+  <string name="workspace_detail_tab_prompts">提示词</string>
+  <string name="workspace_prompt_section_guidance">引导提示词</string>
+  <string name="workspace_prompt_section_guidance_desc">这些段落拼成 &lt;workspace&gt; 块注入 system prompt；留空保存或重置即恢复内置默认。身份句支持 {name} 占位符</string>
+  <string name="workspace_prompt_segment_identity">身份句</string>
+  <string name="workspace_prompt_segment_files">文件区规则</string>
+  <string name="workspace_prompt_segment_usage">用法偏好</string>
+  <string name="workspace_prompt_segment_skills">Skills 说明</string>
+  <string name="workspace_prompt_segment_upload">上传目录说明</string>
+  <string name="workspace_prompt_segment_agent">Agent 指令说明</string>
+  <string name="workspace_prompt_customized">已自定义</string>
+  <string name="workspace_prompt_section_tools">工具提示词</string>
   <string name="workspace_detail_import_file">导入文件</string>
   <string name="workspace_detail_rootfs_install_failed">Rootfs 安装失败</string>
   <string name="workspace_detail_delete_directory">删除目录</string>

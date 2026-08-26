@@ -5,6 +5,8 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.ai.tools.DEFAULT_WORKSPACE_TOOL_PROMPTS
 import me.rerere.rikkahub.data.ai.tools.WORKSPACE_TOOL_NAMES
+import me.rerere.rikkahub.data.ai.tools.WorkspacePromptSegment
+import me.rerere.rikkahub.data.ai.tools.resolveWorkspacePromptSegment
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
 import me.rerere.rikkahub.data.files.WorkspaceMountManager
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
@@ -47,29 +49,31 @@ private fun buildWorkspacePrompt(
     workspace: WorkspaceEntity,
     cwd: String? = null,
     mountManager: WorkspaceMountManager? = null,
-): String = buildString {
-    appendLine("<workspace>")
-    appendLine("You have access to a persistent Linux workspace named \"${workspace.name}\", running in a sandboxed proot rootfs environment.")
-    appendLine("- The workspace files area is mounted at `/workspace`. Use it as your working directory; files written there persist across turns of this conversation.")
-    appendLine("- All paths passed to workspace tools must be absolute and inside the Rootfs (for example `/workspace/notes.md`).")
-    appendLine("- Available tools:")
-    // 动态生成：用户覆盖优先，未覆盖的用默认表；保证列表与工具集同步（不再硬编码 4 个）
-    val prompts = workspace.toolPromptOverrides() + DEFAULT_WORKSPACE_TOOL_PROMPTS
-    WORKSPACE_TOOL_NAMES.forEach { name ->
-        prompts[name]?.let { prompt ->
-            appendLine("  - `$name`: $prompt")
+): String {
+    val overrides = workspace.promptSegmentOverrides()
+    fun seg(key: String) = resolveWorkspacePromptSegment(key, overrides, workspace.name)
+    return buildString {
+        appendLine("<workspace>")
+        appendLine(seg(WorkspacePromptSegment.IDENTITY))
+        appendLine(seg(WorkspacePromptSegment.FILES_AREA))
+        appendLine("- Available tools:")
+        // 动态生成：用户覆盖优先，未覆盖的用默认表；保证列表与工具集同步（不再硬编码 4 个）
+        val prompts = workspace.toolPromptOverrides() + DEFAULT_WORKSPACE_TOOL_PROMPTS
+        WORKSPACE_TOOL_NAMES.forEach { name ->
+            prompts[name]?.let { prompt ->
+                appendLine("  - `$name`: $prompt")
+            }
         }
+        appendLine(seg(WorkspacePromptSegment.USAGE_HINT))
+        appendLine(seg(WorkspacePromptSegment.SKILLS))
+        appendLine(seg(WorkspacePromptSegment.UPLOAD))
+        appendLine(seg(WorkspacePromptSegment.AGENT))
+        if (!cwd.isNullOrBlank()) {
+            appendLine("- Current working directory: `$cwd`. Use this as the default context for file operations and shell commands.")
+        }
+        appendMountSection(mountManager)
+        append("</workspace>")
     }
-    appendLine("- Prefer `bash` for tasks that standard Unix tools handle well, and prefer `edit` for targeted edits over rewriting whole files.")
-    appendMountSection(mountManager)
-    appendLine("- The skills directory is mounted at `/skills`. Each skill is a subdirectory `/skills/<skill-name>/` containing a `SKILL.md` (with `name` and `description` frontmatter) plus any supporting files. Read a skill's `SKILL.md` before using it, and follow its instructions.")
-    appendLine("- Files the user uploaded are mounted at `/upload`. Treat `/upload` as READ-ONLY: read uploaded files from `/upload/<file-name>`, but never modify, overwrite, or delete anything there. If you need to change an uploaded file, copy it into `/workspace` first and edit the copy.")
-    appendLine("- The agent instructions directory is mounted at `/agent`. It contains Markdown files (e.g. `agent.md`) that define the assistant's behavior; follow them. You may append to existing files there, but prefer editing `/workspace` files for your own work.")
-    if (!cwd.isNullOrBlank()) {
-        appendLine("- Current working directory: `$cwd`. Use this as the default context for file operations and shell commands.")
-    }
-    appendMountSection(mountManager)
-    append("</workspace>")
 }
 
 /**
