@@ -80,6 +80,7 @@ val appModule = module {
             settingsStore = get(),
             conversationRepo = get(),
             generationHandler = get(),
+            translationHandler = get(),
             templateTransformer = get(),
             providerManager = get(),
             localTools = get(),
