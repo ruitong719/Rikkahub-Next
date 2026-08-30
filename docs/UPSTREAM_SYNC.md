@@ -6,9 +6,46 @@
 ## 当前状态
 
 - **基线**：merge-base `0c52b62b`（上游 2.4.9，v1.00 迭代时整体 merge）
-- **已同步至**：`c16fe44f`（2026-08-26）—— 上游 `master` 全部提交处理完毕
+- **已同步至**：`9365c297`（2026-08-30）—— 上游 `master` 全部提交处理完毕
 
-## 全量对账表（`0c52b62b..c167c70e`）
+## 全量对账表（`c16fe44f..9365c297`，2026-08-30）
+
+| # | 上游 commit | 主题 | 处理 | fork 落点 |
+|---|---|---|---|---|
+| 49 | `5b58c957` | chore: 注册 glm 5.3 模型 | 已合入 | `d4aaa74c`，零冲突 |
+| 50 | `170a612e` | chore: bump to 2.4.13 | **跳过（语义）** | fork 自行 bump：183 / 2.4.15（见下三连 bump 说明） |
+| 51 | `53dc38b8` | chore: 移除无用 mcp transport 代码 | 已合入 | `de3a5551`，fork 中两文件本就是整文件注释的死代码，删除安全 |
+| 52 | `ca31612d` | fix: 改进输入栏折叠动画和易用性 | **跳过** | 见批次说明 B：上游 7aa909b8 自己又回滚了动画，净效果是放弃 IME 自适应（上游 #29/#37 行为被整体回退）；fork 保留自研键盘自适应+队列角标，不跟 |
+| 53 | `8f4f1286` | refactor(ai): extract translation handler | 已合入（适配） | `6a5c1bc5`，GenerationHandler import 区双保留冲突；translateText 摘入新 TranslationHandler.kt（与上游逐字节一致） |
+| 54 | `7714f2bc` | feat: 支持 chatbox v2 备份导入 | 已合入（适配） | `b2ea6e1b`，ChatboxImporter 重写+测试+ImportExportTab 自动；BackupVM 人工适配 imports + 函数体自动 |
+| 55 | `0533acde` | chore: 移除默认 rikkahub 提供商 | 已合入 | `cfb361f0`，零冲突 |
+| 56 | `979cd169` | chore: 调整 kimi icon | 已合入 | `a922e10b`，纯资源 |
+| 57 | `6e26affe` | feat: mimo tts 支持快速选择音色 | 已合入 | `7fadb340`，零冲突 |
+| 58 | `da5fd77b` | chore: bump to 2.4.14 | **跳过（语义）** | 同上，并入 183 / 2.4.15 |
+| 59 | `8a9f4f0f` | chore: 新增抖音群加群信息 | **跳过** | 用户决策：fork 设置页有自研布局（90 行漂移），低价值不加 |
+| 60 | `9687f97a` | build: 北京时间下午五点也触发自动构建 | 已合入 | `ad1be4a3`，零冲突 |
+| 61 | `eba2e96c` | chore: update dependencies | 已合入 | `aaecf790`，material3 alpha27 / nav3Core 1.1.7 / okhttp 5.5.0 / baselineprofile rc02 / sqlite-vector 1.0.0；**删除 nav2**（全仓无引用已验证）；不动 fork 自选 huge-icons/haze |
+| 62 | `7aa909b8` | chore: 回滚输入栏折叠功能 | **跳过** | 见 #52 说明（同一决策） |
+| 63 | `5b890d22` | fix(ai): remove vision support from hy4 | 已合入 | `13d0f5ba`，单行；HY4 注册保留仅去 visionInput |
+| 64 | `321443d8` | fix(chat): keep actions visible for tool-only messages | 已合入 | `3d8caa6c`，含 MessageVisibilityTest |
+| 65 | `ecc6d910` | chore: 简化 claude api skill | **跳过** | fork 无 `.agents`（`15525bea` 已整体删除），文件不存在，空操作 |
+| 66 | `b6df5f04` | refactor: 改进 oauth 流程 | 已合入（适配） | `fe0b96c8`，新增 `:oauth` 模块（loopback 回调服务器/PKCE/前台服务保活）+ McpOAuthDiscoveryClient RFC 9728 发现；4 处冲突均为删除/清理类（RouteActivity 因行尾符 CRLF vs LF 整文件伪冲突，手工落 1 行删除） |
+| 67 | `9851d037` | fix: gemini 允许服务端工具和客户端工具同时使用 | 已合入 | `f6efc376`，零冲突 |
+| 68 | `7da69770` | feat(settings): add scoped file cleanup | 已合入（适配） | `f055aad1`，FilesManager/SettingFilesPage 零漂移自动；en/zh strings 自动，ja/ko-rKR/ru/zh-rTW 按 fork 惯例保持删除 |
+| 69 | `5662945c` | chore: bump to 2.4.15 | **跳过（语义）** | 同上，并入 183 / 2.4.15（`b449f0d9`） |
+| 70 | `5403bc96` | fix: 改进 TTS 稳定性，支持自动重试 | 已合入 | `95f4762c`，零冲突 |
+| 71 | `2f05019b` | chore: 改进 tts 重试判断 | 已合入（适配） | `e7e3d746`，TTSProviderException+statusCode 语义（配套自动重试）；Groq/Step 两处冲突解为"fork body 非空风格 + 上游异常语义"，与 ElevenLabs 等自动合并结果一致 |
+| 72 | `ef94834a` | chore: mcp 仅使用 client sdk | 已合入 | `895e9c22`，kotlin-sdk → kotlin-sdk-client（fork 的 sdk.types/shared 导入与上游一致，client 工件包含这些包） |
+| 73 | `8ea375a9` | fix: 修复 cloudflare mcp 没有匹配到 oauth 的问题 | 已合入 | `1f220993`，位于 b6df5f04 **之后**（针对重构后 coordinator 的修复）；先合 #66 再合本 commit 即零冲突 |
+| 74 | `f6a5330f` | feat: trace-cli 支持 Google Interactions API | 已合入 | `a1c78e93`，trace-cli + 录制 fixtures + 测试 |
+| 75 | `1231b8af` | test: 修正加密 reasoning 的请求断言 | 已合入 | `b452d9f1`，fork 主代码已支持 encrypted_content |
+| 76 | `0651cad9` | fix: round bubble opacity percentage | 已合入 | `ac987a9a`，单行 |
+| 77 | `f7869e35` | fix: 修复 gemini mix server/client tool 下的错误 | 已合入 | `03ea4838`，三路合并零冲突（fork 的模型发现/ReasoningEffortMappings 私有代码自动保留），Googlestream 等 4 文件与上游最终版一致 |
+| 78 | `1b9dd092` | fix: 移除硅基流动余额查询 | 已合入 | `89cc2d52` |
+| 79 | `5c217d2e` | fix: 默认关闭 HTML/SVG 内嵌预览 | 已合入 | `673b58ae`，默认值变化（行为变更） |
+| 80 | `9365c297` | fix: 支持配置快速模型思考级别，并移除单独的标题和建议模型配置 | **部分合入** | `c063279e`（fork 适配 commit），见批次说明 F |
+
+## 首次全量对账表（`0c52b62b..c167c70e`）
 
 | # | 上游 commit | 主题 | 处理 | fork 落点 |
 |---|---|---|---|---|
@@ -70,6 +107,58 @@
 | 46 | `2dc50126` | docs(contributing) | **跳过** | 上游贡献政策（不收功能 PR）与 fork 定位相反；README 是 fork 重写版无对应段落 |
 | 47 | `c62f1eb1` | chore: 前台服务避免后台生成断开 | **跳过** | fork 悬浮球 FloatingBubbleService 即常驻 specialUse 前台服务，进程保活等价（保护是进程优先级而非通知本身）；再挂一条生成常驻通知属重复。若未来做"无悬浮球用户的保活"再回搬 |
 | 48 | `c16fe44f` | feat: 自动重试 | **部分合入（路径 A）** | 见下方批次说明 |
+
+## #49–#80 批次说明（2026-08-30）
+
+- **版本三连 bump（#50/#58/#69）**：上游 2.4.13/2.4.14/2.4.15 三次 bump 均不照抄，fork 合并完成
+  后一次到位：`b449f0d9`（versionCode 183 / versionName 2.4.15），延续 da3ca8b1/dac3e0db 惯例
+- **B（#52/#62 输入栏）**：上游 `ca31612d` 引入折叠动画并大改 ChatInput/ChatPage（附件选择器
+  抽成新文件 ChatAttachmentPicker.kt +195），`7aa909b8` 又把折叠动画连同 #37 的
+  imeAnimationTarget/工具栏收起/SendButton 上移**整体回滚**。净效果 = 放弃键盘自适应行为 +
+  附件选择器重构。fork 该区域有 #29/#37 深度定制（队列角标、发送按钮、全屏按钮等，
+  ChatInput 漂移 300+ 行），完整合并将**回退 fork 用户已有的 IME 自适应能力**且收益是纯结构
+  重构 → 两个都跳过，保留 fork 现状。若未来想移植附件选择器重构可单独做
+- **C（#53/#71/#77）**：
+  - #53 翻译提取：translateText 从 GenerationHandler 摘出到新 `TranslationHandler.kt`
+    （新文件与上游逐字节一致）；fork 冲突仅在 GenerationHandler imports 区（fork 的
+    MemoryRepository/网络异常 imports 双保留）与 ChatService imports 区（SubAgent imports +
+    TranslationHandler 共存）。AppModule/DataSourceModule/TranslatorVM 三路自动合并
+  - #71 TTS 重试判断：`TTSProviderException`（含 statusCode）替代裸 Exception——与 #70 的
+    自动重试配套；Groq/Step 两处解为"fork 的 body 非空风格 + 上游异常语义"，与 ElevenLabs
+    等自动合并结果一致（12 文件 87+/12- 与上游 stat 完全相同）
+  - #77 gemini mix 修复：三路合并零冲突（fork 的模型上下文自动发现/ReasoningEffortMappings
+    等私有改动在 GoogleProvider 与上游 hunk 不重叠，自动保留）；GoogleStreamDecoder/
+    MessageMetadata/StreamChunk 与上游最终版逐字节一致，StreamChunkHandler 35 行差异为
+    fork #48 重连环私有
+- **E（#66/#73 OAuth）**：新 `:oauth` 模块（OAuthLoopbackCallbackServer 回环回调 +
+  OAuthHttpClient PKCE + OAuthCallbackForegroundService 保活 + CustomTabs launcher）+
+  McpOAuthDiscoveryClient（资源发现：401 resource_metadata → RFC 9728 well-known）；
+  删除 deep-link 回调 Activity/AppEvent.McpOAuthCallback/旧 McpOAuthClient。30 文件中
+  24 个自动；4 处冲突全部为删除/清理类。**RouteActivity 因上游文件为 CRLF 行尾、fork 为 LF
+  导致整文件伪冲突**，取 fork 版后手工删 1 行（`is AppEvent.McpOAuthCallback` 分支）恢复
+  ✓⚠️ 首次讲解时曾误称 #73 的 cloudflare 修复"包含在 #66 重构版内"——实际 #73 在 #66
+  **之后**、针对重构后 coordinator；正确顺序是先 #66 后 #73，后者即零冲突（`1f220993`），
+  合并后 coordinator 与上游最终版逐字节一致
+- **D（#54/#68）**：#54 ChatboxImporter 整体重写（v1+v2 ZIP 统一解析、图片资源经
+  `saveUploadFromBytes` 落盘、`shouldImportConversation` 去重回调）—— importer/main
+  代码与 fork 零漂移自动落入，新增 ChatboxImporterTest；唯一人工 = BackupVM imports +
+  `settingsStore.update` lambda 化（函数体三路自动合并）。fork 无 S3 备份，与本次无交集
+  #68 scoped file cleanup：FilesManager/SettingFilesPage 零漂移自动；en/zh strings 自动，
+  删除的 4 个 locale（ja/ko-rKR/ru/zh-rTW）按 fork 惯例保持删除
+- **F（#80 快速模型思考级别）**：**部分合入**（`c063279e` 为 fork 自适配 commit，非 cherry-pick）：
+  采纳——Settings 新增 `fastModelReasoningLevel`（默认 AUTO）+ DataStore key 持久化 +
+  SettingModelPage 快速模型块增加 ReasoningButton 思考级别 + 标题/建议后台生成参数传入该级别；
+  保留——`TITLE_MODEL`/`SUGGESTION_MODEL` key 与 titleModelId/suggestionModelId 字段、
+  设置页标题/建议模型选择块、ErrorCard 的 CheckTitleModelSettings 文案（用户决策：标题/
+  建议模型都不移除，上游删除部分全部不采纳）
+- **其他跳过**：#59 抖音群卡片（用户决策，fork 设置页自研布局、低价值）；#65 claude skill
+  删除（fork 无 `.agents`，`15525bea` 已整体删除，空操作）
+- **验证状态**：全部 26 个 commit 已过 kotlinc 解析级语法检查（64 个变更 .kt 文件，0 语法错误）；
+  Gradle 完整类型检查**未能完成**——沙箱到 dl.google.com 不通且缓存只有旧版本构件，
+  `eba2e96c` 升级的 baselineprofile-rc02/okhttp-5.5.0/material3-alpha27 等无法在沙箱解析
+  （已加 `~/.gradle/init.gradle` 阿里云 google 镜像回退，仍需重试）。**建议真机/CI 编译回归**：
+  重点冒烟 = 聊天输入栏行为（未动，应无变化）、OAuth MCP 登录（行为变更：deep-link →
+  loopback 回调）、ChatBox v2 导入、设置页快速模型思考级别、TTS 重试
 
 ## #37–#48 批次说明（2026-08-26）
 
