@@ -93,6 +93,7 @@ class SettingsStore(
         val FAVORITE_MODELS = stringPreferencesKey("favorite_models")
         val SELECT_MODEL = stringPreferencesKey("chat_model")
         val FAST_MODEL = stringPreferencesKey("fast_model")
+        val FAST_MODEL_REASONING_LEVEL = stringPreferencesKey("fast_model_reasoning_level")
         val TITLE_MODEL = stringPreferencesKey("title_model")
         val TRANSLATE_MODEL = stringPreferencesKey("translate_model")
         val ENABLE_SUGGESTION = booleanPreferencesKey("enable_suggestion")
@@ -217,6 +218,9 @@ class SettingsStore(
                 fastModelId = preferences[FAST_MODEL]?.let { Uuid.parse(it) }
                     ?: DEFAULT_AUTO_MODEL_ID,
                 titleModelId = preferences[TITLE_MODEL]?.let { Uuid.parse(it) },
+                fastModelReasoningLevel = preferences[FAST_MODEL_REASONING_LEVEL]
+                    ?.let { value -> ReasoningLevel.entries.find { it.name == value } }
+                    ?: ReasoningLevel.AUTO,
                 translateModeId = preferences[TRANSLATE_MODEL]?.let { Uuid.parse(it) }
                     ?: DEFAULT_AUTO_MODEL_ID,
                 enableSuggestion = preferences[ENABLE_SUGGESTION] != false,
@@ -437,6 +441,7 @@ class SettingsStore(
             settings.titleModelId?.let {
                 preferences[TITLE_MODEL] = it.toString()
             } ?: preferences.remove(TITLE_MODEL)
+            preferences[FAST_MODEL_REASONING_LEVEL] = settings.fastModelReasoningLevel.name
             preferences[TRANSLATE_MODEL] = settings.translateModeId.toString()
             preferences[ENABLE_SUGGESTION] = settings.enableSuggestion
             settings.suggestionModelId?.let {
@@ -615,6 +620,8 @@ data class Settings(
     val chatModelId: Uuid = Uuid.random(),
     val fastModelId: Uuid = Uuid.random(),
     val titleModelId: Uuid? = null,
+    /** 快速模型的思考级别（用于标题/建议等后台生成；标题/建议模型未单独配置时也兜底为快速模型） */
+    val fastModelReasoningLevel: ReasoningLevel = ReasoningLevel.AUTO,
     val imageGenerationModelId: Uuid = Uuid.random(),
     val titlePrompt: String = DEFAULT_TITLE_PROMPT,
     val translateModeId: Uuid = Uuid.random(),

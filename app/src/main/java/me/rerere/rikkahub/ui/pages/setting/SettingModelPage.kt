@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
+import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.provider.Model
 import me.rerere.ai.provider.ModelType
 import me.rerere.ai.provider.ProviderSetting
@@ -42,6 +43,7 @@ import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.ui.components.ai.ModelListSheet
+import me.rerere.rikkahub.ui.components.ai.ReasoningButton
 import me.rerere.rikkahub.ui.components.ai.rememberModelListState
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
@@ -122,6 +124,10 @@ private fun ModelSettingsPage(settings: Settings, vm: SettingVM, contentPadding:
                 modelId = settings.fastModelId,
                 providers = settings.providers,
                 onSelect = { vm.updateSettings(settings.copy(fastModelId = it.id)) },
+                reasoningLevel = settings.fastModelReasoningLevel,
+                onUpdateReasoningLevel = {
+                    vm.updateSettings(settings.copy(fastModelReasoningLevel = it))
+                },
             )
         }
         item {
@@ -270,6 +276,8 @@ private fun ModelSettingItem(
     providers: List<ProviderSetting>,
     onSelect: (Model) -> Unit,
     onClear: (() -> Unit)? = null,
+    reasoningLevel: ReasoningLevel? = null,
+    onUpdateReasoningLevel: ((ReasoningLevel) -> Unit)? = null,
 ) {
     val state = rememberModelListState(
         modelId = modelId,
@@ -309,6 +317,17 @@ private fun ModelSettingItem(
                     }
                 },
             )
+            if (reasoningLevel != null && onUpdateReasoningLevel != null) {
+                item(
+                    headlineContent = { Text(stringResource(R.string.assistant_page_thinking_budget)) },
+                    trailingContent = {
+                        ReasoningButton(
+                            reasoningLevel = reasoningLevel,
+                            onUpdateReasoningLevel = onUpdateReasoningLevel,
+                        )
+                    },
+                )
+            }
         }
         Text(
             text = description,
