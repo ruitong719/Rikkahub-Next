@@ -16,12 +16,25 @@ enum class SubAgentRunStatus {
     TIMEOUT,
 }
 
-/** subagent 执行轨迹中的一步：一次工具调用（简略展示） */
-data class SubAgentRunStep(
-    val toolName: String,
-    val inputPreview: String = "",
-    val outputPreview: String = "",
-)
+/** subagent 执行过程中的一个展示条目（按发生顺序） */
+sealed interface SubAgentRunStep {
+    /** 模型推理（thinking）过程 */
+    data class Thinking(val text: String) : SubAgentRunStep
+
+    /** 工具调用之间的中间叙述输出 */
+    data class IntermediateText(val text: String) : SubAgentRunStep
+
+    /**
+     * 一次工具调用：仅展示是否调用成功，不展示输出内容。
+     * [executed] 表示已执行（有输出）；[succeeded] 表示执行未抛异常。
+     */
+    data class ToolCall(
+        val toolName: String,
+        val input: String,
+        val executed: Boolean,
+        val succeeded: Boolean,
+    ) : SubAgentRunStep
+}
 
 /**
  * subagent 一次运行的完整轨迹（内存态，进程内可见）。

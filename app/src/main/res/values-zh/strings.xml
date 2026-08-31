@@ -1321,6 +1321,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="subagents_trace_status_timeout">执行超时</string>
   <string name="subagents_trace_task">任务</string>
   <string name="subagents_trace_steps">工具调用（%1$d 步）</string>
+  <string name="subagents_trace_process">中间过程（%1$d 步）</string>
   <string name="subagents_trace_result">最终结果</string>
   <string name="todo_sheet_completed">已完成</string>
   <string name="todo_sheet_clear">清空列表</string>

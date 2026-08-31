@@ -343,6 +343,7 @@
   <string name="subagents_trace_status_timeout">Timed out</string>
   <string name="subagents_trace_task">Task</string>
   <string name="subagents_trace_steps">Tool calls (%1$d steps)</string>
+  <string name="subagents_trace_process">Intermediate process (%1$d steps)</string>
   <string name="subagents_trace_result">Final result</string>
   <string name="subagents_page_meta">%1$d tools · %2$d skills</string>
   <string name="subagents_page_duplicate">Duplicate</string>

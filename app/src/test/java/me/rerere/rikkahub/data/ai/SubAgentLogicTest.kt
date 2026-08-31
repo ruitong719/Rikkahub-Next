@@ -1,6 +1,10 @@
 package me.rerere.rikkahub.data.ai
 
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import me.rerere.ai.core.InputSchema
 import me.rerere.ai.core.TokenUsage
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
@@ -10,6 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFailsWith
 import org.junit.Test
 import kotlin.uuid.Uuid
 
@@ -202,5 +207,105 @@ class SubAgentLogicTest {
     fun `buildSubAgentResultJson omits usage when null`() {
         val json = buildSubAgentResultJson(status = "timeout", result = "took too long", steps = 0, usage = null)
         assertFalse(json.contains("usage"))
+    }
+
+    // ---- submit_report 报告工具 ----
+
+    @Test
+    fun `submit report tool is terminal with report schema`() {
+        val tool = buildSubAgentReportTool()
+        assertEquals(SUBAGENT_REPORT_TOOL_NAME, tool.name)
+        assertTrue(tool.terminal)
+        assertTrue(tool.description.contains("final report"))
+        val schema = tool.parameters()
+        assertTrue(schema is InputSchema.Obj)
+        schema as InputSchema.Obj
+        assertTrue(schema.required?.contains("report") == true)
+    }
+
+    @Test
+    fun `submit report execute returns confirmation and rejects blank report`() = runBlocking {
+        val tool = buildSubAgentReportTool()
+        val output = tool.execute(buildJsonObject { put("report", "done") })
+        val text = output.filterIsInstance<UIMessagePart.Text>().joinToString("") { it.text }
+        assertTrue(text.contains("Report submitted"))
+        assertFailsWith<IllegalStateException> {
+            tool.execute(buildJsonObject {})
+        }
+    }
+
+    @Test
+    fun `extractSubAgentReport reads the executed submit report`() {
+        val messages = listOf(
+            UIMessage.user("task"),
+            UIMessage.assistant("").copy(
+                parts = listOf(
+                    UIMessagePart.Tool(
+                        toolCallId = "1",
+                        toolName = SUBAGENT_REPORT_TOOL_NAME,
+                        input = """{"report":"final summary"}""",
+                        output = listOf(UIMessagePart.Text("Report submitted")),
+                    )
+                )
+            ),
+        )
+        assertEquals("final summary", extractSubAgentReport(messages, fromIndex = 1))
+        // 未执行的报告调用视为未提交
+        assertNull(extractSubAgentReport(messages, fromIndex = 2))
+    }
+
+    @Test
+    fun `extractRunProcess builds thinking text and toolcall entries`() {
+        val messages = listOf(
+            UIMessage.user("task"),
+            UIMessage.assistant("").copy(
+                parts = listOf(
+                    UIMessagePart.Reasoning(reasoning = "let me think"),
+                    UIMessagePart.Text("first I will list files"),
+                    UIMessagePart.Tool(
+                        toolCallId = "1",
+                        toolName = "bash",
+                        input = """{"command":"ls"}""",
+                        output = listOf(UIMessagePart.Text("""{"exitCode":0,"stdout":"a.txt"}""")),
+                    ),
+                )
+            ),
+            UIMessage.assistant("").copy(
+                parts = listOf(
+                    UIMessagePart.Reasoning(reasoning = "that failed"),
+                    UIMessagePart.Text("trying again"),
+                    UIMessagePart.Tool(
+                        toolCallId = "2",
+                        toolName = "bash",
+                        input = """{"command":"rm"}""",
+                        output = listOf(UIMessagePart.Text("""{"error":"boom"}""")),
+                    ),
+                )
+            ),
+        )
+        val steps = extractRunProcess(messages, fromIndex = 1)
+        assertEquals(6, steps.size)
+        assertTrue(steps[0] is SubAgentRunStep.Thinking)
+        assertEquals("let me think", (steps[0] as SubAgentRunStep.Thinking).text)
+        assertTrue(steps[1] is SubAgentRunStep.IntermediateText)
+        val ok = steps[2] as SubAgentRunStep.ToolCall
+        assertEquals("bash", ok.toolName)
+        assertTrue(ok.executed)
+        assertTrue(ok.succeeded)
+        assertTrue(steps[3] is SubAgentRunStep.Thinking)
+        assertTrue(steps[4] is SubAgentRunStep.IntermediateText)
+        val fail = steps[5] as SubAgentRunStep.ToolCall
+        assertTrue(fail.executed)
+        assertFalse(fail.succeeded)
+    }
+
+    @Test
+    fun `extractRunProcess keeps text only in tool call messages`() {
+        val messages = listOf(
+            UIMessage.user("task"),
+            UIMessage.assistant("working on it"),
+        )
+        val steps = extractRunProcess(messages, fromIndex = 1)
+        assertTrue(steps.isEmpty())
     }
 }

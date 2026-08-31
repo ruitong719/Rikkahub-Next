@@ -410,6 +410,14 @@ class GenerationHandler(
                 }.forEach { done -> emitDone(done) }
             }
 
+            // 终局工具（如 subagent 的 submit_report）：执行完立即结束循环，不再请求下一轮
+            if (executedTools.any { tool ->
+                    toolsInternal.any { it.name == tool.toolName && it.terminal }
+                }
+            ) {
+                break
+            }
+
             if (executedTools.isEmpty()) {
                 // No results to add (all tools were pending)
                 break

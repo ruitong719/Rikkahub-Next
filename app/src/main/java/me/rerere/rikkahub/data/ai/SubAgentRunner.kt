@@ -142,6 +142,8 @@ class SubAgentRunner(
             if (subAgent.enabledSkills.isNotEmpty()) {
                 addAll(createSkillTools(subAgent.enabledSkills, allSkills))
             }
+            // 终局报告工具：子代理完成时用它把最终报告写给主 Agent
+            add(buildSubAgentReportTool())
         }
 
         val taskMessage = if (context.isNullOrBlank()) {
@@ -169,57 +171,41 @@ class SubAgentRunner(
                 finalMessages = chunk.messages
                 monitor.updateSteps(
                     runId,
-                    extractSteps(finalMessages, fromIndex = ownMessageStart)
+                    extractRunProcess(finalMessages, fromIndex = ownMessageStart)
                 )
             }
         }
 
+        // 报告优先取 submit_report 提交的正文；未调用则回退最后一条助手文本
+        val report = extractSubAgentReport(finalMessages, ownMessageStart)
         val lastAssistantText = finalMessages.lastOrNull { it.role == MessageRole.ASSISTANT }
             ?.parts
             ?.filterIsInstance<UIMessagePart.Text>()
             ?.joinToString("\n") { it.text }
             ?.trim()
 
-        return if (lastAssistantText.isNullOrBlank()) {
-            buildSubAgentResultJson(
+        return when {
+            report != null -> buildSubAgentResultJson(
+                status = if (report.isNotBlank()) "success" else "error",
+                result = report.ifBlank { "submit_report was called without a report" },
+                steps = finalMessages.size,
+                usage = finalMessages.lastOrNull()?.usage,
+                runId = runId.toString(),
+            )
+            lastAssistantText.isNullOrBlank() -> buildSubAgentResultJson(
                 status = "error",
                 result = "Reached max steps (${subAgent.maxSteps}) without a final answer",
                 steps = subAgent.maxSteps,
                 usage = null,
                 runId = runId.toString(),
             )
-        } else {
-            buildSubAgentResultJson(
+            else -> buildSubAgentResultJson(
                 status = "success",
                 result = lastAssistantText,
                 steps = finalMessages.size,
                 usage = finalMessages.lastOrNull()?.usage,
                 runId = runId.toString(),
             )
-        }
-    }
-
-    /** 从本次运行新增的消息中提取已执行的工具调用（工具名 + 简略输入/输出） */
-    private fun extractSteps(messages: List<UIMessage>, fromIndex: Int): List<SubAgentRunStep> = buildList {
-        messages.drop(fromIndex).forEach { message ->
-            message.parts.forEach { part ->
-                if (part is UIMessagePart.Tool && part.isExecuted) {
-                    val input = part.input.trim().replace('\n', ' ').take(80)
-                    val outputText = part.output
-                        .filterIsInstance<UIMessagePart.Text>()
-                        .joinToString(" ") { it.text }
-                        .trim()
-                        .replace('\n', ' ')
-                        .take(120)
-                    add(
-                        SubAgentRunStep(
-                            toolName = part.toolName,
-                            inputPreview = input,
-                            outputPreview = outputText,
-                        )
-                    )
-                }
-            }
         }
     }
 }

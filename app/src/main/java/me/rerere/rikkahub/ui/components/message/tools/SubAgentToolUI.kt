@@ -34,7 +34,7 @@ import me.rerere.hugeicons.stroke.AiBrain01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.richtext.DiffAddedColor
 import me.rerere.rikkahub.ui.components.richtext.DiffRemovedColor
-import me.rerere.rikkahub.ui.components.richtext.HighlightCodeBlock
+import me.rerere.rikkahub.ui.components.richtext.MarkdownBlock
 import me.rerere.rikkahub.ui.modifier.shimmer
 
 /**
@@ -177,9 +177,9 @@ object SubAgentToolUI : ToolUIRenderer {
                 )
             }
             if (result.isNotBlank()) {
-                HighlightCodeBlock(
-                    code = result,
-                    language = "markdown",
+                // 报告以 markdown 渲染（与聊天正文一致），代替原来的带行号代码块
+                MarkdownBlock(
+                    content = result,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

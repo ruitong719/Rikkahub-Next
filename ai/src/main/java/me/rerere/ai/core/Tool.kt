@@ -21,6 +21,11 @@ data class Tool(
      * 普通工具，再并发跑这批并按原序写回结果。
      */
     val parallelSafe: Boolean = false,
+    /**
+     * 终局工具：执行完成后立即结束生成循环（不再发起下一轮 LLM 请求）。
+     * 用于 subagent 的 submit_report 等一次性收尾工具。
+     */
+    val terminal: Boolean = false,
     val execute: suspend (JsonElement) -> List<UIMessagePart>
 )
 
