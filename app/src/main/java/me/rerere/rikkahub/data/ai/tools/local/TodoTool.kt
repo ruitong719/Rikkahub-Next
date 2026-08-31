@@ -39,6 +39,9 @@ private fun parseTodoElement(element: kotlinx.serialization.json.JsonElement): T
     return TodoItem(content = content, status = status, priority = priority)
 }
 
+/** todo 工具名（底栏 todo 图标按需显示等 UI 判断共用） */
+const val TODO_TOOL_NAME = "todowrite"
+
 /**
  * todowrite：对齐 opencode 的单工具全量替换模型。
  * 模型每次提交完整列表覆盖当前对话的 todo；返回写入后的全量列表，
@@ -46,7 +49,7 @@ private fun parseTodoElement(element: kotlinx.serialization.json.JsonElement): T
  * PLAN 模式刻意不拦截本工具：模型可以先把执行计划写成 todo 清单。
  */
 internal fun buildTodoWriteTool(store: TodoStore, conversationId: Uuid): Tool = Tool(
-    name = "todowrite",
+    name = TODO_TOOL_NAME,
     description = """
         Create and maintain a structured task list for the current conversation. Tracks progress, organizes multi-step work, and surfaces status to the user.
         Pass the FULL updated list every call - it replaces the previous list entirely (items are identified by position, not id).

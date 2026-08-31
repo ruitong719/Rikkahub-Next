@@ -103,6 +103,7 @@ import me.rerere.hugeicons.stroke.Fullscreen
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
+import me.rerere.rikkahub.data.ai.tools.local.TODO_TOOL_NAME
 import me.rerere.rikkahub.data.ai.tools.local.TodoItem
 import me.rerere.rikkahub.data.ai.tools.local.TodoStatus
 import me.rerere.rikkahub.R
@@ -120,6 +121,7 @@ import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.PermissionMode
 import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.ai.ui.UIMessage
+import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionContext
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionItem
 import me.rerere.rikkahub.ui.components.ai.completion.ChatCompletionList
@@ -359,9 +361,18 @@ fun ChatInput(
                                     )
                                 }
 
-                                // Todo（思考深度之后）：仅当助手启用了 Todo 本地工具且偏好设置未关闭时显示
+                                // Todo（思考深度之后）：仅当助手启用了 Todo 本地工具、偏好设置未关闭、
+                                // 且本对话已调用过（或列表非空）时才显示
+                                val todoInvoked = remember(messages) {
+                                    messages.any { message ->
+                                        message.parts.any {
+                                            it is UIMessagePart.Tool && it.toolName == TODO_TOOL_NAME
+                                        }
+                                    }
+                                }
                                 if (settings.displaySetting.showTodoButton &&
-                                    assistant.localTools.contains(LocalToolOption.Todo)
+                                    assistant.localTools.contains(LocalToolOption.Todo) &&
+                                    (todos.isNotEmpty() || todoInvoked)
                                 ) {
                                     var showTodoSheet by remember { mutableStateOf(false) }
                                     if (showTodoSheet) {
@@ -379,14 +390,19 @@ fun ChatInput(
                                     )
                                 }
 
-                                // Subagent 监看：当前助手启用了 subagent 且偏好设置未关闭时显示
+                                // Subagent 监看：当前助手启用了 subagent、偏好设置未关闭、
+                                // 且本对话存在调用记录时才显示（调用前不占底栏位）
+                                val enabledSubAgents = settings.subagents.filter {
+                                    it.id in assistant.subagentIds
+                                }
+                                val subAgentInvoked = remember(enabledSubAgents, messages) {
+                                    hasSubAgentInvocation(enabledSubAgents, messages)
+                                }
                                 if (settings.displaySetting.showSubAgentButton &&
-                                    assistant.subagentIds.isNotEmpty()
+                                    enabledSubAgents.isNotEmpty() &&
+                                    subAgentInvoked
                                 ) {
                                     var showSubAgentMonitor by remember { mutableStateOf(false) }
-                                    val enabledSubAgents = settings.subagents.filter {
-                                        it.id in assistant.subagentIds
-                                    }
                                     // 角标 = 正在被调用的 subagent 数量（挂起调用需与内存轨迹对账，崩溃遗留不计）
                                     val subAgentRunMonitor = koinInject<SubAgentRunMonitor>()
                                     val liveRuns by subAgentRunMonitor.runs.collectAsStateWithLifecycle()

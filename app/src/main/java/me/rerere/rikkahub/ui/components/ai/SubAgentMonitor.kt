@@ -108,6 +108,23 @@ fun countRunningSubAgents(
     }
 }
 
+/**
+ * 当前对话中是否已有 subagent 调用记录（底栏图标按需显示用）：
+ * 消息里出现过任一已启用 subagent 的工具调用（含已完成）即返回 true。
+ */
+fun hasSubAgentInvocation(
+    subAgents: List<SubAgent>,
+    messages: List<UIMessage>,
+): Boolean {
+    if (subAgents.isEmpty()) return false
+    val toolNames = computeSubAgentToolNames(subAgents).values.toSet()
+    return messages.any { message ->
+        message.parts.any { part ->
+            part is UIMessagePart.Tool && part.toolName in toolNames
+        }
+    }
+}
+
 /** 面板里一次调用的展示状态（由消息推导 + 与内存活跃轨迹对账后的最终结果） */
 private enum class InvocationStatus {
     RUNNING,      // 挂起且能在内存中找到对应活跃轨迹
