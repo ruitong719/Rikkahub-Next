@@ -34,6 +34,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -78,6 +79,9 @@ private const val MILLIS_PER_DAY = 24 * 60 * 60 * 1_000L
 fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     var displaySetting by remember(settings) { mutableStateOf(settings.displaySetting) }
+    var ttsPlaybackSpeed by remember(settings.defaultTTSPlaybackSpeed) {
+        mutableFloatStateOf(settings.defaultTTSPlaybackSpeed)
+    }
 
     var showUpdatePauseDialog by remember { mutableStateOf(false) }
     var selectedUpdatePauseDays by remember { mutableStateOf(UPDATE_PAUSE_DAY_OPTIONS.first()) }
@@ -358,6 +362,37 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                     modifier = Modifier.padding(horizontal = 8.dp),
                     title = { Text(stringResource(R.string.setting_page_tts_settings)) },
                 ) {
+                    item(
+                        headlineContent = {
+                            Text(stringResource(R.string.setting_tts_page_default_playback_speed))
+                        },
+                        supportingContent = {
+                            Column {
+                                Text(stringResource(R.string.setting_tts_page_default_playback_speed_description))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Slider(
+                                        value = ttsPlaybackSpeed,
+                                        onValueChange = {
+                                            ttsPlaybackSpeed = (it * 10).roundToInt() / 10f
+                                        },
+                                        onValueChangeFinished = {
+                                            vm.updateSettings(
+                                                settings.copy(defaultTTSPlaybackSpeed = ttsPlaybackSpeed)
+                                            )
+                                        },
+                                        valueRange = 0.5f..2.0f,
+                                        steps = 14,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    Text(text = "x${"%.1f".format(ttsPlaybackSpeed)}")
+                                }
+                            }
+                        },
+                    )
                     item(
                         headlineContent = { Text(stringResource(R.string.setting_display_page_tts_only_read_quoted_title)) },
                         supportingContent = { Text(stringResource(R.string.setting_display_page_tts_only_read_quoted_desc)) },
