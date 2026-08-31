@@ -560,7 +560,7 @@ class GenerationHandler(
             } catch (e: StreamChunkHandlingException) {
                 throw e.cause ?: e
             } catch (e: Exception) {
-                if (reconnectAttempt >= AUTO_RECONNECT_MAX_ATTEMPTS || !e.hasRetryableNetworkCause()) throw e
+                if (!settings.networkSetting.enableAutoRetry || reconnectAttempt >= AUTO_RECONNECT_MAX_ATTEMPTS || !e.hasRetryableNetworkCause()) throw e
                 reconnectAttempt += 1
                 // 回滚到本次尝试前：重发是整单重新生成，半截内容由新流覆盖
                 messages = attemptSnapshot

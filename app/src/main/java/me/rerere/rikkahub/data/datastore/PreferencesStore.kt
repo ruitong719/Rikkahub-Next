@@ -693,6 +693,7 @@ data class NetworkSetting(
     val proxyUrl: String = "",
     val proxyUsername: String = "",
     val proxyPassword: String = "",
+<<<<<<< HEAD
     // 供应商级客户端身份覆盖：key 为 provider Uuid 字符串，value 为要替换的 header
     // （如 User-Agent / originator）。共享 OkHttpClient 拦截器按请求 host 匹配到
     // 该供应商时应用，优先于全局 userAgent —— 见 hermes-agent 的按 host 分发实践：
@@ -701,6 +702,7 @@ data class NetworkSetting(
     // 显式启用客户端身份覆写的 provider id 集合：未启用时不覆写任何 header（默认
     // 使用 RikkaHub 标识），启用且选中了预设时才应用 providerIdentities 的覆写
     val providerIdentityEnabledIds: Set<String> = emptySet(),
+    val enableAutoRetry: Boolean = true,
 )
 
 @Serializable
