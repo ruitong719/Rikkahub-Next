@@ -724,6 +724,31 @@ enum class ChatFontFamily {
     CUSTOM,
 }
 
+/**
+ * 底部输入栏图标类型。底栏图标的显隐与自定义排序均以此为 key。
+ *
+ * MODEL 固定位于底栏第一位，不参与用户自定义排序；其余项可自由排列。
+ */
+enum class BottomBarIcon(val key: String) {
+    MODEL("model"),
+    SEARCH("search"),
+    REASONING("reasoning"),
+    TODO("todo"),
+    SUBAGENT("subagent"),
+    PERMISSION("permission"),
+    BACKGROUND_TASK("background_task"),
+}
+
+/** 底栏可自定义排序的图标默认顺序（MODEL 恒为第一位，不在此列表中）。 */
+val DEFAULT_BOTTOM_BAR_ICON_ORDER = listOf(
+    BottomBarIcon.SEARCH.key,
+    BottomBarIcon.REASONING.key,
+    BottomBarIcon.TODO.key,
+    BottomBarIcon.SUBAGENT.key,
+    BottomBarIcon.PERMISSION.key,
+    BottomBarIcon.BACKGROUND_TASK.key,
+)
+
 @Serializable
 data class DisplaySetting(
     val userAvatar: Avatar = Avatar.Dummy,
@@ -765,14 +790,29 @@ data class DisplaySetting(
     val chatCustomFontName: String = "",
     val enableVolumeKeyScroll: Boolean = false,
     val volumeKeyScrollRatio: Float = 1.0f,
-    // 聊天输入栏底栏图标显隐（默认全部显示）
+    // 聊天输入栏底栏图标显隐（默认全部显示）；任一开关关闭时对应图标无条件隐藏
     val showWebSearchButton: Boolean = true,
     val showReasoningButton: Boolean = true,
     val showTodoButton: Boolean = true,
     val showSubAgentButton: Boolean = true,
+    val showBackgroundTaskButton: Boolean = true,
+    // 底栏可自定义排序的图标顺序（MODEL 恒为第一位，不参与排序）
+    val bottomBarIconOrder: List<String> = DEFAULT_BOTTOM_BAR_ICON_ORDER,
     // 实验性功能: workspace shell 命令执行中在聊天内实时显示 stdout/stderr（默认关闭）
     val enableShellLiveOutput: Boolean = false,
 )
+
+/**
+ * 归一化底栏图标顺序：保证所有可排序图标恰好出现一次，缺失的追加到末尾。
+ * 用于防御旧数据缺失/混入非法 key，避免图标因脏顺序丢失。
+ */
+fun DisplaySetting.effectiveBottomBarIconOrder(): List<String> {
+    val reorderable = BottomBarIcon.values()
+        .filter { it != BottomBarIcon.MODEL }
+        .map { it.key }
+    val present = bottomBarIconOrder.filter { it in reorderable }
+    return present + reorderable.filter { it !in present }
+}
 
 @Serializable
 data class WebDavConfig(

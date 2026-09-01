@@ -57,6 +57,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -109,6 +110,8 @@ import me.rerere.rikkahub.data.ai.tools.local.TodoStatus
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.datastore.Settings
+import me.rerere.rikkahub.data.datastore.BottomBarIcon
+import me.rerere.rikkahub.data.datastore.effectiveBottomBarIconOrder
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.datastore.getQuickMessagesOfAssistant
@@ -314,196 +317,55 @@ fun ChatInput(
                                     .horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
-                                // Model Picker
-                                ModelSelectorButton(
-                                    state = modelListState,
-                                    onlyIcon = true,
-                                    modifier = Modifier,
-                                )
+                                // 底栏图标：MODEL 恒为第一位（不可变），其余按用户配置顺序渲染，
+                                // 每个图标内部根据偏好开关与「是否在本次对话中使用过」自判是否显示。
+                                ChatBottomBarModelButton(modelListState)
 
-                                // Search
-                                val enableSearchMsg = stringResource(R.string.web_search_enabled)
-                                val disableSearchMsg = stringResource(R.string.web_search_disabled)
-                                val chatModel = settings.getCurrentChatModel()
-                                if (settings.displaySetting.showWebSearchButton) {
-                                    SearchPickerButton(
-                                        enableSearch = enableSearch,
-                                        settings = settings,
-                                        onUpdateSearchMode = { mode ->
-                                            onUpdateSearchMode(mode)
-                                            val enabled = mode != SearchMode.OFF
-                                            toaster.show(
-                                                message = if (enabled) enableSearchMsg else disableSearchMsg,
-                                                duration = 1.seconds,
-                                                type = if (enabled) {
-                                                    ToastType.Success
-                                                } else {
-                                                    ToastType.Normal
-                                                }
+                                val iconOrder = remember(settings.displaySetting.bottomBarIconOrder) {
+                                    settings.displaySetting.effectiveBottomBarIconOrder()
+                                }
+                                for (iconKey in iconOrder) {
+                                    key(iconKey) {
+                                        when (iconKey) {
+                                            BottomBarIcon.SEARCH.key -> ChatBottomBarSearchButton(
+                                                settings = settings,
+                                                enableSearch = enableSearch,
+                                                onUpdateSearchMode = onUpdateSearchMode,
+                                                onUpdateSearchService = onUpdateSearchService,
                                             )
-                                        },
-                                        onUpdateSearchService = onUpdateSearchService,
-                                        model = chatModel,
-                                    )
-                                }
 
-                                // Reasoning
-                                val model = settings.getCurrentChatModel()
-                                if (settings.displaySetting.showReasoningButton &&
-                                    model?.abilities?.contains(ModelAbility.REASONING) == true
-                                ) {
-                                    ReasoningButton(
-                                        reasoningLevel = assistant.reasoningLevel,
-                                        onUpdateReasoningLevel = {
-                                            onUpdateAssistant(assistant.copy(reasoningLevel = it))
-                                        },
-                                        onlyIcon = true,
-                                    )
-                                }
+                                            BottomBarIcon.REASONING.key -> ChatBottomBarReasoningButton(
+                                                settings = settings,
+                                                assistant = assistant,
+                                                onUpdateAssistant = onUpdateAssistant,
+                                            )
 
-                                // Todo（思考深度之后）：仅当助手启用了 Todo 本地工具、偏好设置未关闭、
-                                // 且本对话已调用过（或列表非空）时才显示
-                                val todoInvoked = remember(messages) {
-                                    messages.any { message ->
-                                        message.parts.any {
-                                            it is UIMessagePart.Tool && it.toolName == TODO_TOOL_NAME
-                                        }
-                                    }
-                                }
-                                if (settings.displaySetting.showTodoButton &&
-                                    assistant.localTools.contains(LocalToolOption.Todo) &&
-                                    (todos.isNotEmpty() || todoInvoked)
-                                ) {
-                                    var showTodoSheet by remember { mutableStateOf(false) }
-                                    if (showTodoSheet) {
-                                        TodoSheet(
-                                            todos = todos,
-                                            onDismiss = { showTodoSheet = false },
-                                            onClearTodos = onClearTodos,
-                                        )
-                                    }
-                                    TodoStatusButton(
-                                        activeCount = todos.count {
-                                            it.status == TodoStatus.PENDING || it.status == TodoStatus.IN_PROGRESS
-                                        },
-                                        onClick = { showTodoSheet = true },
-                                    )
-                                }
+                                            BottomBarIcon.TODO.key -> ChatBottomBarTodoButton(
+                                                settings = settings,
+                                                assistant = assistant,
+                                                todos = todos,
+                                                messages = messages,
+                                                onClearTodos = onClearTodos,
+                                            )
 
-                                // Subagent 监看：当前助手启用了 subagent、偏好设置未关闭、
-                                // 且本对话存在调用记录时才显示（调用前不占底栏位）
-                                val enabledSubAgents = settings.subagents.filter {
-                                    it.id in assistant.subagentIds
-                                }
-                                val subAgentInvoked = remember(enabledSubAgents, messages) {
-                                    hasSubAgentInvocation(enabledSubAgents, messages)
-                                }
-                                if (settings.displaySetting.showSubAgentButton &&
-                                    enabledSubAgents.isNotEmpty() &&
-                                    subAgentInvoked
-                                ) {
-                                    var showSubAgentMonitor by remember { mutableStateOf(false) }
-                                    // 角标 = 正在被调用的 subagent 数量（挂起调用需与内存轨迹对账，崩溃遗留不计）
-                                    val subAgentRunMonitor = koinInject<SubAgentRunMonitor>()
-                                    val liveRuns by subAgentRunMonitor.runs.collectAsStateWithLifecycle()
-                                    val runningSubAgents = remember(enabledSubAgents, messages, liveRuns) {
-                                        countRunningSubAgents(enabledSubAgents, messages, liveRuns)
-                                    }
-                                    if (showSubAgentMonitor) {
-                                        val navController = LocalNavController.current
-                                        SubAgentMonitorSheet(
-                                            subAgents = enabledSubAgents,
-                                            messages = messages,
-                                            onDismiss = { showSubAgentMonitor = false },
-                                            onOpenTrace = { id ->
-                                                showSubAgentMonitor = false
-                                                navController.navigate(Screen.SubAgentTrace(id))
-                                            },
-                                            onManage = { id ->
-                                                showSubAgentMonitor = false
-                                                navController.navigate(Screen.SubAgentEdit(id))
-                                            },
-                                        )
-                                    }
-                                    SubAgentMonitorButton(
-                                        runningCount = runningSubAgents,
-                                        onClick = { showSubAgentMonitor = true },
-                                    )
-                                }
+                                            BottomBarIcon.SUBAGENT.key -> ChatBottomBarSubagentButton(
+                                                settings = settings,
+                                                assistant = assistant,
+                                                messages = messages,
+                                            )
 
-                                // 权限模式切换（plan/build/yolo）：点击弹出菜单，当前模式着色提示
-                                PermissionModeButton(
-                                    mode = permissionMode,
-                                    onUpdate = onUpdatePermissionMode,
-                                )
+                                            BottomBarIcon.PERMISSION.key -> ChatBottomBarPermissionButton(
+                                                permissionMode = permissionMode,
+                                                onUpdatePermissionMode = onUpdatePermissionMode,
+                                            )
 
-                                // 后台任务监看：仅当助手绑定工作区且存在后台任务时显示（4s 轮询）
-                                val assistantWorkspaceId = assistant.workspaceId?.toString()
-                                if (assistantWorkspaceId != null) {
-                                    val workspaceBgManager = koinInject<WorkspaceBgManager>()
-                                    val workspaceRepository = koinInject<WorkspaceRepository>()
-                                    var bgTaskRoot by remember(assistantWorkspaceId) {
-                                        mutableStateOf(assistantWorkspaceId)
-                                    }
-                                    var bgTasks by remember(assistantWorkspaceId) {
-                                        mutableStateOf<List<WorkspaceBgTaskInfo>>(emptyList())
-                                    }
-                                    var bgTaskRefreshTick by remember(assistantWorkspaceId) { mutableStateOf(0) }
-                                    var showBgTaskSheet by remember { mutableStateOf(false) }
-                                    var selectedBgTask by remember { mutableStateOf<WorkspaceBgTaskInfo?>(null) }
-                                    val bgTaskScope = rememberCoroutineScope()
-
-                                    LaunchedEffect(assistantWorkspaceId, bgTaskRefreshTick) {
-                                        while (true) {
-                                            runCatching {
-                                                val root = workspaceRepository.getById(assistantWorkspaceId)
-                                                    ?.root ?: assistantWorkspaceId
-                                                bgTaskRoot = root
-                                                bgTasks = workspaceBgManager.listTasks(root)
-                                            }
-                                            delay(4_000)
-                                        }
-                                    }
-
-                                    if (bgTasks.isNotEmpty()) {
-                                        if (showBgTaskSheet) {
-                                            BackgroundTaskSheet(
-                                                tasks = bgTasks,
-                                                onTaskClick = { selectedBgTask = it },
-                                                onKill = { taskId ->
-                                                    bgTaskScope.launch {
-                                                        runCatching { workspaceBgManager.killTask(bgTaskRoot, taskId) }
-                                                    }
-                                                },
-                                                onDelete = { taskId ->
-                                                    // 立即从本地列表移除（删除是异步的，避免等轮询才有反应）
-                                                    bgTasks = bgTasks.filterNot { it.taskId == taskId }
-                                                    bgTaskScope.launch {
-                                                        runCatching { workspaceBgManager.deleteTask(bgTaskRoot, taskId) }
-                                                    }
-                                                },
-                                                onRefresh = { bgTaskRefreshTick++ },
-                                                onDismiss = { showBgTaskSheet = false },
+                                            BottomBarIcon.BACKGROUND_TASK.key -> ChatBottomBarBackgroundTaskButton(
+                                                settings = settings,
+                                                assistant = assistant,
                                             )
                                         }
-                                        BackgroundTaskButton(
-                                            runningCount = bgTasks.count { it.status == BgTaskStatus.RUNNING },
-                                            totalCount = bgTasks.size,
-                                            onClick = { showBgTaskSheet = true },
-                                        )
-                                    }
-
-                                    // 任务输出详情：独立于列表 sheet 的生命周期，列表清空后仍可回看
-                                    selectedBgTask?.let { selected ->
-                                        BackgroundTaskOutputSheet(
-                                            task = selected,
-                                            workspaceRoot = bgTaskRoot,
-                                            bgManager = workspaceBgManager,
-                                            onDismiss = { selectedBgTask = null },
-                                        )
                                     }
                                 }
-
                             }
 
                             if (asrState.isAvailable || asrState.isRecording) {
@@ -559,6 +421,222 @@ fun ChatInput(
         state = modelListState,
         onSelect = onUpdateChatModel,
     )
+}
+
+/** 底栏：模型选择（恒为第一位，不参与自定义排序） */
+@Composable
+private fun ChatBottomBarModelButton(
+    modelListState: ModelListState,
+) {
+    ModelSelectorButton(
+        state = modelListState,
+        onlyIcon = true,
+        modifier = Modifier,
+    )
+}
+
+/** 底栏：网络搜索（偏好关闭时无条件隐藏） */
+@Composable
+private fun ChatBottomBarSearchButton(
+    settings: Settings,
+    enableSearch: Boolean,
+    onUpdateSearchMode: (SearchMode) -> Unit,
+    onUpdateSearchService: (Int) -> Unit,
+) {
+    if (!settings.displaySetting.showWebSearchButton) return
+    val toaster = LocalToaster.current
+    val enableSearchMsg = stringResource(R.string.web_search_enabled)
+    val disableSearchMsg = stringResource(R.string.web_search_disabled)
+    val chatModel = settings.getCurrentChatModel()
+    SearchPickerButton(
+        enableSearch = enableSearch,
+        settings = settings,
+        onUpdateSearchMode = { mode ->
+            onUpdateSearchMode(mode)
+            val enabled = mode != SearchMode.OFF
+            toaster.show(
+                message = if (enabled) enableSearchMsg else disableSearchMsg,
+                duration = 1.seconds,
+                type = if (enabled) ToastType.Success else ToastType.Normal,
+            )
+        },
+        onUpdateSearchService = onUpdateSearchService,
+        model = chatModel,
+    )
+}
+
+/** 底栏：推理强度（偏好关闭或模型无推理能力时无条件隐藏） */
+@Composable
+private fun ChatBottomBarReasoningButton(
+    settings: Settings,
+    assistant: Assistant,
+    onUpdateAssistant: (Assistant) -> Unit,
+) {
+    if (!settings.displaySetting.showReasoningButton) return
+    val model = settings.getCurrentChatModel()
+    if (model?.abilities?.contains(ModelAbility.REASONING) != true) return
+    ReasoningButton(
+        reasoningLevel = assistant.reasoningLevel,
+        onUpdateReasoningLevel = { onUpdateAssistant(assistant.copy(reasoningLevel = it)) },
+        onlyIcon = true,
+    )
+}
+
+/** 底栏：待办清单（偏好关闭或本对话未使用 todo 工具且列表为空时隐藏） */
+@Composable
+private fun ChatBottomBarTodoButton(
+    settings: Settings,
+    assistant: Assistant,
+    todos: List<TodoItem>,
+    messages: List<UIMessage>,
+    onClearTodos: () -> Unit,
+) {
+    if (!settings.displaySetting.showTodoButton) return
+    if (!assistant.localTools.contains(LocalToolOption.Todo)) return
+    val todoInvoked = remember(messages) {
+        messages.any { message ->
+            message.parts.any { it is UIMessagePart.Tool && it.toolName == TODO_TOOL_NAME }
+        }
+    }
+    if (todos.isEmpty() && !todoInvoked) return
+    var showTodoSheet by remember { mutableStateOf(false) }
+    if (showTodoSheet) {
+        TodoSheet(
+            todos = todos,
+            onDismiss = { showTodoSheet = false },
+            onClearTodos = onClearTodos,
+        )
+    }
+    TodoStatusButton(
+        activeCount = todos.count {
+            it.status == TodoStatus.PENDING || it.status == TodoStatus.IN_PROGRESS
+        },
+        onClick = { showTodoSheet = true },
+    )
+}
+
+/** 底栏：子智能体监看（偏好关闭或本对话无 subagent 调用记录时隐藏） */
+@Composable
+private fun ChatBottomBarSubagentButton(
+    settings: Settings,
+    assistant: Assistant,
+    messages: List<UIMessage>,
+) {
+    if (!settings.displaySetting.showSubAgentButton) return
+    val enabledSubAgents = settings.subagents.filter { it.id in assistant.subagentIds }
+    if (enabledSubAgents.isEmpty()) return
+    val subAgentInvoked = remember(enabledSubAgents, messages) {
+        hasSubAgentInvocation(enabledSubAgents, messages)
+    }
+    if (!subAgentInvoked) return
+    var showSubAgentMonitor by remember { mutableStateOf(false) }
+    // 角标 = 正在被调用的 subagent 数量（挂起调用需与内存轨迹对账，崩溃遗留不计）
+    val subAgentRunMonitor = koinInject<SubAgentRunMonitor>()
+    val liveRuns by subAgentRunMonitor.runs.collectAsStateWithLifecycle()
+    val runningSubAgents = remember(enabledSubAgents, messages, liveRuns) {
+        countRunningSubAgents(enabledSubAgents, messages, liveRuns)
+    }
+    if (showSubAgentMonitor) {
+        val navController = LocalNavController.current
+        SubAgentMonitorSheet(
+            subAgents = enabledSubAgents,
+            messages = messages,
+            onDismiss = { showSubAgentMonitor = false },
+            onOpenTrace = { id ->
+                showSubAgentMonitor = false
+                navController.navigate(Screen.SubAgentTrace(id))
+            },
+            onManage = { id ->
+                showSubAgentMonitor = false
+                navController.navigate(Screen.SubAgentEdit(id))
+            },
+        )
+    }
+    SubAgentMonitorButton(
+        runningCount = runningSubAgents,
+        onClick = { showSubAgentMonitor = true },
+    )
+}
+
+/** 底栏：权限模式切换（恒显示；图标色提示当前模式） */
+@Composable
+private fun ChatBottomBarPermissionButton(
+    permissionMode: PermissionMode,
+    onUpdatePermissionMode: (PermissionMode) -> Unit,
+) {
+    PermissionModeButton(
+        mode = permissionMode,
+        onUpdate = onUpdatePermissionMode,
+    )
+}
+
+/** 底栏：后台任务监看（偏好关闭、无工作区或不存在后台任务时隐藏，4s 轮询） */
+@Composable
+private fun ChatBottomBarBackgroundTaskButton(
+    settings: Settings,
+    assistant: Assistant,
+) {
+    val workspaceId = assistant.workspaceId?.toString()
+    if (workspaceId == null) return
+    if (!settings.displaySetting.showBackgroundTaskButton) return
+
+    val workspaceBgManager = koinInject<WorkspaceBgManager>()
+    val workspaceRepository = koinInject<WorkspaceRepository>()
+    var bgTaskRoot by remember(workspaceId) { mutableStateOf(workspaceId) }
+    var bgTasks by remember(workspaceId) { mutableStateOf<List<WorkspaceBgTaskInfo>>(emptyList()) }
+    var bgTaskRefreshTick by remember(workspaceId) { mutableStateOf(0) }
+    var showBgTaskSheet by remember { mutableStateOf(false) }
+    var selectedBgTask by remember { mutableStateOf<WorkspaceBgTaskInfo?>(null) }
+    val bgTaskScope = rememberCoroutineScope()
+
+    LaunchedEffect(workspaceId, bgTaskRefreshTick) {
+        while (true) {
+            runCatching {
+                val root = workspaceRepository.getById(workspaceId)?.root ?: workspaceId
+                bgTaskRoot = root
+                bgTasks = workspaceBgManager.listTasks(root)
+            }
+            delay(4_000)
+        }
+    }
+
+    if (bgTasks.isNotEmpty()) {
+        if (showBgTaskSheet) {
+            BackgroundTaskSheet(
+                tasks = bgTasks,
+                onTaskClick = { selectedBgTask = it },
+                onKill = { taskId ->
+                    bgTaskScope.launch {
+                        runCatching { workspaceBgManager.killTask(bgTaskRoot, taskId) }
+                    }
+                },
+                onDelete = { taskId ->
+                    // 立即从本地列表移除（删除是异步的，避免等轮询才有反应）
+                    bgTasks = bgTasks.filterNot { it.taskId == taskId }
+                    bgTaskScope.launch {
+                        runCatching { workspaceBgManager.deleteTask(bgTaskRoot, taskId) }
+                    }
+                },
+                onRefresh = { bgTaskRefreshTick++ },
+                onDismiss = { showBgTaskSheet = false },
+            )
+        }
+        BackgroundTaskButton(
+            runningCount = bgTasks.count { it.status == BgTaskStatus.RUNNING },
+            totalCount = bgTasks.size,
+            onClick = { showBgTaskSheet = true },
+        )
+    }
+
+    // 任务输出详情：独立于列表 sheet 的生命周期，列表清空后仍可回看
+    selectedBgTask?.let { selected ->
+        BackgroundTaskOutputSheet(
+            task = selected,
+            workspaceRoot = bgTaskRoot,
+            bgManager = workspaceBgManager,
+            onDismiss = { selectedBgTask = null },
+        )
+    }
 }
 
 @Composable

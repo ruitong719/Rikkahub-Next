@@ -41,11 +41,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.ArrowDown01
+import me.rerere.hugeicons.stroke.ArrowUp01
 import me.rerere.hugeicons.stroke.Delete02
 import me.rerere.hugeicons.stroke.FileImport
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.datastore.BottomBarIcon
 import me.rerere.rikkahub.data.datastore.ChatFontFamily
 import me.rerere.rikkahub.data.datastore.DisplaySetting
+import me.rerere.rikkahub.data.datastore.effectiveBottomBarIconOrder
 import me.rerere.rikkahub.data.files.FileFolders
 import me.rerere.rikkahub.data.files.FileUtils
 import me.rerere.rikkahub.ui.components.nav.BackButton
@@ -59,6 +63,29 @@ import me.rerere.rikkahub.utils.plus
 import org.koin.androidx.compose.koinViewModel
 import java.io.File
 import kotlin.math.roundToInt
+
+/** 将 [index] 处元素按 [delta]（-1 上移 / +1 下移）在列表内交换位置，越界时原样返回。 */
+private fun moveBottomBarIcon(list: List<String>, index: Int, delta: Int): List<String> {
+    val target = index + delta
+    if (target !in list.indices) return list
+    return list.toMutableList().also {
+        val tmp = it[index]
+        it[index] = it[target]
+        it[target] = tmp
+    }
+}
+
+/** 底栏图标 key 对应的展示名称。 */
+@Composable
+private fun bottomBarIconLabel(key: String): String = when (key) {
+    BottomBarIcon.SEARCH.key -> stringResource(R.string.setting_display_page_bottom_bar_reorder_search)
+    BottomBarIcon.REASONING.key -> stringResource(R.string.setting_display_page_bottom_bar_reorder_reasoning)
+    BottomBarIcon.TODO.key -> stringResource(R.string.setting_display_page_bottom_bar_reorder_todo)
+    BottomBarIcon.SUBAGENT.key -> stringResource(R.string.setting_display_page_bottom_bar_reorder_subagent)
+    BottomBarIcon.PERMISSION.key -> stringResource(R.string.setting_display_page_bottom_bar_reorder_permission)
+    BottomBarIcon.BACKGROUND_TASK.key -> stringResource(R.string.setting_display_page_bottom_bar_reorder_background_task)
+    else -> key
+}
 
 @Composable
 fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
@@ -417,6 +444,69 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                             )
                         },
                     )
+                    item(
+                        headlineContent = { Text(stringResource(R.string.setting_display_page_show_background_task_button_title)) },
+                        supportingContent = { Text(stringResource(R.string.setting_display_page_show_background_task_button_desc)) },
+                        trailingContent = {
+                            Switch(
+                                checked = displaySetting.showBackgroundTaskButton,
+                                onCheckedChange = {
+                                    updateDisplaySetting(displaySetting.copy(showBackgroundTaskButton = it))
+                                }
+                            )
+                        },
+                    )
+
+                    // 底栏图标顺序：模型选择固定首位，其余可上下移动调整
+                    item(
+                        overlineContent = { Text(stringResource(R.string.setting_display_page_bottom_bar_reorder_over)) },
+                        headlineContent = { Text(stringResource(R.string.setting_display_page_bottom_bar_reorder_title)) },
+                        supportingContent = { Text(stringResource(R.string.setting_display_page_bottom_bar_reorder_desc)) },
+                    )
+                    item(
+                        headlineContent = { Text(stringResource(R.string.setting_display_page_bottom_bar_reorder_model)) },
+                        supportingContent = { Text(stringResource(R.string.setting_display_page_bottom_bar_reorder_fixed)) },
+                    )
+                    val iconOrder = displaySetting.effectiveBottomBarIconOrder()
+                    iconOrder.forEachIndexed { index, key ->
+                        item(
+                            headlineContent = { Text(bottomBarIconLabel(key)) },
+                            trailingContent = {
+                                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    IconButton(
+                                        enabled = index > 0,
+                                        onClick = {
+                                            updateDisplaySetting(
+                                                displaySetting.copy(
+                                                    bottomBarIconOrder = moveBottomBarIcon(iconOrder, index, -1)
+                                                )
+                                            )
+                                        },
+                                    ) {
+                                        Icon(
+                                            imageVector = HugeIcons.ArrowUp01,
+                                            contentDescription = stringResource(R.string.setting_display_page_bottom_bar_reorder_up),
+                                        )
+                                    }
+                                    IconButton(
+                                        enabled = index < iconOrder.size - 1,
+                                        onClick = {
+                                            updateDisplaySetting(
+                                                displaySetting.copy(
+                                                    bottomBarIconOrder = moveBottomBarIcon(iconOrder, index, 1)
+                                                )
+                                            )
+                                        },
+                                    ) {
+                                        Icon(
+                                            imageVector = HugeIcons.ArrowDown01,
+                                            contentDescription = stringResource(R.string.setting_display_page_bottom_bar_reorder_down),
+                                        )
+                                    }
+                                }
+                            },
+                        )
+                    }
                 }
             }
 

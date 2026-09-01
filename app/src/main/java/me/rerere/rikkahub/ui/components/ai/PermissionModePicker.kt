@@ -78,22 +78,16 @@ fun PermissionModeButton(
         shape = MaterialTheme.shapes.small,
         color = containerColor,
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        // 仅保留图标、去掉 PLAN/BUILD/YOLO 文字以节省底栏空间；用底色区分非默认模式
+        Box(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = mode.icon(),
-                contentDescription = null,
+                contentDescription = stringResource(mode.labelRes()),
                 tint = contentColor,
-                modifier = Modifier.size(18.dp),
-            )
-            Text(
-                text = stringResource(mode.labelRes()),
-                style = MaterialTheme.typography.labelMedium,
-                color = contentColor,
-                maxLines = 1,
+                modifier = Modifier.size(20.dp),
             )
         }
     }
