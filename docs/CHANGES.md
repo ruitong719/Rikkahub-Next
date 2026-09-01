@@ -1323,3 +1323,40 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
   selection_type=text/single/multi 自动映射为 multiple/custom），历史消息可正常渲染交互
 - **测试**：新增 AskUserToolTest（新格式解析/默认值/旧格式映射/非法输入兜底、
   答案格式化字符串·多选 join·Unanswered·失败兜底）
+
+## AI. 聊天底栏图标按需显示与自定义排序（2026-09-01）
+
+- **按需显示**：todo 图标仅在本对话用过 todowrite 或待办列表非空时显示；子代理图标仅本对话
+  存在调用记录时显示；后台任务图标维持存在任务才显示（todo/子代理部分由 `0b9cc1c1` 先行落地）
+- **底栏重构**：MODEL 恒为第一位不可移动；其余图标按 `DisplaySetting.bottomBarIconOrder` 顺序
+  渲染（新增 `BottomBarIcon` 枚举），每个图标按「偏好开关关闭时无条件隐藏 + 能力/使用条件」自判显隐。
+  权限模式按钮删除 PLAN/BUILD/YOLO 文字仅保留图标（用底色区分非默认模式），节省底栏空间
+- **设置**：「界面偏好 → 底栏图标」新增后台任务图标开关与图标顺序自定义（上下移按钮，
+  模型选择固定首位不可移动）；排序列表归一化兜底，脏数据不会丢图标
+- **数据兼容**：新增字段均带默认值，旧设置 JSON 无需迁移
+
+## AJ. read 工具展示优化（2026-09-01）
+
+- **目录专用 UI**：读取目录时解析输出 entries 展示条目列表（文件夹/文件图标、条目数、
+  截断提示、空目录提示），不再回退到通用 JSON 兜底渲染
+- **文件内容去行号**：UI 展示剥离 `N: ` 行号前缀，`(Showing lines…)`/`(End of file…)`
+  提示保留；**仅 UI 层处理，read 返回给模型的内容不变**
+- **预览强制关闭行号槽**：`HighlightCodeBlock` 新增 `showLineNumbers` 覆盖参数（null 跟随设置），
+  read 预览传 false——剥离前缀后槽位行号已对不上文件真实行号
+
+## AK. 流式 thinking/长回复渲染性能与自动滚动修复（2026-09-01）
+
+- **Markdown 解析**：`snapshotFlow + conflate + map + flowOn(Default)` 节流——解析期间只保留
+  最新内容，消除 per-chunk 全量解析与 mapLatest 取消重启（旧实现累计 CPU 近似 O(n²)）；
+  AST 统一后台生成，首个组合不再主线程同步解析长文本，首帧未就绪时纯文本兜底；
+  段落改按自身文本 key 缓存 AnnotatedString，流式下未变化段落跳过重建
+- **代码块**：流式未闭合 fences（`completeCodeBlock=false`）不高亮、直接等宽文本，
+  闭合后恢复语法高亮；代码块内部移除 `animateContentSize`，消除流式期间抽搐
+- **thinking 卡片**：流式期间禁用尺寸动画（`ChainOfThought` 新增 `animateSize`，默认 true，
+  其余调用点不受影响）；预览贴底改即时滚动（动画滚动被每帧高度变化反复打断）；
+  时长计时 50ms→250ms 降低无谓重组；`extractThinkingTitle` 改单次正则扫描
+  （原 `lines()` 全量切分 + 逐行正则，流式下每 chunk 都调用）
+- **消息列表自动滚动**：贴底滚动按最后一条可见条目高度计算 `scrollOffset` 底部对齐，
+  修复最后一条高于视口时（长 thinking/大代码块）默认 scrollOffset=0 把顶部钉在视口顶、
+  视口卡在中部、内容覆盖式输出到底部、底部抽搐的问题；
+  贴底闩锁 / 用户拖拽解除 / 回到底部重新闩上语义保持不变
