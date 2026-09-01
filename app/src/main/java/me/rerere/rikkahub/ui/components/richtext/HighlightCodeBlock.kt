@@ -194,6 +194,7 @@ fun HighlightCodeBlock(
                                 language = language,
                                 textStyle = textStyle,
                                 colorPalette = colorPalette,
+                                highlight = completeCodeBlock,
                             )
                         }
                         else -> {
@@ -206,6 +207,7 @@ fun HighlightCodeBlock(
                                 autoWrap = autoWrap,
                                 showLineNumbers = showLineNumbers,
                                 scrollState = scrollState,
+                                highlight = completeCodeBlock,
                             )
                         }
                     }
@@ -257,6 +259,7 @@ private fun CodeBlockWithLineNumbersWrapped(
     language: String,
     textStyle: TextStyle,
     colorPalette: HighlightTextColorPalette,
+    highlight: Boolean,
 ) {
     val lineNumberWidth = remember(displayLines.size) {
         displayLines.size.toString().length
@@ -276,17 +279,28 @@ private fun CodeBlockWithLineNumbersWrapped(
                         softWrap = false,
                         modifier = Modifier.padding(end = 8.dp)
                     )
-                    CodeHighlightText(
-                        code = line,
-                        language = language,
-                        fontSize = textStyle.fontSize,
-                        lineHeight = textStyle.lineHeight,
-                        colors = colorPalette,
-                        overflow = TextOverflow.Visible,
-                        softWrap = true,
-                        fontFamily = JetbrainsMono,
-                        modifier = Modifier.weight(1f)
-                    )
+                    if (highlight) {
+                        CodeHighlightText(
+                            code = line,
+                            language = language,
+                            fontSize = textStyle.fontSize,
+                            lineHeight = textStyle.lineHeight,
+                            colors = colorPalette,
+                            overflow = TextOverflow.Visible,
+                            softWrap = true,
+                            fontFamily = JetbrainsMono,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Text(
+                            text = line,
+                            fontSize = textStyle.fontSize,
+                            lineHeight = textStyle.lineHeight,
+                            fontFamily = JetbrainsMono,
+                            softWrap = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
@@ -303,6 +317,7 @@ private fun CodeBlockDefault(
     autoWrap: Boolean,
     showLineNumbers: Boolean,
     scrollState: ScrollState,
+    highlight: Boolean,
 ) {
     Row(
         modifier = Modifier.then(
@@ -334,19 +349,30 @@ private fun CodeBlockDefault(
             }
         }
 
-        // 代码列
+        // 代码列：流式未闭合代码块（highlight=false）不跑高亮引擎，
+        // 直接渲染等宽文本，避免每 chunk 全量高亮；同时去掉尺寸动画避免流式期间抽搐。
         SelectionContainer {
-            CodeHighlightText(
-                code = displayCode,
-                language = language,
-                modifier = Modifier.animateContentSize(),
-                fontSize = textStyle.fontSize,
-                lineHeight = textStyle.lineHeight,
-                colors = colorPalette,
-                overflow = TextOverflow.Visible,
-                softWrap = autoWrap,
-                fontFamily = JetbrainsMono
-            )
+            if (highlight) {
+                CodeHighlightText(
+                    code = displayCode,
+                    language = language,
+                    modifier = Modifier,
+                    fontSize = textStyle.fontSize,
+                    lineHeight = textStyle.lineHeight,
+                    colors = colorPalette,
+                    overflow = TextOverflow.Visible,
+                    softWrap = autoWrap,
+                    fontFamily = JetbrainsMono
+                )
+            } else {
+                Text(
+                    text = displayCode,
+                    modifier = Modifier,
+                    fontSize = textStyle.fontSize,
+                    lineHeight = textStyle.lineHeight,
+                    fontFamily = JetbrainsMono,
+                )
+            }
         }
     }
 }

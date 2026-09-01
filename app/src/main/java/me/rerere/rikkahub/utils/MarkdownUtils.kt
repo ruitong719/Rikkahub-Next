@@ -32,23 +32,13 @@ fun String.stripMarkdown(): String {
         .trim()
 }
 
+/** 整行加粗标题：`**标题**` 独占一行（允许行尾空白） */
+private val THINKING_TITLE_REGEX = Regex("""(?m)^\*\*(.+?)\*\*\s*$""")
+
 fun String.extractThinkingTitle(): String? {
-    // 按行分割文本
-    val lines = this.lines()
-
-    // 从后往前查找最后一个符合条件的加粗文本行
-    for (i in lines.indices.reversed()) {
-        val line = lines[i].trim()
-
-        // 检查是否为加粗格式且独占一整行
-        val boldPattern = Regex("^\\*\\*(.+?)\\*\\*$")
-        val match = boldPattern.find(line)
-
-        if (match != null) {
-            // 返回加粗标记内的文本内容
-            return match.groupValues[1].trim().takeUnless { it.isBlank() }
-        }
-    }
-
-    return null
+    // 单次整串扫描取最后一个整行加粗标题。
+    // 流式下每个 chunk 都会调用此函数，避免 lines() 全量切分 + 逐行正则的分配开销。
+    return THINKING_TITLE_REGEX.findAll(this).lastOrNull()
+        ?.groupValues?.get(1)?.trim()
+        ?.takeUnless { it.isBlank() }
 }

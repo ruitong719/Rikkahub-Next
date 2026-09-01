@@ -292,7 +292,16 @@ private fun ChatListNormal(
                         stickToBottom = true
                     }
                     if (!state.isScrollInProgress && loadingState && stickToBottom) {
-                        state.requestScrollToItem(conversationUpdated.messageNodes.lastIndex + 10)
+                        // 贴底定位必须把"最后一条的底边"对齐视口底部：默认 scrollOffset=0
+                        // 会把最后一条的顶部钉在视口顶部，最后一条高于视口（长 thinking/
+                        // 大代码块）时视口就卡在中部，内容呈"覆盖式"向下输出。
+                        val layout = state.layoutInfo
+                        val lastItemSize = layout.visibleItemsInfo.lastOrNull()?.size ?: 0
+                        val scrollOffset = (lastItemSize - layout.viewportSize.height).coerceAtLeast(0)
+                        state.requestScrollToItem(
+                            conversationUpdated.messageNodes.lastIndex,
+                            scrollOffset = scrollOffset,
+                        )
                         // Log.i(TAG, "ChatList: scroll to ${conversationUpdated.messageNodes.lastIndex}")
                     }
                 }

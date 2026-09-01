@@ -117,7 +117,8 @@ private fun rememberReasoningState(reasoning: UIMessagePart.Reasoning): Pair<Rea
         snapshotFlow { scrollState.maxValue }
             .distinctUntilChanged()
             .collect { max ->
-                if (max > 0) scrollState.animateScrollTo(max)
+                // 流式期间用即时滚动跟随：动画滚动会被每帧高度变化反复打断，产生底部抽搐
+                if (max > 0) scrollState.scrollTo(max)
             }
     }
 
@@ -125,7 +126,7 @@ private fun rememberReasoningState(reasoning: UIMessagePart.Reasoning): Pair<Rea
         if (loading) {
             while (isActive) {
                 state.duration = (reasoning.finishedAt ?: Clock.System.now()) - reasoning.createdAt
-                delay(50)
+                delay(250)
             }
         }
     }
