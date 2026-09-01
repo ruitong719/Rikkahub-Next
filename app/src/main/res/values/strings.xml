@@ -1285,6 +1285,9 @@
   <string name="tool_ui_edit_file_default">Edit file</string>
   <string name="tool_ui_read_file">Read: %s</string>
   <string name="tool_ui_read_file_default">Read file</string>
+  <string name="tool_ui_read_directory_count">Directory · %1$d entries</string>
+  <string name="tool_ui_read_directory_count_truncated">Directory · %1$d+ entries (truncated)</string>
+  <string name="tool_ui_read_directory_empty">Empty directory</string>
   <string name="tool_ui_todowrite_default">Todo list</string>
   <string name="tool_ui_todowrite_progress">Todo list · %1$d/%2$d done</string>
   <string name="tool_ui_bgt_start">Background task · %s</string>

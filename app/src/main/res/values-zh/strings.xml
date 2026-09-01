@@ -1215,6 +1215,9 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="tool_ui_edit_file_default">编辑文件</string>
   <string name="tool_ui_read_file">读取: %s</string>
   <string name="tool_ui_read_file_default">读取文件</string>
+  <string name="tool_ui_read_directory_count">目录 · %1$d 个条目</string>
+  <string name="tool_ui_read_directory_count_truncated">目录 · %1$d+ 个条目（已截断）</string>
+  <string name="tool_ui_read_directory_empty">空目录</string>
   <string name="tool_ui_todowrite_default">任务清单</string>
   <string name="tool_ui_todowrite_progress">任务清单 · 已完成 %1$d/%2$d</string>
   <string name="tool_ui_bgt_start">后台任务 · %s</string>

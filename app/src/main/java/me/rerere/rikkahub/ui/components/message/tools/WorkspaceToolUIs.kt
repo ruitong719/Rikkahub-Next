@@ -9,8 +9,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,22 +27,27 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 import me.rerere.ai.ui.DiffMetadata
 import me.rerere.ai.ui.metadataAs
+import me.rerere.common.http.jsonArrayOrNull
 import me.rerere.common.http.jsonObjectOrNull
 import me.rerere.highlight.CodeHighlightText
 import androidx.compose.ui.res.stringResource
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.ComputerTerminal01
+import me.rerere.hugeicons.stroke.File02
 import me.rerere.hugeicons.stroke.FileAdd
 import me.rerere.hugeicons.stroke.FileEdit
 import me.rerere.hugeicons.stroke.FileView
+import me.rerere.hugeicons.stroke.Folder01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.richtext.DiffAddedColor
 import me.rerere.rikkahub.ui.components.richtext.DiffRemovedColor
@@ -160,7 +169,9 @@ object EditFileToolUI : ToolUIRenderer {
 }
 
 /**
- * 工作空间读取文件: 摘要显示内容首部预览, 详情为带语法高亮的完整内容
+ * 工作空间读取: 文件摘要显示内容首部预览、详情为带语法高亮的完整内容;
+ * 目录则展示条目列表（文件夹/文件图标），不再回退到 JSON 兜底渲染。
+ * 注意: 以上仅影响 UI 展示，read 工具返回给模型的内容保持不变。
  */
 object ReadFileToolUI : ToolUIRenderer {
     override val toolName: String = "read"
@@ -173,15 +184,43 @@ object ReadFileToolUI : ToolUIRenderer {
         return if (path != null) stringResource(R.string.tool_ui_read_file, path) else stringResource(R.string.tool_ui_read_file_default)
     }
 
-    /** 已执行时从输出 JSON 读取文件内容（对齐 opencode 后输出字段为 content，带行号前缀） */
+    /** 已执行时从输出 JSON 读取文件内容（输出字段为 content，带行号前缀） */
     private fun textOf(context: ToolUIContext): String? =
         context.content.getStringContent("content")
 
-    override fun hasSummary(context: ToolUIContext): Boolean = textOf(context) != null
+    /** 展示用文件内容：去掉 `N: ` 行号前缀。仅 UI 层剥离，模型侧输出不变。 */
+    private fun displayTextOf(context: ToolUIContext): String? {
+        val text = textOf(context) ?: return null
+        return text.replace(LINE_NUMBER_PREFIX, "")
+    }
+
+    /** 已执行且输出为目录时解析条目信息，否则返回 null */
+    private fun directoryOf(context: ToolUIContext): DirectoryInfo? {
+        val content = context.content ?: return null
+        val obj = content.jsonObjectOrNull ?: return null
+        if (obj.getStringContent("type") != "directory") return null
+        val entries = obj.get("entries")?.jsonArrayOrNull
+            ?.mapNotNull { (it as? JsonPrimitive)?.content }
+            ?: emptyList()
+        val totalEntries = obj.getStringContent("totalEntries")?.toIntOrNull() ?: entries.size
+        val truncated = obj.getStringContent("truncated")?.toBooleanStrictOrNull() ?: false
+        return DirectoryInfo(entries = entries, totalEntries = totalEntries, truncated = truncated)
+    }
+
+    override fun hasSummary(context: ToolUIContext): Boolean =
+        displayTextOf(context) != null || directoryOf(context) != null
 
     @Composable
     override fun Summary(context: ToolUIContext) {
-        val text = remember(context) { textOf(context) } ?: return
+        val directory = remember(context) { directoryOf(context) }
+        if (directory != null) {
+            DirectorySummary(
+                info = directory,
+                loading = context.loading,
+            )
+            return
+        }
+        val text = remember(context) { displayTextOf(context) } ?: return
         FileContentSummary(
             text = text,
             path = context.arguments.getStringContent("path"),
@@ -191,12 +230,141 @@ object ReadFileToolUI : ToolUIRenderer {
 
     @Composable
     override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
-        val text = remember(context) { textOf(context) }
+        val directory = remember(context) { directoryOf(context) }
+        if (directory != null) {
+            DirectoryPreview(
+                context = context,
+                info = directory,
+            )
+            return
+        }
+        val text = remember(context) { displayTextOf(context) }
         if (text == null) {
             DefaultToolPreview(context = context)
             return
         }
         FileContentPreview(path = context.arguments.getStringContent("path"), code = text)
+    }
+}
+
+/** read 工具输出为目录时的解析结果（entries 中目录项以 `/` 结尾） */
+private data class DirectoryInfo(
+    val entries: List<String>,
+    val totalEntries: Int,
+    val truncated: Boolean,
+)
+
+private const val DIRECTORY_SUMMARY_MAX_ENTRIES = 8
+
+/** `N: ` 行号前缀（read 工具输出的行号引用格式，仅 UI 展示时剥离） */
+private val LINE_NUMBER_PREFIX = Regex("""^\d+: """, RegexOption.MULTILINE)
+
+/** 目录内联摘要：条目数 + 前若干条目（文件夹/文件图标） */
+@Composable
+private fun DirectorySummary(info: DirectoryInfo, loading: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .shimmer(isLoading = loading),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            DirectoryEntryCountLine(info)
+            info.entries.take(DIRECTORY_SUMMARY_MAX_ENTRIES).forEach { entry ->
+                DirectoryEntryRow(
+                    entry = entry,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                )
+            }
+        }
+    }
+}
+
+/** 目录详情（BottomSheet）：路径 + 条目数 + 可滚动条目列表 */
+@Composable
+private fun DirectoryPreview(context: ToolUIContext, info: DirectoryInfo) {
+    Column(
+        modifier = Modifier
+            .fillMaxHeight(0.8f)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = context.arguments.getStringContent("path") ?: stringResource(R.string.tool_ui_file),
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        DirectoryEntryCountLine(info)
+        if (info.entries.isEmpty()) {
+            Text(
+                text = stringResource(R.string.tool_ui_read_directory_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                items(info.entries) { entry ->
+                    DirectoryEntryRow(
+                        entry = entry,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 条目数（截断时提示 +） */
+@Composable
+private fun DirectoryEntryCountLine(info: DirectoryInfo) {
+    Text(
+        text = stringResource(
+            if (info.truncated) R.string.tool_ui_read_directory_count_truncated
+            else R.string.tool_ui_read_directory_count,
+            info.totalEntries,
+        ),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/** 单条目录项：文件夹/文件图标 + 名称 */
+@Composable
+private fun DirectoryEntryRow(entry: String, fontSize: TextUnit, lineHeight: TextUnit) {
+    val isDirectory = entry.endsWith("/")
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            imageVector = if (isDirectory) HugeIcons.Folder01 else HugeIcons.File02,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = if (isDirectory) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+        Text(
+            text = entry,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            fontSize = fontSize,
+            lineHeight = lineHeight,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
