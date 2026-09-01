@@ -94,6 +94,8 @@ fun HighlightCodeBlock(
         fontSize = 12.sp,
         lineHeight = 16.sp,
     ),
+    /** 显式覆盖行号槽开关；null 时跟随设置「显示行号」 */
+    showLineNumbers: Boolean? = null,
 ) {
     val darkMode = LocalDarkMode.current
     val colorPalette = if (darkMode) AtomOneDarkPalette else AtomOneLightPalette
@@ -113,7 +115,7 @@ fun HighlightCodeBlock(
         mutableStateOf(!settings.displaySetting.codeBlockAutoCollapse)
     }
     val autoWrap = settings.displaySetting.codeBlockAutoWrap
-    val showLineNumbers = settings.displaySetting.showLineNumbers
+    val showLineNumbers = showLineNumbers ?: settings.displaySetting.showLineNumbers
 
     val createDocumentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("*/*")

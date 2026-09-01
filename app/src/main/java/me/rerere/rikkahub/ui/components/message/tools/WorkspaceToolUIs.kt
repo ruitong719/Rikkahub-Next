@@ -455,6 +455,8 @@ private fun FileContentPreview(path: String?, code: String) {
             code = code,
             language = languageOf(path),
             modifier = Modifier.fillMaxWidth(),
+            // read 展示的内容已剥离行号前缀，行号槽数字对不上文件真实行号，强制关闭
+            showLineNumbers = false,
         )
     }
 }
