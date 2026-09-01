@@ -1354,9 +1354,11 @@ SVG 源码 / 图片 URL / Emoji 三种图标来源。
   闭合后恢复语法高亮；代码块内部移除 `animateContentSize`，消除流式期间抽搐
 - **thinking 卡片**：流式期间禁用尺寸动画（`ChainOfThought` 新增 `animateSize`，默认 true，
   其余调用点不受影响）；预览贴底改即时滚动（动画滚动被每帧高度变化反复打断）；
-  时长计时 50ms→250ms 降低无谓重组；`extractThinkingTitle` 改单次正则扫描
-  （原 `lines()` 全量切分 + 逐行正则，流式下每 chunk 都调用）
-- **消息列表自动滚动**：贴底滚动按最后一条可见条目高度计算 `scrollOffset` 底部对齐，
-  修复最后一条高于视口时（长 thinking/大代码块）默认 scrollOffset=0 把顶部钉在视口顶、
-  视口卡在中部、内容覆盖式输出到底部、底部抽搐的问题；
+  时长计时维持 50ms 刷新（降频会让秒数跳变显得吐字卡顿，故保留原频率）；
+  `extractThinkingTitle` 改单次正则扫描（原 `lines()` 全量切分 + 逐行正则，流式下每 chunk 都调用）
+- **消息列表自动滚动**：贴底跟随改为相对增量——内容增长 Δ 时把滚动位置补上 Δ
+  （`snapshotFlow { maxValue }` + `requestScrollBy`），与条目尺寸/索引解耦：
+  修复默认 scrollOffset=0 把最后一条顶部钉在视口顶（长 thinking/大代码块时视口卡在中部、
+  内容覆盖式输出到底部）与按高度算 scrollOffset 绝对定位受测量时机耦合导致落点偏移的问题；
+  同时规避空消息列表 `lastIndex=-1` 的 `Index should be non-negative` 崩溃。
   贴底闩锁 / 用户拖拽解除 / 回到底部重新闩上语义保持不变

@@ -287,22 +287,28 @@ private fun ChatListNormal(
                         if (interaction is DragInteraction.Start) stickToBottom = false
                     }
                 }
-                snapshotFlow { state.layoutInfo.visibleItemsInfo }.collect { visibleItemsInfo ->
-                    if (visibleItemsInfo.isAtBottom()) {
+                snapshotFlow { state.layoutInfo }.collect { layout ->
+                    if (layout.visibleItemsInfo.isAtBottom()) {
                         stickToBottom = true
                     }
-                    if (!state.isScrollInProgress && loadingState && stickToBottom) {
-                        // 贴底定位必须把"最后一条的底边"对齐视口底部：默认 scrollOffset=0
-                        // 会把最后一条的顶部钉在视口顶部，最后一条高于视口（长 thinking/
-                        // 大代码块）时视口就卡在中部，内容呈"覆盖式"向下输出。
-                        val layout = state.layoutInfo
-                        val lastItemSize = layout.visibleItemsInfo.lastOrNull()?.size ?: 0
-                        val scrollOffset = (lastItemSize - layout.viewportSize.height).coerceAtLeast(0)
-                        state.requestScrollToItem(
-                            conversationUpdated.messageNodes.lastIndex,
-                            scrollOffset = scrollOffset,
-                        )
-                        // Log.i(TAG, "ChatList: scroll to ${conversationUpdated.messageNodes.lastIndex}")
+                    // 贴底跟随：目标 = 内容末尾（最后一条底边 + 底部 padding）- 视口高，
+                    // 目标与当前滚动位置的差值用 scrollBy 相对补齐。
+                    // 对比 scrollToItem 的绝对定位：默认 scrollOffset=0 会把最后一条的顶部
+                    // 钉在视口顶（长消息视口卡在中部、内容覆盖式输出）；按条目高度算
+                    // scrollOffset 又受测量时机/条目选择耦合导致落点偏移。
+                    // 本方案只看当前布局的快照值，短消息与超高最后一条（长 thinking/
+                    // 大代码块）都能正确贴底，且不依赖 lastIndex，天然规避空列表 -1 崩溃。
+                    if (loadingState && stickToBottom && !state.isScrollInProgress) {
+                        val lastInfo = layout.visibleItemsInfo.lastOrNull() ?: return@collect
+                        val bottomPaddingPx = with(density) {
+                            (32.dp + innerPadding.calculateBottomPadding()).toPx()
+                        }
+                        val target = (lastInfo.offset + lastInfo.size + bottomPaddingPx.toInt()) -
+                            layout.viewportSize.height
+                        val delta = target - layout.viewportStartOffset
+                        if (delta > 0) {
+                            state.scrollBy(delta.toFloat())
+                        }
                     }
                 }
             }
