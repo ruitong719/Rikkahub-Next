@@ -121,6 +121,10 @@ private val parser by lazy {
     MarkdownParser(flavour)
 }
 
+// 流式 Markdown 解析的 debounce 间隔：约 90fps，平衡响应速度与解析开销。
+// 可在后续根据设备刷新率或用户反馈动态调整。
+private val STREAMING_DEBOUNCE_TIME = 11.milliseconds
+
 private val INLINE_LATEX_REGEX = Regex("\\\\\\((.+?)\\\\\\)")
 private val BLOCK_LATEX_REGEX = Regex("\\\\\\[(.+?)\\\\\\]", RegexOption.DOT_MATCHES_ALL)
 val THINKING_REGEX = Regex("<think>([\\s\\S]*?)(?:</think>|$)", RegexOption.DOT_MATCHES_ALL)
@@ -238,25 +242,35 @@ fun MarkdownBlock(
     style: TextStyle = LocalTextStyle.current,
     onClickCitation: (String) -> Unit = {}
 ) {
-    // AST 统一在后台生成：既避免首个组合在主线程同步解析长文本（thinking/长回复会卡顿），
-    // 也避免流式期间每 chunk 都在主线程重解析。
-    var (data, setData) = remember { mutableStateOf(parseMarkdown(content)) }
+    // AST 统一在后台生成：避免主线程同步解析长文本（thinking/长回复会卡顿），
+    // 也避免流式期间每 chunk 都在主线程重解析。首帧和后续更新都在后台处理。
+    var (data, setData) = remember { mutableStateOf<MarkdownParseResult?>(null) }
 
     // 监听内容变化，重新解析 AST 树
-    // debounce(11ms) ≈ 90fps：等待 11ms 累积新 chunk 后再处理，保留所有内容不跳跃。
-    // 11ms 延迟约等于一帧刷新间隔，用户几乎感知不到。
+    // debounce 间隔累积新 chunk 后再处理，保留所有内容不跳跃。
     val updatedContent by rememberUpdatedState(content)
     LaunchedEffect(Unit) {
         snapshotFlow { updatedContent }
             .distinctUntilChanged()
-            .debounce(11.milliseconds)
+            .debounce(STREAMING_DEBOUNCE_TIME)
             .map { parseMarkdown(it) }
             .catch { exception -> exception.printStackTrace() }
             .flowOn(Dispatchers.Default)
             .collect { setData(it) }
     }
 
-    if (data.hasHtml) {
+    // AST 未就绪时显示纯文本占位，避免闪烁
+    val parsed = data
+    if (parsed == null) {
+        Text(
+            text = content,
+            style = style,
+            modifier = modifier,
+        )
+        return
+    }
+
+    if (parsed.hasHtml) {
         MarkdownNew(
             content = content,
             modifier = modifier,
@@ -268,9 +282,9 @@ fun MarkdownBlock(
             Column(
                 modifier = modifier.padding(horizontal = 4.dp)
             ) {
-                data.astTree.children.fastForEach { child ->
+                parsed.astTree.children.fastForEach { child ->
                     MarkdownNode(
-                        node = child, content = data.preprocessed, onClickCitation = onClickCitation
+                        node = child, content = parsed.preprocessed, onClickCitation = onClickCitation
                     )
                 }
             }
