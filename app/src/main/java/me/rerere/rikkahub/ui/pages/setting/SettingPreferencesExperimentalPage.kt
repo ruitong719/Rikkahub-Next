@@ -3,7 +3,9 @@ package me.rerere.rikkahub.ui.pages.setting
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -15,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
@@ -98,26 +101,27 @@ fun SettingPreferencesExperimentalPage(vm: SettingVM = koinViewModel()) {
                         supportingContent = {
                             Column {
                                 Text(stringResource(R.string.setting_experimental_streaming_debounce_desc))
-                                Text(
-                                    text = "${settings.displaySetting.streamingDebounceMs}ms",
-                                    modifier = Modifier.padding(top = 4.dp),
-                                )
-                            }
-                        },
-                        trailingContent = {
-                            Slider(
-                                value = settings.displaySetting.streamingDebounceMs.toFloat(),
-                                onValueChange = { value ->
-                                    vm.updateSettings(
-                                        settings.copy(
-                                            displaySetting = settings.displaySetting.copy(streamingDebounceMs = value.toInt())
-                                        )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Slider(
+                                        value = settings.displaySetting.streamingDebounceMs.toFloat(),
+                                        onValueChange = { value ->
+                                            vm.updateSettings(
+                                                settings.copy(
+                                                    displaySetting = settings.displaySetting.copy(streamingDebounceMs = value.toInt())
+                                                )
+                                            )
+                                        },
+                                        valueRange = DEBOUNCE_MIN_MS.toFloat()..DEBOUNCE_MAX_MS.toFloat(),
+                                        steps = (DEBOUNCE_MAX_MS - DEBOUNCE_MIN_MS) / 5 - 1,
+                                        modifier = Modifier.weight(1f)
                                     )
-                                },
-                                valueRange = DEBOUNCE_MIN_MS.toFloat()..DEBOUNCE_MAX_MS.toFloat(),
-                                steps = (DEBOUNCE_MAX_MS - DEBOUNCE_MIN_MS) / 5 - 1,
-                                modifier = Modifier.padding(start = 8.dp),
-                            )
+                                    Text(text = "${settings.displaySetting.streamingDebounceMs}ms")
+                                }
+                            }
                         },
                     )
                 }
