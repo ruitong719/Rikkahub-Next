@@ -83,7 +83,7 @@ import androidx.compose.ui.util.fastForEach
 import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -239,33 +239,24 @@ fun MarkdownBlock(
     onClickCitation: (String) -> Unit = {}
 ) {
     // AST 统一在后台生成：既避免首个组合在主线程同步解析长文本（thinking/长回复会卡顿），
-    // 也避免流式期间每 chunk 都在主线程重解析。首帧 AST 未就绪时先渲染纯文本兜底。
-    var (data, setData) = remember { mutableStateOf<MarkdownParseResult?>(null) }
+    // 也避免流式期间每 chunk 都在主线程重解析。
+    var (data, setData) = remember { mutableStateOf(parseMarkdown(content)) }
 
-    // 监听内容变化，重新解析AST树
-    // conflate 使得解析期间新的内容只保留最新一份：流式更新再频繁，
-    // 也不会为每个 chunk 排入一次全量解析或反复取消重启（mapLatest 的旧问题）。
+    // 监听内容变化，重新解析 AST 树
+    // debounce(11ms) ≈ 90fps：等待 11ms 累积新 chunk 后再处理，保留所有内容不跳跃。
+    // 11ms 延迟约等于一帧刷新间隔，用户几乎感知不到。
     val updatedContent by rememberUpdatedState(content)
     LaunchedEffect(Unit) {
         snapshotFlow { updatedContent }
             .distinctUntilChanged()
-            .conflate()
+            .debounce(11.milliseconds)
             .map { parseMarkdown(it) }
             .catch { exception -> exception.printStackTrace() }
             .flowOn(Dispatchers.Default)
             .collect { setData(it) }
     }
 
-    val parsed = data
-    if (parsed == null) {
-        Text(
-            text = content,
-            style = style,
-            modifier = modifier,
-        )
-        return
-    }
-    if (parsed.hasHtml) {
+    if (data.hasHtml) {
         MarkdownNew(
             content = content,
             modifier = modifier,
@@ -277,9 +268,9 @@ fun MarkdownBlock(
             Column(
                 modifier = modifier.padding(horizontal = 4.dp)
             ) {
-                parsed.astTree.children.fastForEach { child ->
+                data.astTree.children.fastForEach { child ->
                     MarkdownNode(
-                        node = child, content = parsed.preprocessed, onClickCitation = onClickCitation
+                        node = child, content = data.preprocessed, onClickCitation = onClickCitation
                     )
                 }
             }
