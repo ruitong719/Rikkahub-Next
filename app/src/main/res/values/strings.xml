@@ -1457,4 +1457,6 @@
   <string name="setting_provider_page_test_tool_call">Tool Call</string>
   <string name="setting_provider_page_test_tool_called">Called: %1$s  Args: %2$s</string>
   <string name="setting_provider_page_test_tool_not_called">Tool not called, response: %s</string>
+<string name="search_page_scope_current_assistant">Current Assistant</string>
+  <string name="search_page_scope_all_assistants">All Assistants</string>
 </resources>
