@@ -639,8 +639,10 @@
   <string name="setting_display_page_shell_live_output_desc">shell 命令执行中在聊天内实时显示 stdout/stderr 输出</string>
   <string name="setting_experimental_stream_reconnect_title">流式自动重连（实验性）</string>
   <string name="setting_experimental_stream_reconnect_desc">网络波动中断生成时自动重试（最多 4 次，指数退避），重连时以轻提示告知</string>
-  <string name="setting_experimental_streaming_debounce_title">流式渲染延迟</string>
-  <string name="setting_experimental_streaming_debounce_desc">流式渲染的防抖间隔（毫秒）。较小：更流畅但长内容可能卡顿。较大：更跟手但延迟增加。默认：11ms</string>
+  <string name="setting_experimental_streaming_sample_render_title">新渲染方式（实验性）</string>
+  <string name="setting_experimental_streaming_sample_render_desc">使用固定节拍渲染（sample）：高 tps 下内容平滑滚动而非整段跳出。关闭时沿用原有的防抖渲染。默认：关闭</string>
+  <string name="setting_experimental_streaming_render_title">流式渲染频率</string>
+  <string name="setting_experimental_streaming_render_desc">流式内容的渲染帧率（fps）。较低：渲染次数少，长文本更流畅。较高：更跟手但渲染工作量更大。默认：60fps</string>
   <string name="setting_files_page_cancel_action">取消</string>
   <string name="setting_files_page_clean_action">清理</string>
   <string name="setting_files_page_clean_all">全部文件</string>

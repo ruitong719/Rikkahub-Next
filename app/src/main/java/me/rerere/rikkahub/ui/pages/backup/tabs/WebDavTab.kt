@@ -67,7 +67,6 @@ import me.rerere.rikkahub.utils.onError
 import me.rerere.rikkahub.utils.onLoading
 import me.rerere.rikkahub.utils.onSuccess
 import me.rerere.rikkahub.utils.toLocalDateTime
-import java.time.Instant
 
 @Composable
 fun WebDavTab(
@@ -88,14 +87,6 @@ fun WebDavTab(
         vm.updateSettings(settings.copy(webDavConfig = newConfig))
     }
 
-    val lastBackupText = if (settings.backupReminderConfig.lastBackupTime == 0L) {
-        stringResource(R.string.backup_page_reminder_no_record)
-    } else {
-        stringResource(
-            R.string.backup_page_reminder_last_time,
-            Instant.ofEpochMilli(settings.backupReminderConfig.lastBackupTime).toLocalDateTime()
-        )
-    }
     val backupFileSummary = when (val state = backupItemsState) {
         is UiState.Success -> "${stringResource(R.string.backup_page_files)}: ${state.data.size}"
         UiState.Loading -> "${stringResource(R.string.backup_page_files)}: ..."
@@ -117,7 +108,6 @@ fun WebDavTab(
         ) {
             BackupStatusCard(
                 title = stringResource(R.string.backup_page_webdav_backup),
-                lastBackupText = lastBackupText,
                 fileSummaryText = backupFileSummary
             )
 
@@ -410,7 +400,6 @@ fun WebDavTab(
 @Composable
 private fun BackupStatusCard(
     title: String,
-    lastBackupText: String,
     fileSummaryText: String,
 ) {
     CardGroup {
@@ -422,20 +411,11 @@ private fun BackupStatusCard(
                 )
             },
             supportingContent = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(
-                        text = lastBackupText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = fileSummaryText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = fileSummaryText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             },
         )
     }

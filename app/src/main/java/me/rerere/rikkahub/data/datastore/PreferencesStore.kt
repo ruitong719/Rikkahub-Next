@@ -189,9 +189,6 @@ class SettingsStore(
         // 快捷消息
         val QUICK_MESSAGES = stringPreferencesKey("quick_messages")
 
-        // 备份提醒
-        val BACKUP_REMINDER_CONFIG = stringPreferencesKey("backup_reminder_config")
-
         // 统计
         val LAUNCH_COUNT = intPreferencesKey("launch_count")
 
@@ -304,9 +301,6 @@ class SettingsStore(
                 planModePrompt = preferences[PLAN_MODE_PROMPT] ?: DEFAULT_PLAN_MODE_PROMPT,
                 buildModePrompt = preferences[BUILD_MODE_PROMPT] ?: DEFAULT_BUILD_MODE_PROMPT,
                 yoloModePrompt = preferences[YOLO_MODE_PROMPT] ?: DEFAULT_YOLO_MODE_PROMPT,
-                backupReminderConfig = preferences[BACKUP_REMINDER_CONFIG]?.let {
-                    JsonInstant.decodeFromString(it)
-                } ?: BackupReminderConfig(),
                 launchCount = preferences[LAUNCH_COUNT] ?: 0,
                 sponsorAlertDismissedAt = preferences[SPONSOR_ALERT_DISMISSED_AT] ?: 0,
                 floatingBubbleEnabled = preferences[FLOATING_BUBBLE_ENABLED] ?: false,
@@ -497,7 +491,6 @@ class SettingsStore(
             preferences[PLAN_MODE_PROMPT] = settings.planModePrompt
             preferences[BUILD_MODE_PROMPT] = settings.buildModePrompt
             preferences[YOLO_MODE_PROMPT] = settings.yoloModePrompt
-            preferences[BACKUP_REMINDER_CONFIG] = JsonInstant.encodeToString(settings.backupReminderConfig)
             preferences[LAUNCH_COUNT] = settings.launchCount
             preferences[SPONSOR_ALERT_DISMISSED_AT] = settings.sponsorAlertDismissedAt
             preferences[FLOATING_BUBBLE_ENABLED] = settings.floatingBubbleEnabled
@@ -685,7 +678,6 @@ data class Settings(
     val planModePrompt: String = DEFAULT_PLAN_MODE_PROMPT,
     val buildModePrompt: String = DEFAULT_BUILD_MODE_PROMPT,
     val yoloModePrompt: String = DEFAULT_YOLO_MODE_PROMPT,
-    val backupReminderConfig: BackupReminderConfig = BackupReminderConfig(),
     val launchCount: Int = 0,
     val sponsorAlertDismissedAt: Int = 0,
 ) {
@@ -771,8 +763,6 @@ data class DisplaySetting(
     val fontSizeRatio: Float = 1.0f,
     val enableMessageGenerationHapticEffect: Boolean = false,
     val skipCropImage: Boolean = true,
-    val enableNotificationOnMessageGeneration: Boolean = false,
-    val enableLiveUpdateNotification: Boolean = false,
     val codeBlockAutoWrap: Boolean = false,
     val codeBlockAutoCollapse: Boolean = false,
     val showLineNumbers: Boolean = false,
@@ -800,8 +790,11 @@ data class DisplaySetting(
     val bottomBarIconOrder: List<String> = DEFAULT_BOTTOM_BAR_ICON_ORDER,
     // 实验性功能: workspace shell 命令执行中在聊天内实时显示 stdout/stderr（默认关闭）
     val enableShellLiveOutput: Boolean = false,
-    // 实验性功能: 流式渲染 debounce 间隔（ms），越小越流畅但可能卡顿，越大越流畅但延迟增加，默认 16ms（≈60fps）
+    // 实验性功能: 流式渲染间隔（两种渲染方式共用，UI 以帧率 fps 展示）：越小越跟手，
+    // 越大渲染次数越多；长文本建议 30-60fps。默认 16ms（≈60fps 一帧）
     val streamingDebounceMs: Int = 16,
+    // 实验性功能: 启用新渲染方式（sample 固定节拍渲染），高 tps 下内容平滑滚动不跳段；默认关闭
+    val enableStreamingSampleRender: Boolean = false,
 )
 
 /**
@@ -826,13 +819,6 @@ data class WebDavConfig(
         BackupScope.DATABASE,
         BackupScope.ATTACHMENTS,
     ),
-)
-
-@Serializable
-data class BackupReminderConfig(
-    val enabled: Boolean = false,
-    val intervalDays: Int = 7,
-    val lastBackupTime: Long = 0L,
 )
 
 fun Settings.isNotConfigured() = providers.all { it.models.isEmpty() }

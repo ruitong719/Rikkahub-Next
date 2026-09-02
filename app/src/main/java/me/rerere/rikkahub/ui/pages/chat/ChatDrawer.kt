@@ -76,7 +76,6 @@ import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.model.Folder
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.ui.components.ai.AssistantPicker
-import me.rerere.rikkahub.ui.components.ui.BackupReminderCard
 import me.rerere.rikkahub.ui.components.ui.Greeting
 import me.rerere.rikkahub.ui.components.ui.Tooltip
 import me.rerere.rikkahub.ui.components.ui.UIAvatar
@@ -189,11 +188,6 @@ fun ChatDrawerContent(
             if (updateChecksEnabled && !isPlayStore) {
                 UpdateCard(vm)
             }
-
-            BackupReminderCard(
-                settings = settings,
-                onClick = { navController.navigate(Screen.Backup) },
-            )
 
             // 用户头像和昵称自定义区域
             Row(

@@ -456,7 +456,14 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                             )
                         },
                     )
+                }
+            }
 
+            item {
+                CardGroup(
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    title = { Text(stringResource(R.string.setting_display_page_bottom_bar_reorder_title)) },
+                ) {
                     // 底栏图标顺序：模型选择固定首位，其余可上下移动调整
                     item(
                         overlineContent = { Text(stringResource(R.string.setting_display_page_bottom_bar_reorder_over)) },

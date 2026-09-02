@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.roundToInt
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
@@ -30,8 +31,8 @@ import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 import org.koin.androidx.compose.koinViewModel
 
-private const val DEBOUNCE_MIN_MS = 2
-private const val DEBOUNCE_MAX_MS = 100
+private const val FPS_MIN = 10
+private const val FPS_MAX = 120
 
 /**
  * 实验性功能开关集中页（从「常规」页拆出，与主题/通知/常规同级）。
@@ -97,24 +98,41 @@ fun SettingPreferencesExperimentalPage(vm: SettingVM = koinViewModel()) {
                         },
                     )
                     item(
-                        headlineContent = { Text(stringResource(R.string.setting_experimental_streaming_debounce_title)) },
+                        headlineContent = { Text(stringResource(R.string.setting_experimental_streaming_sample_render_title)) },
+                        supportingContent = { Text(stringResource(R.string.setting_experimental_streaming_sample_render_desc)) },
+                        trailingContent = {
+                            Switch(
+                                checked = settings.displaySetting.enableStreamingSampleRender,
+                                onCheckedChange = { checked ->
+                                    vm.updateSettings(
+                                        settings.copy(
+                                            displaySetting = settings.displaySetting.copy(enableStreamingSampleRender = checked)
+                                        )
+                                    )
+                                },
+                            )
+                        },
+                    )
+                    item(
+                        headlineContent = { Text(stringResource(R.string.setting_experimental_streaming_render_title)) },
                         supportingContent = {
                             Column {
-                                Text(stringResource(R.string.setting_experimental_streaming_debounce_desc))
+                                Text(stringResource(R.string.setting_experimental_streaming_render_desc))
                                 OutlinedTextField(
-                                    value = settings.displaySetting.streamingDebounceMs.toString(),
+                                    value = (1000f / settings.displaySetting.streamingDebounceMs).roundToInt().toString(),
                                     onValueChange = { input ->
-                                        val value = input.filter { it.isDigit() }.toIntOrNull()
-                                            ?.coerceIn(DEBOUNCE_MIN_MS, DEBOUNCE_MAX_MS)
-                                        if (value != null) {
+                                        val fps = input.filter { it.isDigit() }.toIntOrNull()
+                                            ?.coerceIn(FPS_MIN, FPS_MAX)
+                                        if (fps != null) {
+                                            val intervalMs = (1000f / fps).roundToInt().coerceIn(2, 100)
                                             vm.updateSettings(
                                                 settings.copy(
-                                                    displaySetting = settings.displaySetting.copy(streamingDebounceMs = value)
+                                                    displaySetting = settings.displaySetting.copy(streamingDebounceMs = intervalMs)
                                                 )
                                             )
                                         }
                                     },
-                                    label = { Text("ms") },
+                                    label = { Text("fps") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     modifier = Modifier.width(100.dp),
                                     singleLine = true,

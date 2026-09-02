@@ -28,14 +28,13 @@ import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.pages.backup.components.BackupDialog
 import me.rerere.rikkahub.ui.pages.backup.tabs.ImportExportTab
-import me.rerere.rikkahub.ui.pages.backup.tabs.ReminderTab
 import me.rerere.rikkahub.ui.pages.backup.tabs.WebDavTab
 import me.rerere.rikkahub.ui.theme.CustomColors
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun BackupPage(vm: BackupVM = koinViewModel()) {
-    val pagerState = rememberPagerState { 3 }
+    val pagerState = rememberPagerState { 2 }
     val scope = rememberCoroutineScope()
     var showRestartDialog by remember { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -76,11 +75,6 @@ fun BackupPage(vm: BackupVM = koinViewModel()) {
                     onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
                     text = { Text(stringResource(R.string.backup_page_webdav_backup)) }
                 )
-                Tab(
-                    selected = pagerState.currentPage == 2,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(2) } },
-                    text = { Text(stringResource(R.string.backup_page_reminder)) }
-                )
             }
 
             HorizontalPager(
@@ -102,10 +96,6 @@ fun BackupPage(vm: BackupVM = koinViewModel()) {
                             vm = vm,
                             onShowRestartDialog = { showRestartDialog = true }
                         )
-                    }
-
-                    2 -> {
-                        ReminderTab(vm = vm)
                     }
                 }
             }

@@ -78,7 +78,6 @@ class BackupVM(
 
     suspend fun backup() {
         webDavSync.backup(settings.value.webDavConfig)
-        recordBackupTime()
     }
 
     suspend fun restore(item: WebDavBackupItem) {
@@ -93,7 +92,6 @@ class BackupVM(
         val file = webDavSync.prepareBackupFile(
             settings.value.webDavConfig.copy(items = localBackupItems.value)
         )
-        recordBackupTime()
         return file
     }
 
@@ -180,16 +178,6 @@ class BackupVM(
                 providers = importProviders + settings.value.providers,
             )
         )
-    }
-
-    private suspend fun recordBackupTime() {
-        settingsStore.update { settings ->
-            settings.copy(
-                backupReminderConfig = settings.backupReminderConfig.copy(
-                    lastBackupTime = System.currentTimeMillis()
-                )
-            )
-        }
     }
 }
 

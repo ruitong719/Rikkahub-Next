@@ -23,6 +23,9 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -41,6 +44,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.hugeicons.stroke.Edit03
 import me.rerere.hugeicons.stroke.Eraser
 import androidx.compose.ui.res.stringResource
@@ -61,8 +65,13 @@ import me.rerere.rikkahub.ui.components.ui.IconSourceImage
 import me.rerere.rikkahub.ui.hooks.rememberSharedPreferenceBoolean
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
+import me.rerere.rikkahub.utils.toLocalDateTime
 import org.koin.androidx.compose.koinViewModel
 import java.io.File
+import java.time.Instant
+
+private val UPDATE_PAUSE_DAY_OPTIONS = listOf(7, 14, 21)
+private const val MILLIS_PER_DAY = 24 * 60 * 60 * 1_000L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,12 +79,31 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     var displaySetting by remember(settings) { mutableStateOf(settings.displaySetting) }
 
+    var showUpdatePauseDialog by remember { mutableStateOf(false) }
+    var selectedUpdatePauseDays by remember { mutableStateOf(UPDATE_PAUSE_DAY_OPTIONS.first()) }
+
     fun updateDisplaySetting(setting: DisplaySetting) {
         displaySetting = setting
         vm.updateSettings(settings.copy(displaySetting = setting))
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val updateChecksEnabled =
+        displaySetting.updateCheckDisabledUntilEpochMillis <= System.currentTimeMillis()
+
+    // 关闭自动检查时"暂停更新"项置灰（CardGroup 的 item 工厂不是 composable，颜色需在此计算）
+    val pausedItemColors = if (displaySetting.disableUpdateCheck) {
+        ListItemDefaults.colors(
+            containerColor = Color.Transparent,
+            headlineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            supportingColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            trailingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            overlineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            leadingIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+        )
+    } else {
+        null
+    }
 
     Scaffold(
         topBar = {
@@ -98,6 +126,57 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
             contentPadding = contentPadding + PaddingValues(8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item {
+                CardGroup(
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                ) {
+                    item(
+                        headlineContent = { Text(stringResource(R.string.setting_update_check_disabled_title)) },
+                        supportingContent = { Text(stringResource(R.string.setting_update_check_disabled_desc)) },
+                        trailingContent = {
+                            Switch(
+                                checked = displaySetting.disableUpdateCheck,
+                                onCheckedChange = {
+                                    updateDisplaySetting(displaySetting.copy(disableUpdateCheck = it))
+                                }
+                            )
+                        },
+                    )
+                    // 暂停更新：永久关闭时置灰不可用（disableUpdateCheck 优先于暂停时长）
+                    item(
+                        onClick = if (displaySetting.disableUpdateCheck) {
+                            null
+                        } else {
+                            {
+                                selectedUpdatePauseDays = UPDATE_PAUSE_DAY_OPTIONS.first()
+                                showUpdatePauseDialog = true
+                            }
+                        },
+                        colors = pausedItemColors,
+                        headlineContent = { Text(stringResource(R.string.setting_display_page_show_updates_title)) },
+                        supportingContent = {
+                            Text(
+                                when {
+                                    displaySetting.disableUpdateCheck ->
+                                        stringResource(R.string.setting_update_check_disabled_state)
+                                    updateChecksEnabled ->
+                                        stringResource(R.string.setting_update_reminder_enabled)
+                                    else ->
+                                        stringResource(
+                                            R.string.setting_update_reminder_paused_until,
+                                            Instant.ofEpochMilli(displaySetting.updateCheckDisabledUntilEpochMillis)
+                                                .toLocalDateTime(),
+                                        )
+                                }
+                            )
+                        },
+                        trailingContent = {
+                            Icon(HugeIcons.ArrowRight01, contentDescription = null)
+                        },
+                    )
+                }
+            }
+
             item {
                 var createNewConversationOnStart by rememberSharedPreferenceBoolean(
                     "create_new_conversation_on_start",
@@ -605,6 +684,67 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
                 }
             }
         }
+    }
+
+    if (showUpdatePauseDialog) {
+        AlertDialog(
+            onDismissRequest = { showUpdatePauseDialog = false },
+            title = { Text(stringResource(R.string.setting_update_reminder_pause_title)) },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(stringResource(R.string.setting_update_reminder_pause_description))
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        UPDATE_PAUSE_DAY_OPTIONS.forEachIndexed { index, days ->
+                            SegmentedButton(
+                                selected = selectedUpdatePauseDays == days,
+                                onClick = { selectedUpdatePauseDays = days },
+                                shape = SegmentedButtonDefaults.itemShape(
+                                    index = index,
+                                    count = UPDATE_PAUSE_DAY_OPTIONS.size,
+                                ),
+                            ) {
+                                Text(stringResource(R.string.setting_update_reminder_pause_days, days))
+                            }
+                        }
+                    }
+                    if (!updateChecksEnabled) {
+                        TextButton(
+                            onClick = {
+                                updateDisplaySetting(
+                                    displaySetting.copy(updateCheckDisabledUntilEpochMillis = 0L)
+                                )
+                                showUpdatePauseDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.setting_update_reminder_resume_now))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        updateDisplaySetting(
+                            displaySetting.copy(
+                                updateCheckDisabledUntilEpochMillis =
+                                    System.currentTimeMillis() + selectedUpdatePauseDays * MILLIS_PER_DAY,
+                            )
+                        )
+                        showUpdatePauseDialog = false
+                    }
+                ) {
+                    Text(stringResource(R.string.confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUpdatePauseDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 }
 

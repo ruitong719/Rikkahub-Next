@@ -87,6 +87,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -247,17 +248,25 @@ fun MarkdownBlock(
     // 也避免流式期间每 chunk 都在主线程重解析。首帧和后续更新都在后台处理。
     var (data, setData) = remember { mutableStateOf<MarkdownParseResult?>(null) }
 
-    // 从设置读取 debounce 间隔，可由用户在实验性功能中调节（5-50ms）
-    val debounceMs = LocalSettings.current.displaySetting.streamingDebounceMs
+    // 从设置读取流式渲染配置：由用户在实验性功能中调节。
+    // enableStreamingSampleRender 开启时用 sample（固定节拍渲染，高 tps 平滑）；
+    // 关闭时用 debounce（等停顿后渲染，保留原有行为）。
+    val useSampleRender = LocalSettings.current.displaySetting.enableStreamingSampleRender
+    val intervalMs = LocalSettings.current.displaySetting.streamingDebounceMs
 
     // 监听内容变化，重新解析 AST 树
-    // debounce 间隔累积新 chunk 后再处理，保留所有内容不跳跃。
-    // key 包含 debounceMs：用户调节设置后协程重启以应用新间隔。
+    // key 包含渲染开关与间隔：用户调节设置后协程重启以应用新配置。
     val updatedContent by rememberUpdatedState(content)
-    LaunchedEffect(debounceMs) {
+    LaunchedEffect(useSampleRender, intervalMs) {
         snapshotFlow { updatedContent }
             .distinctUntilChanged()
-            .debounce(debounceMs.milliseconds)
+            .let { flow ->
+                if (useSampleRender) {
+                    flow.sample(intervalMs.milliseconds)
+                } else {
+                    flow.debounce(intervalMs.milliseconds)
+                }
+            }
             .map { parseMarkdown(it) }
             .catch { exception -> exception.printStackTrace() }
             .flowOn(Dispatchers.Default)
