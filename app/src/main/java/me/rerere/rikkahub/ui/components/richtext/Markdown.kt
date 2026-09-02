@@ -122,7 +122,7 @@ private val parser by lazy {
     MarkdownParser(flavour)
 }
 
-// 流式 Markdown 解析的 debounce 间隔：默认 11ms（约 90fps 的一帧间隔），
+// 流式 Markdown 解析的 debounce 间隔：默认 16ms（约 60fps 的一帧间隔），
 // 可由用户在「设置 → 偏好设置 → 实验性功能」中调节（5-50ms）。
 
 private val INLINE_LATEX_REGEX = Regex("\\\\\\((.+?)\\\\\\)")
