@@ -177,25 +177,39 @@ if (parsed == null) {
 }
 ```
 
-### 改动 3：常量提取
+### 改动 3：debounce 间隔改为可配置
+
+将硬编码的 `11.milliseconds` 提取为设置项 `streamingDebounceMs`（默认 11，范围 5-50ms），
+用户可在「设置 → 偏好设置 → 实验性功能」中通过滑块调节：
 
 ```kotlin
-// 新增常量，便于 A/B 测试和配置
-private val STREAMING_DEBOUNCE_TIME = 11.milliseconds
+// PreferencesStore.kt - DisplaySetting 新增字段
+// 实验性功能: 流式渲染 debounce 间隔（ms），默认 11ms
+val streamingDebounceMs: Int = 11,
+
+// Markdown.kt - 从设置读取，LaunchedEffect key 包含 debounceMs
+// 用户调节设置后协程重启以应用新间隔
+val debounceMs = LocalSettings.current.displaySetting.streamingDebounceMs
+LaunchedEffect(debounceMs) {
+    snapshotFlow { updatedContent }
+        .distinctUntilChanged()
+        .debounce(debounceMs.milliseconds)
+        .map { parseMarkdown(it) }
+        .catch { exception -> exception.printStackTrace() }
+        .flowOn(Dispatchers.Default)
+        .collect { setData(it) }
+}
 ```
 
-### 改动 4：保留纯文本占位
+### 改动 4：保留纯文本占位（首帧后台处理）
 
 ```kotlin
-// 修改后保留纯文本占位，但首帧也在后台处理
-// 用户感知到的是"内容逐渐出现"而非"格式跳变"
+// AST 未就绪时显示纯文本占位，避免闪烁
+// 用户看到的是"内容逐渐出现"而非"格式跳变"
 if (parsed == null) {
-    Text(text = content)  // 无格式，但这是正常的首帧占位
+    Text(text = content)
     return
 }
-
-// 修改后
-// 直接使用 data，无 null 检查
 ```
 
 ---
@@ -247,6 +261,13 @@ if (parsed == null) {
 - **首帧也在后台处理**：避免主线程同步解析长文本导致的卡顿或掉帧
 - **纯文本占位过渡**：用户看到的是"内容逐渐出现"而非"格式跳变"
 - **无感知差异**：用户无法区分"正在渲染"还是"等待首字"，延迟感自然
+
+### debounce 间隔可配置化
+
+- 默认 11ms，范围 5-50ms，滑块步进 5ms
+- 位于「设置 → 偏好设置 → 实验性功能」
+- 60Hz 设备可调低、长 thinking 场景可调高，用户按需权衡延迟与流畅度
+- `LaunchedEffect` 的 key 包含 `debounceMs`：设置变化时协程重启，立即生效
 
 ---
 

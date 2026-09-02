@@ -1,14 +1,15 @@
 package me.rerere.rikkahub.ui.pages.setting
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LargeFlexibleTopAppBar
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -25,6 +26,9 @@ import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.theme.CustomColors
 import me.rerere.rikkahub.utils.plus
 import org.koin.androidx.compose.koinViewModel
+
+private const val DEBOUNCE_MIN_MS = 5
+private const val DEBOUNCE_MAX_MS = 50
 
 /**
  * 实验性功能开关集中页（从「常规」页拆出，与主题/通知/常规同级）。
@@ -86,6 +90,33 @@ fun SettingPreferencesExperimentalPage(vm: SettingVM = koinViewModel()) {
                                         )
                                     )
                                 },
+                            )
+                        },
+                    )
+                    item(
+                        headlineContent = { Text(stringResource(R.string.setting_experimental_streaming_debounce_title)) },
+                        supportingContent = {
+                            Column {
+                                Text(stringResource(R.string.setting_experimental_streaming_debounce_desc))
+                                Text(
+                                    text = "${settings.displaySetting.streamingDebounceMs}ms",
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
+                            }
+                        },
+                        trailingContent = {
+                            Slider(
+                                value = settings.displaySetting.streamingDebounceMs.toFloat(),
+                                onValueChange = { value ->
+                                    vm.updateSettings(
+                                        settings.copy(
+                                            displaySetting = settings.displaySetting.copy(streamingDebounceMs = value.toInt())
+                                        )
+                                    )
+                                },
+                                valueRange = DEBOUNCE_MIN_MS.toFloat()..DEBOUNCE_MAX_MS.toFloat(),
+                                steps = (DEBOUNCE_MAX_MS - DEBOUNCE_MIN_MS) / 5 - 1,
+                                modifier = Modifier.padding(start = 8.dp),
                             )
                         },
                     )

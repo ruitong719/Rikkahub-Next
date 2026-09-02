@@ -685,6 +685,8 @@
   <string name="setting_display_page_shell_live_output_desc">Stream workspace shell stdout/stderr in chat while commands run</string>
   <string name="setting_experimental_stream_reconnect_title">Stream Auto Reconnect (Experimental)</string>
   <string name="setting_experimental_stream_reconnect_desc">Automatically retry generation interrupted by network issues (up to 4 times, exponential backoff); a light notice shows on reconnect</string>
+  <string name="setting_experimental_streaming_debounce_title">Streaming Render Delay</string>
+  <string name="setting_experimental_streaming_debounce_desc">Debounce interval for streaming render (ms). Lower: smoother but may lag on long content. Higher: more responsive but longer delay. Default: 11ms</string>
   <string name="setting_files_page_cancel_action">Cancel</string>
   <string name="setting_files_page_clean_action">Clean</string>
   <string name="setting_files_page_clean_all">All files</string>

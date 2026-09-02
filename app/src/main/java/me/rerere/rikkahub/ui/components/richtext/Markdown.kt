@@ -110,6 +110,7 @@ import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.flavours.gfm.GFMTokenTypes
 import org.intellij.markdown.parser.MarkdownParser
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
 
 private val flavour by lazy {
     GFMFlavourDescriptor(
@@ -121,9 +122,8 @@ private val parser by lazy {
     MarkdownParser(flavour)
 }
 
-// 流式 Markdown 解析的 debounce 间隔：约 90fps，平衡响应速度与解析开销。
-// 可在后续根据设备刷新率或用户反馈动态调整。
-private val STREAMING_DEBOUNCE_TIME = 11.milliseconds
+// 流式 Markdown 解析的 debounce 间隔：默认 11ms（约 90fps 的一帧间隔），
+// 可由用户在「设置 → 偏好设置 → 实验性功能」中调节（5-50ms）。
 
 private val INLINE_LATEX_REGEX = Regex("\\\\\\((.+?)\\\\\\)")
 private val BLOCK_LATEX_REGEX = Regex("\\\\\\[(.+?)\\\\\\]", RegexOption.DOT_MATCHES_ALL)
@@ -235,6 +235,7 @@ private fun parseMarkdown(content: String): MarkdownParseResult {
     return MarkdownParseResult(preprocessed, astTree, astTree.containsHtml())
 }
 
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 @Composable
 fun MarkdownBlock(
     content: String,
@@ -246,13 +247,17 @@ fun MarkdownBlock(
     // 也避免流式期间每 chunk 都在主线程重解析。首帧和后续更新都在后台处理。
     var (data, setData) = remember { mutableStateOf<MarkdownParseResult?>(null) }
 
+    // 从设置读取 debounce 间隔，可由用户在实验性功能中调节（5-50ms）
+    val debounceMs = LocalSettings.current.displaySetting.streamingDebounceMs
+
     // 监听内容变化，重新解析 AST 树
     // debounce 间隔累积新 chunk 后再处理，保留所有内容不跳跃。
+    // key 包含 debounceMs：用户调节设置后协程重启以应用新间隔。
     val updatedContent by rememberUpdatedState(content)
-    LaunchedEffect(Unit) {
+    LaunchedEffect(debounceMs) {
         snapshotFlow { updatedContent }
             .distinctUntilChanged()
-            .debounce(STREAMING_DEBOUNCE_TIME)
+            .debounce(debounceMs.milliseconds)
             .map { parseMarkdown(it) }
             .catch { exception -> exception.printStackTrace() }
             .flowOn(Dispatchers.Default)

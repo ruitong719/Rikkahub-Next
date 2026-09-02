@@ -800,6 +800,8 @@ data class DisplaySetting(
     val bottomBarIconOrder: List<String> = DEFAULT_BOTTOM_BAR_ICON_ORDER,
     // 实验性功能: workspace shell 命令执行中在聊天内实时显示 stdout/stderr（默认关闭）
     val enableShellLiveOutput: Boolean = false,
+    // 实验性功能: 流式渲染 debounce 间隔（ms），越小越流畅但可能卡顿，越大越流畅但延迟增加，默认 11ms
+    val streamingDebounceMs: Int = 11,
 )
 
 /**
