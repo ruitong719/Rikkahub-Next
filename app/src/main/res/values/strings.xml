@@ -179,6 +179,7 @@
   <string name="backup_page_restart_desc">The app needs to restart for the changes to take effect.</string>
   <string name="backup_page_restore">Restore</string>
   <string name="backup_page_restore_failed">Restore failed: %s</string>
+  <string name="backup_page_restore_failed_rollback">Backup restore failed; your original data has been kept. Please import the backup again.</string>
   <string name="backup_page_restore_now">Restore</string>
   <string name="backup_page_restore_success">Restore successful</string>
   <string name="backup_page_restoring">Restoring...</string>

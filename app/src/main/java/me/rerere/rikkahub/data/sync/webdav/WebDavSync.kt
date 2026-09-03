@@ -7,13 +7,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import me.rerere.rikkahub.data.files.FileFolders
-import me.rerere.rikkahub.data.files.SkillPaths
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.datastore.WebDavConfig
 import me.rerere.rikkahub.data.datastore.migration.SettingsJsonMigrator
+import me.rerere.rikkahub.data.db.AppDatabaseFactory
 import me.rerere.rikkahub.data.db.DatabaseBackupManager
+import me.rerere.rikkahub.data.db.SQLiteConfiguration
 import me.rerere.rikkahub.data.sync.BackupPolicy
+import me.rerere.rikkahub.data.sync.DatabaseBackup
+import me.rerere.rikkahub.data.sync.PendingRestore
 import me.rerere.rikkahub.data.sync.BackupScope
 import me.rerere.rikkahub.utils.fileSizeToString
 import java.io.File
@@ -30,6 +33,9 @@ private const val TAG = "WebDavSync"
 
 /** 与 WorkspaceManager 的 root 名校验保持一致，恢复时防止路径注入 */
 private val WORKSPACE_ID_REGEX = Regex("[A-Za-z0-9._-]+")
+
+/** 备份 zip 中属于附件（filesDir 下）的顶层文件夹，映射到 PendingRestore 的 files/ 区 */
+private val ATTACHMENT_FOLDERS = setOf(FileFolders.UPLOAD, FileFolders.SKILLS, FileFolders.FONTS, "workspaces")
 
 class WebDavSync(
     private val settingsStore: SettingsStore,
@@ -255,254 +261,123 @@ class WebDavSync(
         backupFile
     }
 
+    /**
+     * 恢复备份：解压到 PendingRestore 暂存目录，校验数据库与设置后 publish。
+     * 实际安装发生在下次启动（RikkaHubApp 在 Koin 初始化前 applyPendingRestore），
+     * 安装失败自动回滚、原数据保留；用户在此期间重启即完成恢复。
+     */
     private suspend fun restoreFromBackupFile(backupFile: File, config: WebDavConfig) = withContext(Dispatchers.IO) {
-        Log.i(TAG, "restoreFromBackupFile: Starting restore from ${backupFile.absolutePath}")
+        Log.i(TAG, "restoreFromBackupFile: Starting staged restore from ${backupFile.absolutePath}")
 
-        // 数据库快照/旧格式 db 暂存到 cacheDir，zip 循环结束后统一恢复
-        var pendingSnapshot: File? = null
-        var pendingLegacyDb: File? = null
-        var pendingLegacyWal: File? = null
+        val pending = PendingRestore.forContext(context)
+        val staging = pending.createStagingDirectory()
+        try {
+            val payload = File(staging, "payload")
+            var restoredEntries = 0
 
-        ZipInputStream(FileInputStream(backupFile)).use { zipIn ->
-            var entry: ZipEntry?
-            while (zipIn.nextEntry.also { entry = it } != null) {
-                entry?.let { zipEntry ->
-                    Log.i(TAG, "restoreFromBackupFile: Processing entry ${zipEntry.name}")
-
-                    when (zipEntry.name) {
-                        "settings.json" -> {
-                            val settingsJson = zipIn.readBytes().toString(Charsets.UTF_8)
-                            Log.i(TAG, "restoreFromBackupFile: Restoring settings")
-                            try {
+            ZipInputStream(FileInputStream(backupFile)).use { zipIn ->
+                var entry: ZipEntry?
+                while (zipIn.nextEntry.also { entry = it } != null) {
+                    entry?.let { zipEntry ->
+                        Log.i(TAG, "restoreFromBackupFile: Processing entry ${zipEntry.name}")
+                        when {
+                            zipEntry.name == "settings.json" -> {
+                                val settingsJson = zipIn.readBytes().toString(Charsets.UTF_8)
                                 val migratedJson = SettingsJsonMigrator.migrate(settingsJson)
-                                val settings = json.decodeFromString<Settings>(migratedJson)
-                                settingsStore.update(settings)
-                                Log.i(TAG, "restoreFromBackupFile: Settings restored successfully")
-                            } catch (e: Exception) {
-                                Log.e(TAG, "restoreFromBackupFile: Failed to restore settings", e)
-                                throw Exception("Failed to restore settings: ${e.message}")
-                            }
-                        }
-
-                        // 新格式：一致性快照（主库 + 可选 wal 兜底）
-                        "rikka_hub_snapshot.db" -> {
-                            if (BackupPolicy.hasScope(config.items, BackupScope.DATABASE)) {
-                                val snapshot = File(context.cacheDir, "restore_snapshot.db")
-                                FileOutputStream(snapshot).use { zipIn.copyTo(it) }
-                                pendingSnapshot = snapshot
-                            }
-                        }
-
-                        "rikka_hub_snapshot-wal" -> {
-                            if (BackupPolicy.hasScope(config.items, BackupScope.DATABASE)) {
-                                val snapshotWal = File(context.cacheDir, "restore_snapshot.db-wal")
-                                FileOutputStream(snapshotWal).use { zipIn.copyTo(it) }
-                            }
-                        }
-
-                        // 旧格式兼容：复制 db + wal（shm 不再恢复，由 SQLite 重建）
-                        "rikka_hub.db", "rikka_hub-wal", "rikka_hub-shm" -> {
-                            if (BackupPolicy.hasScope(config.items, BackupScope.DATABASE)) {
-                                when (zipEntry.name) {
-                                    "rikka_hub.db" -> {
-                                        val db = File(context.cacheDir, "restore_legacy.db")
-                                        FileOutputStream(db).use { zipIn.copyTo(it) }
-                                        pendingLegacyDb = db
-                                    }
-
-                                    "rikka_hub-wal" -> {
-                                        val wal = File(context.cacheDir, "restore_legacy.db-wal")
-                                        FileOutputStream(wal).use { zipIn.copyTo(it) }
-                                        pendingLegacyWal = wal
-                                    }
-
-                                    else -> {
-                                        // shm 是共享内存索引，不恢复
-                                        Log.i(TAG, "restoreFromBackupFile: Skipping legacy shm entry")
-                                    }
-                                }
-                            }
-                        }
-
-                        else -> {
-                            if (BackupPolicy.hasScope(config.items, BackupScope.ATTACHMENTS) &&
-                                zipEntry.name.startsWith("${FileFolders.UPLOAD}/")
-                            ) {
-                                restoreSafeEntry(
-                                    root = File(context.filesDir, FileFolders.UPLOAD),
-                                    relative = zipEntry.name.substringAfter("${FileFolders.UPLOAD}/"),
-                                    entryName = zipEntry.name,
-                                    zipIn = zipIn,
+                                // 按迁移结果持久化一次（含生成的 ID），保证重启/重试一致性
+                                PendingRestore.writeDurably(
+                                    File(staging, "settings.json"),
+                                    json.encodeToString(json.decodeFromString<Settings>(migratedJson)),
                                 )
-                            } else if (BackupPolicy.hasScope(config.items, BackupScope.ATTACHMENTS) &&
-                                zipEntry.name.startsWith("${FileFolders.SKILLS}/")
-                            ) {
-                                restoreSkillEntry(zipIn, zipEntry.name)
-                            } else if (BackupPolicy.hasScope(config.items, BackupScope.ATTACHMENTS) &&
-                                zipEntry.name.startsWith("${FileFolders.FONTS}/")
-                            ) {
-                                val fileName = zipEntry.name.substringAfter("${FileFolders.FONTS}/")
-                                if (fileName.isNotEmpty() && !fileName.contains('/')) {
-                                    restoreSafeEntry(
-                                        root = File(context.filesDir, FileFolders.FONTS).apply { mkdirs() },
-                                        relative = fileName,
-                                        entryName = zipEntry.name,
-                                        zipIn = zipIn,
-                                    )
-                                }
-                            } else if (BackupPolicy.hasScope(config.items, BackupScope.ATTACHMENTS) &&
-                                zipEntry.name.startsWith("workspaces/")
-                            ) {
-                                restoreWorkspaceEntry(zipIn, zipEntry.name)
-                            } else {
-                                Log.i(TAG, "restoreFromBackupFile: Skipping entry ${zipEntry.name}")
+                                restoredEntries++
                             }
-                        }
-                    }
 
-                    zipIn.closeEntry()
+                            // 数据库快照：新格式 rikka_hub.db（+ 可选 wal 兜底），兼容旧名 rikka_hub_snapshot.db
+                            zipEntry.name == "rikka_hub.db" || zipEntry.name == "rikka_hub_snapshot.db" -> {
+                                if (BackupPolicy.hasScope(config.items, BackupScope.DATABASE)) {
+                                    val target = File(payload, "database/${SQLiteConfiguration.DATABASE_NAME}")
+                                    require(!target.exists()) { "Duplicate backup entry: ${zipEntry.name}" }
+                                    target.parentFile?.mkdirs()
+                                    FileOutputStream(target).use { zipIn.copyTo(it) }
+                                    restoredEntries++
+                                }
+                            }
+
+                            zipEntry.name == "rikka_hub-wal" || zipEntry.name == "rikka_hub_snapshot-wal" -> {
+                                if (BackupPolicy.hasScope(config.items, BackupScope.DATABASE)) {
+                                    val wal = File(payload, "database/${SQLiteConfiguration.DATABASE_NAME}-wal")
+                                    require(!wal.exists()) { "Duplicate backup entry: ${zipEntry.name}" }
+                                    wal.parentFile?.mkdirs()
+                                    FileOutputStream(wal).use { zipIn.copyTo(it) }
+                                }
+                            }
+
+                            zipEntry.name.endsWith("-shm") -> {
+                                // shm 是共享内存索引，由 SQLite 重建，从不恢复
+                                Log.i(TAG, "restoreFromBackupFile: Skipping shm entry ${zipEntry.name}")
+                            }
+
+                            isAttachmentEntry(zipEntry.name) -> {
+                                if (BackupPolicy.hasScope(config.items, BackupScope.ATTACHMENTS)) {
+                                    stageAttachmentEntry(payload, zipIn, zipEntry.name)
+                                    restoredEntries++
+                                }
+                            }
+
+                            else -> Log.i(TAG, "restoreFromBackupFile: Skipping entry ${zipEntry.name}")
+                        }
+                        zipIn.closeEntry()
+                    }
                 }
             }
-        }
 
-        // 恢复数据库快照（新格式优先，旧格式兜底）
-        if (BackupPolicy.hasScope(config.items, BackupScope.DATABASE)) {
-            val snapshot = pendingSnapshot ?: pendingLegacyDb
-            if (snapshot != null && snapshot.exists()) {
-                databaseBackupManager.restore(snapshot, legacyWal = pendingLegacyWal)
-                Log.i(TAG, "restoreFromBackupFile: Database restored, restart required")
+            // 数据库校验：checkpoint + integrity_check + Room 迁移到最新 schema；失败即整体放弃
+            val stagedDatabase = File(payload, "database/${SQLiteConfiguration.DATABASE_NAME}")
+            if (stagedDatabase.exists()) {
+                DatabaseBackup.normalize(context, stagedDatabase)
+                val room = AppDatabaseFactory.create(context, stagedDatabase.absolutePath)
+                try {
+                    DatabaseBackup.checkpoint(room.openHelper.writableDatabase)
+                } finally {
+                    room.close()
+                }
+                DatabaseBackup.removeSidecars(stagedDatabase)
             }
-            File(context.cacheDir, "restore_snapshot.db").delete()
-            File(context.cacheDir, "restore_snapshot.db-wal").delete()
-            File(context.cacheDir, "restore_legacy.db").delete()
-            File(context.cacheDir, "restore_legacy.db-wal").delete()
-        }
 
-        Log.i(TAG, "restoreFromBackupFile: Restore completed successfully")
-    }
+            require(restoredEntries > 0) { "No selected data found in the backup" }
 
-    /** 恢复普通文件，带 zip slip 路径穿越防护 */
-    private fun restoreSafeEntry(
-        root: File,
-        relative: String,
-        entryName: String,
-        zipIn: ZipInputStream,
-    ) {
-        if (relative.isBlank()) return
-        val target = safeResolve(root, relative) ?: run {
-            Log.w(TAG, "restoreFromBackupFile: Rejected path traversal entry $entryName")
-            return
-        }
-        target.parentFile?.mkdirs()
-        try {
-            FileOutputStream(target).use { outputStream ->
-                zipIn.copyTo(outputStream)
-            }
-            Log.i(TAG, "restoreFromBackupFile: Restored $entryName (${target.length()} bytes)")
-        } catch (e: Exception) {
-            Log.e(TAG, "restoreFromBackupFile: Failed to restore file $entryName", e)
-            throw Exception("Failed to restore file $entryName: ${e.message}")
+            pending.publish(staging)
+            Log.i(TAG, "restoreFromBackupFile: Restore staged, will apply on next launch")
+        } catch (e: Throwable) {
+            staging.deleteRecursively()
+            throw e
         }
     }
 
-    /** 恢复工作区文件：workspaces/<wsId>/files/... 或 workspaces/<wsId>/linux/root/... */
-    private fun restoreWorkspaceEntry(zipIn: ZipInputStream, entryName: String) {
-        val relative = entryName.removePrefix("workspaces/")
-        val segments = relative.split('/')
-        if (segments.size < 3) {
-            Log.w(TAG, "restoreFromBackupFile: Invalid workspace entry $entryName")
-            return
-        }
-        val wsId = segments[0]
-        if (!wsId.matches(WORKSPACE_ID_REGEX)) {
-            Log.w(TAG, "restoreFromBackupFile: Rejected invalid workspace id in $entryName")
-            return
-        }
-        val wsRoot = File(File(context.filesDir, "workspaces"), wsId)
-        val (base, rest) = when {
-            segments[1] == "files" -> File(wsRoot, "files") to segments.drop(2).joinToString("/")
-            segments[1] == "linux" && segments.size >= 4 && segments[2] == "root" ->
-                File(File(wsRoot, "linux"), "root") to segments.drop(3).joinToString("/")
+    private fun isAttachmentEntry(name: String): Boolean {
+        val folder = name.substringBefore('/')
+        return folder in ATTACHMENT_FOLDERS && '/' in name
+    }
 
-            else -> {
-                Log.w(TAG, "restoreFromBackupFile: Rejected unsupported workspace entry $entryName")
+    /** 附件条目按文件夹映射到 PendingRestore 的 files/ 区，目标目录为 filesDir/<folder>/... */
+    private fun stageAttachmentEntry(payload: File, zipIn: ZipInputStream, entryName: String) {
+        val folder = entryName.substringBefore('/')
+        val relative = entryName.substringAfter('/')
+        // workspaces 条目保持原有结构校验：workspaces/<wsId>/files/... 或 workspaces/<wsId>/linux/root/...
+        if (folder == "workspaces") {
+            val segments = relative.split('/')
+            val wsId = segments.firstOrNull()
+            if (wsId == null || !wsId.matches(WORKSPACE_ID_REGEX) || segments.size < 3 ||
+                !(segments[1] == "files" || (segments[1] == "linux" && segments.size >= 4 && segments[2] == "root"))
+            ) {
+                Log.w(TAG, "restoreFromBackupFile: Rejected invalid workspace entry $entryName")
                 return
             }
         }
-        if (rest.isBlank()) return
-        restoreSafeEntry(root = base, relative = rest, entryName = entryName, zipIn = zipIn)
-    }
-
-    /** zip slip 防护：解析后的路径必须仍位于 root 内 */
-    private fun safeResolve(root: File, relative: String): File? {
-        val rootCanonical = root.canonicalFile
-        val resolved = File(root, relative).canonicalFile
-        return if (resolved == rootCanonical || resolved.path.startsWith(rootCanonical.path + File.separator)) {
-            resolved
-        } else {
-            null
-        }
-    }
-
-    private fun addFileToZip(zipOut: ZipOutputStream, file: File, entryName: String) {
-        FileInputStream(file).use { fis ->
-            val zipEntry = ZipEntry(entryName)
-            zipOut.putNextEntry(zipEntry)
-            fis.copyTo(zipOut)
-            zipOut.closeEntry()
-            Log.d(TAG, "addFileToZip: Added $entryName (${file.length()} bytes) to zip")
-        }
-    }
-
-    private fun addDirectoryToZip(
-        zipOut: ZipOutputStream,
-        rootDir: File,
-        currentDir: File,
-        entryPrefix: String,
-    ) {
-        currentDir.listFiles()?.forEach { file ->
-            if (file.isDirectory) {
-                addDirectoryToZip(
-                    zipOut = zipOut,
-                    rootDir = rootDir,
-                    currentDir = file,
-                    entryPrefix = entryPrefix,
-                )
-            } else if (file.isFile) {
-                val relativePath = file.relativeTo(rootDir).invariantSeparatorsPath
-                addFileToZip(zipOut, file, "$entryPrefix$relativePath")
-            }
-        }
-    }
-
-    private fun restoreSkillEntry(zipIn: ZipInputStream, entryName: String) {
-        val relativePath = entryName.substringAfter("${FileFolders.SKILLS}/")
-        val skillName = relativePath.substringBefore('/', missingDelimiterValue = "")
-        val skillRelativePath = relativePath.substringAfter('/', missingDelimiterValue = "")
-
-        if (skillName.isBlank() || skillRelativePath.isBlank()) {
-            Log.w(TAG, "restoreFromBackupFile: Invalid skill entry $entryName")
-            return
-        }
-
-        val skillsRoot = File(context.filesDir, FileFolders.SKILLS).apply { mkdirs() }
-        val skillDir = SkillPaths.resolveSkillDir(skillsRoot, skillName)
-            ?: throw Exception("Invalid skill directory: $entryName")
-        val targetFile = SkillPaths.resolveSkillFile(skillDir, skillRelativePath)
-            ?: throw Exception("Invalid skill file path: $entryName")
-
-        skillDir.mkdirs()
-        targetFile.parentFile?.mkdirs()
-
-        try {
-            FileOutputStream(targetFile).use { outputStream ->
-                zipIn.copyTo(outputStream)
-            }
-            Log.i(TAG, "restoreFromBackupFile: Restored skill file $entryName (${targetFile.length()} bytes)")
-        } catch (e: Exception) {
-            Log.e(TAG, "restoreFromBackupFile: Failed to restore skill file $entryName", e)
-            throw Exception("Failed to restore skill file $entryName: ${e.message}")
-        }
+        val target = PendingRestore.resolveInside(File(payload, "files"), entryName)
+        target.parentFile?.mkdirs()
+        FileOutputStream(target).use { zipIn.copyTo(it) }
+        Log.i(TAG, "restoreFromBackupFile: Staged $entryName (${target.length()} bytes)")
     }
 
     private fun addVirtualFileToZip(zipOut: ZipOutputStream, name: String, content: String) {
