@@ -70,18 +70,6 @@ fun SettingPreferencesExperimentalPage(vm: SettingVM = koinViewModel()) {
                     modifier = Modifier.padding(horizontal = 8.dp),
                 ) {
                     item(
-                        headlineContent = { Text(stringResource(R.string.setting_experimental_stream_reconnect_title)) },
-                        supportingContent = { Text(stringResource(R.string.setting_experimental_stream_reconnect_desc)) },
-                        trailingContent = {
-                            Switch(
-                                checked = settings.enableStreamAutoReconnect,
-                                onCheckedChange = { checked ->
-                                    vm.updateSettings(settings.copy(enableStreamAutoReconnect = checked))
-                                },
-                            )
-                        },
-                    )
-                    item(
                         headlineContent = { Text(stringResource(R.string.setting_display_page_shell_live_output_title)) },
                         supportingContent = { Text(stringResource(R.string.setting_display_page_shell_live_output_desc)) },
                         trailingContent = {

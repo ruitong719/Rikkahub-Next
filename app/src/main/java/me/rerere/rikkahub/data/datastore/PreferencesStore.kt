@@ -127,9 +127,6 @@ class SettingsStore(
         // 视觉模型（主模型不支持图片时的降级路由）
         val VISION_MODEL = stringPreferencesKey("vision_model")
 
-        // 实验性：流式自动重连
-        val ENABLE_STREAM_AUTO_RECONNECT = booleanPreferencesKey("enable_stream_auto_reconnect")
-
         // 权限模式提示词（plan/build/yolo）
         val PLAN_MODE_PROMPT = stringPreferencesKey("plan_mode_prompt")
         val BUILD_MODE_PROMPT = stringPreferencesKey("build_mode_prompt")
@@ -297,7 +294,6 @@ class SettingsStore(
                 webServerLocalhostOnly = preferences[WEB_SERVER_LOCALHOST_ONLY] == true,
                 updateUrl = preferences[UPDATE_URL] ?: "",
                 globalAgentMd = preferences[GLOBAL_AGENT_MD] ?: "",
-                enableStreamAutoReconnect = preferences[ENABLE_STREAM_AUTO_RECONNECT] ?: false,
                 planModePrompt = preferences[PLAN_MODE_PROMPT] ?: DEFAULT_PLAN_MODE_PROMPT,
                 buildModePrompt = preferences[BUILD_MODE_PROMPT] ?: DEFAULT_BUILD_MODE_PROMPT,
                 yoloModePrompt = preferences[YOLO_MODE_PROMPT] ?: DEFAULT_YOLO_MODE_PROMPT,
@@ -487,7 +483,6 @@ class SettingsStore(
             preferences[WEB_SERVER_LOCALHOST_ONLY] = settings.webServerLocalhostOnly
             preferences[UPDATE_URL] = settings.updateUrl
             preferences[GLOBAL_AGENT_MD] = settings.globalAgentMd
-            preferences[ENABLE_STREAM_AUTO_RECONNECT] = settings.enableStreamAutoReconnect
             preferences[PLAN_MODE_PROMPT] = settings.planModePrompt
             preferences[BUILD_MODE_PROMPT] = settings.buildModePrompt
             preferences[YOLO_MODE_PROMPT] = settings.yoloModePrompt
@@ -607,8 +602,6 @@ data class Settings(
     val developerMode: Boolean = false,
     val displaySetting: DisplaySetting = DisplaySetting(),
     val networkSetting: NetworkSetting = NetworkSetting(),
-    /** 实验性：流式生成因网络波动中断时自动重连（整单重发，指数退避，最多 4 次） */
-    val enableStreamAutoReconnect: Boolean = false,
     val favoriteModels: List<Uuid> = emptyList(),
     val chatModelId: Uuid = Uuid.random(),
     val fastModelId: Uuid = Uuid.random(),

@@ -100,8 +100,6 @@ class GenerationHandler(
         workspaceCwd: String? = null,
         rollingContextSummary: String? = null,
         requestMessageStartIndex: Int = 0,
-        /** 实验性：单次 LLM 请求因网络层错误失败时自动整单重发（指数退避，最多 4 次） */
-        enableAutoReconnect: Boolean = false,
         /** 每次自动重连时回调（attempt 从 1 起，error 为触发本次重连的异常），UI 用于轻提示与状态文案 */
         onAutoReconnect: suspend (attempt: Int, maxAttempts: Int, error: Throwable) -> Unit = { _, _, _ -> },
         /**
@@ -182,7 +180,6 @@ class GenerationHandler(
                     processingStatus = processingStatus,
                     conversationSystemPrompt = conversationSystemPrompt,
                     conversationId = conversationId,
-                    enableAutoReconnect = enableAutoReconnect,
                     onAutoReconnect = onAutoReconnect,
                     workspaceCwd = workspaceCwd,
                     rollingContextSummary = rollingContextSummary,
@@ -440,7 +437,6 @@ class GenerationHandler(
         processingStatus: MutableStateFlow<String?> = MutableStateFlow(null),
         conversationSystemPrompt: String? = null,
         conversationId: Uuid? = null,
-        enableAutoReconnect: Boolean = false,
         onAutoReconnect: suspend (attempt: Int, maxAttempts: Int, error: Throwable) -> Unit = { _, _, _ -> },
         workspaceCwd: String? = null,
         rollingContextSummary: String? = null,

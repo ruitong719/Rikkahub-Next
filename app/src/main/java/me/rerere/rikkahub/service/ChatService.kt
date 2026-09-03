@@ -760,7 +760,6 @@ class ChatService(
                 assistant = assistant,
                 conversationId = conversationId,
                 conversationSystemPrompt = conversation.customSystemPrompt,
-                enableAutoReconnect = settingsStore.settingsFlow.value.enableStreamAutoReconnect,
                 onAutoReconnect = { attempt, maxAttempts, error ->
                     _reconnectNotices.tryEmit(StreamReconnectNotice(conversationId, attempt, maxAttempts))
                     // 重试原因上屏：下次尝试开始时由 GenerationHandler 清除，取消时也会清

@@ -683,8 +683,6 @@
   <string name="setting_display_page_volume_key_scroll_title">Volume Key Page Scroll</string>
   <string name="setting_display_page_shell_live_output_title">Live Shell Output (Experimental)</string>
   <string name="setting_display_page_shell_live_output_desc">Stream workspace shell stdout/stderr in chat while commands run</string>
-  <string name="setting_experimental_stream_reconnect_title">Stream Auto Reconnect (Experimental)</string>
-  <string name="setting_experimental_stream_reconnect_desc">Automatically retry generation interrupted by network issues (up to 4 times, exponential backoff); a light notice shows on reconnect</string>
   <string name="setting_experimental_streaming_sample_render_title">New Streaming Renderer (Experimental)</string>
   <string name="setting_experimental_streaming_sample_render_desc">Use fixed-rate rendering (sample): content scrolls smoothly at high TPS instead of jumping in bursts. When off, the original debounce renderer is used. Default: off</string>
   <string name="setting_experimental_streaming_render_title">Streaming Render Rate</string>
