@@ -380,6 +380,37 @@ class WebDavSync(
         Log.i(TAG, "restoreFromBackupFile: Staged $entryName (${target.length()} bytes)")
     }
 
+    private fun addFileToZip(zipOut: ZipOutputStream, file: File, entryName: String) {
+        FileInputStream(file).use { fis ->
+            val zipEntry = ZipEntry(entryName)
+            zipOut.putNextEntry(zipEntry)
+            fis.copyTo(zipOut)
+            zipOut.closeEntry()
+            Log.d(TAG, "addFileToZip: Added $entryName (${file.length()} bytes) to zip")
+        }
+    }
+
+    private fun addDirectoryToZip(
+        zipOut: ZipOutputStream,
+        rootDir: File,
+        currentDir: File,
+        entryPrefix: String,
+    ) {
+        currentDir.listFiles()?.forEach { file ->
+            if (file.isDirectory) {
+                addDirectoryToZip(
+                    zipOut = zipOut,
+                    rootDir = rootDir,
+                    currentDir = file,
+                    entryPrefix = entryPrefix,
+                )
+            } else if (file.isFile) {
+                val relativePath = file.relativeTo(rootDir).invariantSeparatorsPath
+                addFileToZip(zipOut, file, "$entryPrefix$relativePath")
+            }
+        }
+    }
+
     private fun addVirtualFileToZip(zipOut: ZipOutputStream, name: String, content: String) {
         val zipEntry = ZipEntry(name)
         zipOut.putNextEntry(zipEntry)
