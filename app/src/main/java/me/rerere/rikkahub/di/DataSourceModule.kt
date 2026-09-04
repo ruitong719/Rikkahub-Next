@@ -7,6 +7,7 @@ import io.ktor.http.HttpHeaders
 import io.pebbletemplates.pebble.PebbleEngine
 import kotlinx.serialization.json.Json
 import me.rerere.ai.provider.ProviderManager
+import me.rerere.ai.util.SessionIdRequestTag
 import me.rerere.common.http.AcceptLanguageBuilder
 import me.rerere.rikkahub.BuildConfig
 import me.rerere.rikkahub.data.ai.AIRequestInterceptor
@@ -177,9 +178,19 @@ val dataSourceModule = module {
                         // 携带的 X-Title / HTTP-Referer），避免同时暴露真实客户端
                         requestBuilder.removeHeader("X-Title")
                         requestBuilder.removeHeader("HTTP-Referer")
+                        val sessionId = originalRequest.tag(SessionIdRequestTag::class.java)?.sessionId
                         identity.forEach { (name, value) ->
                             if (name.isNotBlank() && value.isNotBlank()) {
-                                requestBuilder.header(name.trim(), value.trim())
+                                // 动态占位符：{sessionId} 替换为当前请求会话 ID；非生成请求
+                                // （无 tag）不注入含占位符的 header，避免把占位符原文发出去
+                                val resolved = if (ClientPresets.SESSION_ID_PLACEHOLDER in value) {
+                                    sessionId?.let { value.replace(ClientPresets.SESSION_ID_PLACEHOLDER, it) }
+                                } else {
+                                    value
+                                }
+                                if (resolved != null && resolved.isNotBlank()) {
+                                    requestBuilder.header(name.trim(), resolved.trim())
+                                }
                             }
                         }
                     }

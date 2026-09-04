@@ -34,6 +34,13 @@ data class ClientPreset(
 object ClientPresets {
     const val USER_AGENT_HEADER = "User-Agent"
 
+    /**
+     * 动态占位符：header 值中的该占位符由共享 OkHttpClient 拦截器替换为当前
+     * 请求的会话 ID（生成请求通过 RequestTags.attachSessionId 挂载）；
+     * 非生成请求无会话 ID，含占位符的 header 跳过注入。
+     */
+    const val SESSION_ID_PLACEHOLDER = "{sessionId}"
+
     val ALL = listOf(
         ClientPreset(
             name = "Claude Code",
@@ -51,7 +58,11 @@ object ClientPresets {
         ClientPreset(
             name = "OpenCode",
             userAgent = "opencode/latest/1.18.21/cli",
-            headers = mapOf("x-opencode-client" to "cli"),
+            headers = mapOf(
+                "x-opencode-client" to "cli",
+                // 会话头为动态值：仅生成请求注入（拦截器把 {sessionId} 替换为当前会话 ID）
+                "x-opencode-session" to ClientPresets.SESSION_ID_PLACEHOLDER,
+            ),
             matchHosts = listOf("opencode.ai"),
         ),
         ClientPreset(
