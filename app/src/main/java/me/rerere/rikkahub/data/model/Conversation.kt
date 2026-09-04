@@ -30,6 +30,15 @@ enum class PermissionMode {
 
     @SerialName("yolo")
     YOLO,
+
+    /**
+     * GOAL 模式：进入后主模型先探索项目、用 todowrite 记录任务目标与计划；
+     * 主模型停止输出时（且无后台任务执行中），系统自动拉起内置评审子代理，
+     * 核对本轮全部 write/edit 改动与 todo 完成情况，完成任务即结束会话，
+     * 未完成则把评审报告注入对话并自动续跑。仅能通过输入框 /goal 进入。
+     */
+    @SerialName("goal")
+    GOAL,
 }
 
 @Serializable

@@ -27,7 +27,7 @@ object PermissionModePolicy {
     )
 
     fun apply(tools: List<Tool>, mode: PermissionMode): List<Tool> = when (mode) {
-        PermissionMode.BUILD -> tools
+        PermissionMode.BUILD, PermissionMode.GOAL -> tools
 
         PermissionMode.YOLO -> tools.map { tool ->
             when {

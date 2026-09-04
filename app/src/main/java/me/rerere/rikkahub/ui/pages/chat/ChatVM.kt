@@ -206,6 +206,20 @@ class ChatVM(
      */
     fun handleMessageSend(content: List<UIMessagePart>, answer: Boolean = true): Boolean {
         if (content.isEmptyInputMessage()) return false
+        // /goal 斜杠命令：切换到 GOAL 模式；尾随文本保留继续发送（"/goal" 单独发送仅切模式）
+        val firstText = content.firstNotNullOfOrNull { (it as? UIMessagePart.Text)?.text }?.trim()
+        if (firstText != null && firstText.startsWith("/goal")) {
+            if (conversation.value.permissionMode != PermissionMode.GOAL) {
+                updatePermissionMode(PermissionMode.GOAL)
+            }
+            val trailing = firstText.removePrefix("/goal").trim()
+            if (trailing.isEmpty()) return false
+            val rest = buildList {
+                add(UIMessagePart.Text(trailing))
+                addAll(content.drop(1))
+            }
+            return chatService.sendMessage(_conversationId, rest, answer)
+        }
         // 生成中调用返回 true（消息入队），非生成返回 false（直接发送）
         return chatService.sendMessage(_conversationId, content, answer)
     }

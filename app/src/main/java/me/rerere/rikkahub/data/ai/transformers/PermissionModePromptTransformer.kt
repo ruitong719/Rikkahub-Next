@@ -17,6 +17,7 @@ class PermissionModePromptTransformer(
     private val planPrompt: String,
     private val buildPrompt: String,
     private val yoloPrompt: String,
+    private val goalPrompt: String,
 ) : InputMessageTransformer {
     override suspend fun transform(
         ctx: TransformerContext,
@@ -26,6 +27,7 @@ class PermissionModePromptTransformer(
             PermissionMode.PLAN -> planPrompt
             PermissionMode.BUILD -> buildPrompt
             PermissionMode.YOLO -> yoloPrompt
+            PermissionMode.GOAL -> goalPrompt
         }.trim()
         if (prompt.isEmpty()) return messages
 

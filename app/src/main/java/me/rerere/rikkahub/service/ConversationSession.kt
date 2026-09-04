@@ -60,6 +60,32 @@ class ConversationSession(
         autoResumeStreak++
     }
 
+    // Goal 模式评审后自动续跑限流：连续评审未完成次数，达到上限停止自动续跑等用户介入
+    @Volatile
+    var goalResumeStreak: Int = 0
+        private set
+
+    fun onGoalResumeTriggered() {
+        goalResumeStreak++
+    }
+
+    fun resetGoalResumeStreak() {
+        goalResumeStreak = 0
+    }
+
+    // 评审重试次数：网络类失败时退避重试的上限计数，评审成功执行后清零
+    @Volatile
+    var goalEvalRetryCount: Int = 0
+        private set
+
+    fun onGoalEvalRetry() {
+        goalEvalRetryCount++
+    }
+
+    fun resetGoalEvalRetryCount() {
+        goalEvalRetryCount = 0
+    }
+
     fun onAutoResumeAttemptFailed() {
         autoResumeFailures++
     }

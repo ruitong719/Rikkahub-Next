@@ -1164,6 +1164,8 @@
   <string name="setting_model_page_prompt_permission_plan">Permission Mode: Plan</string>
   <string name="setting_model_page_prompt_permission_build">Permission Mode: Build</string>
   <string name="setting_model_page_prompt_permission_yolo">Permission Mode: YOLO</string>
+  <string name="setting_model_page_prompt_permission_goal">Permission Mode: GOAL</string>
+  <string name="setting_model_page_prompt_permission_goal_desc">Injected while GOAL mode is active; guides exploration, todo creation and the auto review on stop</string>
   <string name="setting_model_page_prompt_permission_desc">Injected after the latest user message on every turn while this mode is active; used as-is, clearing it disables the reminder</string>
   <string name="setting_display_page_bubble_opacity_title">Bubble Opacity</string>
   <string name="setting_provider_page_include_history_reasoning">Include History Reasoning</string>
@@ -1370,6 +1372,10 @@
   <string name="permission_mode_build_desc">Default: tools run according to their approval settings</string>
   <string name="permission_mode_yolo">YOLO</string>
   <string name="permission_mode_yolo_desc">Skip all tool approvals (dangerous)</string>
+  <string name="permission_mode_goal">GOAL</string>
+  <string name="permission_mode_goal_desc">Auto-verify your goal when you stop; enter with /goal only</string>
+  <string name="permission_mode_goal_exit_hint">Pick any other mode to exit GOAL mode.</string>
+  <string name="goal_eval_error_title">Goal review failed</string>
   <string name="permission_mode_picker_title">Permission Mode</string>
   <string name="permission_mode_picker_desc">Controls how tools are approved and executed</string>
   <string name="subagent_monitor_running_badge">Running</string>

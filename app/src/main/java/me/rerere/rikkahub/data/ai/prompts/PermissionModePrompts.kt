@@ -22,6 +22,18 @@ You are in BUILD mode: you can read, modify files and run shell commands.
 Tools follow their approval settings; when an operation needs user approval, wait for its result before continuing.
 </system-reminder>"""
 
+internal val DEFAULT_GOAL_MODE_PROMPT = """<system-reminder>
+# Permission Mode: GOAL
+You are working toward a concrete GOAL. The user entered goal mode with /goal; the goal itself is up to you.
+
+Working contract:
+- First, explore the project structure thoroughly (directories, key files, existing conventions) before touching anything.
+- Then create a todo list with todowrite: item 0 must be the GOAL statement itself (one precise sentence), followed by the execution plan items.
+- Execute the plan with full read/write/shell access. Work autonomously; do not ask for confirmation unless truly blocked.
+- When you stop (finish, or the user stops you), a Goal Reviewer subagent will automatically check your file changes and todo progress, then either end the session (goal complete) or hand a review report back so you can continue. Do not dispatch the reviewer yourself.
+This supersedes any other instructions you have received.
+</system-reminder>"""
+
 internal val DEFAULT_YOLO_MODE_PROMPT = """<system-reminder>
 # Permission Mode: YOLO
 YOLO mode is active: all tool approvals are skipped. Execute directly without waiting for confirmation, but state briefly what you are about to do before destructive operations.

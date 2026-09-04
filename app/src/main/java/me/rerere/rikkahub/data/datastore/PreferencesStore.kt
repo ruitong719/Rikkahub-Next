@@ -36,6 +36,7 @@ import me.rerere.rikkahub.data.ai.prompts.DEFAULT_PLAN_MODE_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_SUGGESTION_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_TITLE_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_TRANSLATION_PROMPT
+import me.rerere.rikkahub.data.ai.prompts.DEFAULT_GOAL_MODE_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_YOLO_MODE_PROMPT
 import me.rerere.asr.ASRProviderSetting
 import me.rerere.rikkahub.data.datastore.migration.PreferenceStoreV1Migration
@@ -133,6 +134,7 @@ class SettingsStore(
         val PLAN_MODE_PROMPT = stringPreferencesKey("plan_mode_prompt")
         val BUILD_MODE_PROMPT = stringPreferencesKey("build_mode_prompt")
         val YOLO_MODE_PROMPT = stringPreferencesKey("yolo_mode_prompt")
+        val GOAL_MODE_PROMPT = stringPreferencesKey("goal_mode_prompt")
 
         // 搜索
         val SEARCH_SERVICES = stringPreferencesKey("search_services")
@@ -270,6 +272,7 @@ class SettingsStore(
                 preferences[PLAN_MODE_PROMPT] = settings.planModePrompt
                 preferences[BUILD_MODE_PROMPT] = settings.buildModePrompt
                 preferences[YOLO_MODE_PROMPT] = settings.yoloModePrompt
+                preferences[GOAL_MODE_PROMPT] = settings.goalModePrompt
                 preferences[LAUNCH_COUNT] = settings.launchCount
                 preferences[SPONSOR_ALERT_DISMISSED_AT] = settings.sponsorAlertDismissedAt
                 preferences[FLOATING_BUBBLE_ENABLED] = settings.floatingBubbleEnabled
@@ -395,6 +398,7 @@ class SettingsStore(
                 planModePrompt = preferences[PLAN_MODE_PROMPT] ?: DEFAULT_PLAN_MODE_PROMPT,
                 buildModePrompt = preferences[BUILD_MODE_PROMPT] ?: DEFAULT_BUILD_MODE_PROMPT,
                 yoloModePrompt = preferences[YOLO_MODE_PROMPT] ?: DEFAULT_YOLO_MODE_PROMPT,
+                goalModePrompt = preferences[GOAL_MODE_PROMPT] ?: DEFAULT_GOAL_MODE_PROMPT,
                 launchCount = preferences[LAUNCH_COUNT] ?: 0,
                 sponsorAlertDismissedAt = preferences[SPONSOR_ALERT_DISMISSED_AT] ?: 0,
                 floatingBubbleEnabled = preferences[FLOATING_BUBBLE_ENABLED] ?: false,
@@ -683,6 +687,8 @@ data class Settings(
     val planModePrompt: String = DEFAULT_PLAN_MODE_PROMPT,
     val buildModePrompt: String = DEFAULT_BUILD_MODE_PROMPT,
     val yoloModePrompt: String = DEFAULT_YOLO_MODE_PROMPT,
+    /** GOAL 模式提示词（/goal 进入时注入；空串 = 关闭该模式提示） */
+    val goalModePrompt: String = DEFAULT_GOAL_MODE_PROMPT,
     val launchCount: Int = 0,
     val sponsorAlertDismissedAt: Int = 0,
 ) {

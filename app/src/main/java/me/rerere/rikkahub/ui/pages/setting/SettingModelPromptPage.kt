@@ -28,6 +28,7 @@ import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_BUILD_MODE_PROMPT
+import me.rerere.rikkahub.data.ai.prompts.DEFAULT_GOAL_MODE_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_COMPRESS_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_OCR_PROMPT
 import me.rerere.rikkahub.data.ai.prompts.DEFAULT_PLAN_MODE_PROMPT
@@ -130,6 +131,15 @@ internal fun PromptSettingsPage(settings: Settings, vm: SettingVM, contentPaddin
                 promptValue = settings.yoloModePrompt,
                 onPromptChange = { vm.updateSettings(settings.copy(yoloModePrompt = it)) },
                 onResetPrompt = { vm.updateSettings(settings.copy(yoloModePrompt = DEFAULT_YOLO_MODE_PROMPT)) },
+            )
+        }
+        item {
+            PromptSettingItem(
+                title = stringResource(R.string.setting_model_page_prompt_permission_goal),
+                promptDescription = stringResource(R.string.setting_model_page_prompt_permission_goal_desc),
+                promptValue = settings.goalModePrompt,
+                onPromptChange = { vm.updateSettings(settings.copy(goalModePrompt = it)) },
+                onResetPrompt = { vm.updateSettings(settings.copy(goalModePrompt = DEFAULT_GOAL_MODE_PROMPT)) },
             )
         }
     }

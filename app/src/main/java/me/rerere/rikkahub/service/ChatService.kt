@@ -28,7 +28,9 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.ReasoningLevel
 import me.rerere.ai.core.Tool
@@ -55,9 +57,17 @@ import me.rerere.rikkahub.data.ai.context.RollingContextSummary
 import me.rerere.rikkahub.data.ai.context.createRollingContextPlan
 import me.rerere.rikkahub.data.ai.context.rollingContextWindowStartIndex
 import me.rerere.rikkahub.data.ai.SubAgentRunner
+import me.rerere.rikkahub.data.ai.GoalReviewOutcome
+import me.rerere.rikkahub.data.ai.hasRetryableNetworkCause
+import me.rerere.rikkahub.data.ai.buildGoalReviewTask
+import me.rerere.rikkahub.data.ai.buildGoalReviewerSubAgent
+import me.rerere.rikkahub.data.ai.extractFileMutationTrail
+import me.rerere.rikkahub.data.ai.parseGoalReviewOutcome
 import me.rerere.rikkahub.data.ai.TranslationHandler
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
+import me.rerere.rikkahub.data.ai.tools.local.TodoStore
+import me.rerere.rikkahub.data.ai.tools.local.TodoItem
 import me.rerere.rikkahub.data.ai.tools.createSearchTools
 import me.rerere.rikkahub.data.ai.tools.createSkillTools
 import me.rerere.rikkahub.data.ai.tools.createSubAgentTools
@@ -85,9 +95,11 @@ import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.files.FilesManager
+import me.rerere.rikkahub.data.files.BgTaskStatus
 import me.rerere.rikkahub.data.files.WorkspaceBgManager
 import me.rerere.rikkahub.data.files.WorkspaceMountManager
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.PermissionMode
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
 import me.rerere.rikkahub.data.model.MessageNode
@@ -120,6 +132,10 @@ private const val BG_AUTO_RESUME_MAX_STREAK = 3
 
 /** 自动拉起连续失败上限：任务始终未被消费说明生成在注入提醒前就失败了，停止重试等用户介入 */
 private const val BG_AUTO_RESUME_MAX_FAILURES = 3
+private const val GOAL_MAX_AUTO_RESUME = 3
+private const val GOAL_EVAL_MAX_RETRIES = 3
+private const val GOAL_EVAL_RETRY_BASE_MS = 30_000L
+private const val GOAL_COMPLETED_MARKER = "<goal_complete>"
 
 private const val ROLLING_CONTEXT_SUMMARY_PROMPT = """
     Summarize the following conversation excerpt concisely in 2-4 sentences.
@@ -211,6 +227,7 @@ class ChatService(
     private val workspaceBgManager: WorkspaceBgManager,
     private val workspaceMountManager: WorkspaceMountManager,
     private val subAgentRunMonitor: SubAgentRunMonitor,
+    private val todoStore: TodoStore,
 ) {
     // workspace 系统提示注入 (依赖 workspaceRepository, 故在类内构造)
     private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository, workspaceMountManager)
@@ -523,7 +540,7 @@ class ChatService(
                     handleMessageComplete(conversationId)
                 }
 
-                _generationDoneFlow.emit(conversationId)
+                emitGenerationDone(conversationId)
             } catch (e: Exception) {
                 e.printStackTrace()
                 addError(e, conversationId, title = context.getString(R.string.error_title_send_message))
@@ -585,7 +602,7 @@ class ChatService(
                     }
                 }
 
-                _generationDoneFlow.emit(conversationId)
+                emitGenerationDone(conversationId)
             } catch (e: Exception) {
                 addError(e, conversationId, title = context.getString(R.string.error_title_regenerate_message))
             } finally {
@@ -671,7 +688,7 @@ class ChatService(
                     handleMessageComplete(conversationId)
                 }
 
-                _generationDoneFlow.emit(conversationId)
+                emitGenerationDone(conversationId)
             } catch (e: Exception) {
                 addError(e, conversationId, title = context.getString(R.string.error_title_tool_approval))
             } finally {
@@ -817,6 +834,7 @@ class ChatService(
                             planPrompt = settings.planModePrompt,
                             buildPrompt = settings.buildModePrompt,
                             yoloPrompt = settings.yoloModePrompt,
+                            goalPrompt = settings.goalModePrompt,
                         )
                     )
                 },
@@ -1000,6 +1018,156 @@ class ChatService(
      * 连续触发/连续失败都有上限（BG_AUTO_RESUME_MAX_STREAK / BG_AUTO_RESUME_MAX_FAILURES），
      * 用户主动发消息或审批时清零。
      */
+    // ---- Goal 模式评审 ----
+
+    /** 生成结束统一出口：广播完成事件 + Goal 模式评审 */
+    private suspend fun emitGenerationDone(conversationId: Uuid) {
+        _generationDoneFlow.emit(conversationId)
+        maybeLaunchGoalEvaluation(conversationId)
+    }
+
+    /**
+     * Goal 模式下主模型停止后的评审入口（快速失败路径，不挂起）：
+     * 模式为 GOAL、会话空闲、无挂起审批、未标完成、未超续跑上限时启动评审子代理。
+     * 后台任务执行中不评审：任务完成会自动唤醒主模型，主模型再次停止时才评。
+     */
+    private fun maybeLaunchGoalEvaluation(conversationId: Uuid) {
+        val session = sessions[conversationId] ?: return
+        if (session.isGenerating) return
+        val conversation = session.state.value
+        if (conversation.permissionMode != PermissionMode.GOAL) return
+        if (session.goalResumeStreak >= GOAL_MAX_AUTO_RESUME) return
+        if (conversation.messageNodes.any { node ->
+                node.currentMessage.getTools().any { !it.isExecuted && !it.approvalState.canResumeToolExecution() }
+            }) {
+            return
+        }
+        val hasCompletedMarker = conversation.messageNodes.asSequence()
+            .flatMap { it.currentMessage.parts.asSequence() }
+            .filterIsInstance<UIMessagePart.Text>()
+            .any { it.text.contains(GOAL_COMPLETED_MARKER) }
+        if (hasCompletedMarker) return
+
+        appScope.launch {
+            try {
+                launchGoalEvaluation(conversationId)
+                session.resetGoalEvalRetryCount()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 网络类失败：退避重试（网络恢复后自动补评，无需人工），每次重试重新走全部条件复查
+                if (e.hasRetryableNetworkCause() && session.goalEvalRetryCount < GOAL_EVAL_MAX_RETRIES) {
+                    session.onGoalEvalRetry()
+                    val delayMs = GOAL_EVAL_RETRY_BASE_MS * session.goalEvalRetryCount
+                    Log.w(
+                        TAG,
+                        "goal evaluation attempt ${session.goalEvalRetryCount}/$GOAL_EVAL_MAX_RETRIES failed " +
+                            "(network), retrying in ${delayMs}ms",
+                        e,
+                    )
+                    appScope.launch {
+                        delay(delayMs)
+                        maybeLaunchGoalEvaluation(conversationId)
+                    }
+                } else {
+                    Log.w(TAG, "goal evaluation failed for $conversationId", e)
+                    addError(e, conversationId, title = context.getString(R.string.goal_eval_error_title))
+                }
+            }
+        }
+    }
+
+    private suspend fun launchGoalEvaluation(conversationId: Uuid) {
+        val session = sessions[conversationId] ?: return
+        val conversation = session.state.value
+        val settings = settingsStore.settingsFlow.first()
+        val assistant = settings.getAssistantById(conversation.assistantId) ?: return
+        val workspaceId = assistant.workspaceId?.toString() ?: return
+        val workspace = workspaceRepository.getById(workspaceId) ?: return
+
+        // 后台任务执行中：不评审（等完成自动唤醒主模型）
+        val runningTasks = workspaceBgManager.listTasks(workspace.root).count {
+            it.conversationId == conversationId.toString() && it.status == BgTaskStatus.RUNNING
+        }
+        if (runningTasks > 0) {
+            Log.i(TAG, "goal eval skip: conversation $conversationId has $runningTasks running bg task(s)")
+            return
+        }
+
+        Log.i(TAG, "goal eval start: conversation $conversationId (GOAL mode)")
+        val trail = extractFileMutationTrail(conversation.currentMessages)
+        val todoText = todoStore.todos(conversationId).value.joinToString("\n") {
+            "[${it.status.name.lowercase()}] ${it.content}"
+        }
+        val toolCatalog = createWorkspaceToolsIfReady(workspaceId, conversation.workspaceCwd, conversationId)
+        val resultJson = subAgentRunner.run(
+            subAgent = buildGoalReviewerSubAgent(),
+            assistant = assistant,
+            settings = settings,
+            conversationSystemPrompt = conversation.customSystemPrompt,
+            conversationHistory = conversation.currentMessages,
+            task = buildGoalReviewTask(todoText, trail),
+            context = "The main agent has stopped in GOAL mode; verify goal completion. Do not modify any files.",
+            toolCatalog = toolCatalog,
+            allSkills = emptyList(),
+            conversationId = conversationId,
+            label = "Goal Reviewer",
+        )
+        val report = runCatching {
+            kotlinx.serialization.json.Json.parseToJsonElement(resultJson)
+                .jsonObject["result"]?.jsonPrimitive?.contentOrNull
+        }.getOrNull().orEmpty()
+
+        when (parseGoalReviewOutcome(report)) {
+            GoalReviewOutcome.COMPLETED -> {
+                Log.i(TAG, "goal eval completed: conversation $conversationId")
+                appendSystemMessage(
+                    conversationId,
+                    "$GOAL_COMPLETED_MARKER\nThe Goal Reviewer verified the goal is fully achieved. " +
+                        "Session will not auto-resume; ask the user for the next goal.\n<goal_complete>",
+                )
+            }
+
+            GoalReviewOutcome.INCOMPLETE -> {
+                if (session.goalResumeStreak >= GOAL_MAX_AUTO_RESUME) {
+                    Log.w(TAG, "goal eval: resume limit reached for $conversationId")
+                    appendSystemMessage(
+                        conversationId,
+                        "<goal_review>\n$report\n\nAuto-resume limit reached; waiting for the user.\n</goal_review>",
+                    )
+                    return
+                }
+                Log.i(TAG, "goal eval incomplete: conversation $conversationId, resuming main agent")
+                appendSystemMessage(conversationId, "<goal_review>\n$report\n</goal_review>")
+                // 预留式登记：与用户发送互斥（用户优先）；评审报告注入后自动续跑一轮
+                session.beginGenerationIfIdle {
+                    session.onGoalResumeTriggered()
+                    appScope.launch {
+                        try {
+                            handleMessageComplete(conversationId)
+                            emitGenerationDone(conversationId)
+                        } catch (e: Exception) {
+                            addError(e, conversationId, title = context.getString(R.string.goal_eval_error_title))
+                        }
+                    }
+                }
+            }
+
+            GoalReviewOutcome.UNKNOWN -> {
+                Log.w(TAG, "goal eval: unrecognized review outcome for $conversationId")
+                appendSystemMessage(conversationId, "<goal_review>\n$report\n</goal_review>")
+            }
+        }
+    }
+
+    private suspend fun appendSystemMessage(conversationId: Uuid, text: String) {
+        val conversation = getConversationFlow(conversationId).value
+        val updated = conversation.copy(
+            messageNodes = conversation.messageNodes + UIMessage.system(text).toMessageNode(),
+        )
+        saveConversation(conversationId, updated)
+    }
+
     private fun startBgTaskAutoResumeWatcher() {
         appScope.launch {
             while (true) {
@@ -1048,9 +1216,13 @@ class ChatService(
                 appScope.launch {
                     try {
                         handleMessageComplete(conversationId)
-                        _generationDoneFlow.emit(conversationId)
+                        emitGenerationDone(conversationId)
                     } catch (e: Exception) {
                         addError(e, conversationId, title = context.getString(R.string.bg_auto_resume_error_title))
+                        // 主模型唤醒失败（如网络波动）：GOAL 模式下让评审子代理接管检查，
+                        // 网络类失败由 maybeLaunchGoalEvaluation 的退避重试兜底，恢复后自动补评；
+                        // 不动 autoResumeFailures，普通模式的失败上限语义保持不变
+                        maybeLaunchGoalEvaluation(conversationId)
                     } finally {
                         // 按结果判断：任务仍未被消费说明生成在提醒注入前就失败了，计入连续失败，
                         // 达到上限后停止重试并报错提示用户手动查看

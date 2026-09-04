@@ -1099,6 +1099,8 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_model_page_prompt_permission_plan">权限模式：Plan</string>
   <string name="setting_model_page_prompt_permission_build">权限模式：Build</string>
   <string name="setting_model_page_prompt_permission_yolo">权限模式：YOLO</string>
+  <string name="setting_model_page_prompt_permission_goal">权限模式：GOAL</string>
+  <string name="setting_model_page_prompt_permission_goal_desc">GOAL 模式下注入；引导先探索项目、建立 todo，停止输出后自动评审目标</string>
   <string name="setting_model_page_prompt_permission_desc">该模式下每轮生成追加到最新用户消息之后的提示词；内容原样注入，清空即不注入</string>
   <string name="setting_display_page_bubble_opacity_title">气泡不透明度</string>
   <string name="setting_provider_page_include_history_reasoning">回传历史思考过程</string>
@@ -1357,6 +1359,10 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="permission_mode_build_desc">默认：工具按各自审批配置执行</string>
   <string name="permission_mode_yolo">YOLO</string>
   <string name="permission_mode_yolo_desc">跳过所有工具审批（危险）</string>
+  <string name="permission_mode_goal">GOAL</string>
+  <string name="permission_mode_goal_desc">停止输出时自动评审目标完成情况；仅可通过 /goal 进入</string>
+  <string name="permission_mode_goal_exit_hint">点击其他任意模式即可退出 GOAL 模式。</string>
+  <string name="goal_eval_error_title">目标评审失败</string>
   <string name="permission_mode_picker_title">权限模式</string>
   <string name="permission_mode_picker_desc">控制工具的审批与执行方式</string>
   <string name="subagent_monitor_running_badge">执行中</string>

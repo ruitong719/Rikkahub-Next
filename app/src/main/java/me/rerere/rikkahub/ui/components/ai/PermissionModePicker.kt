@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -33,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.AiBrain01
 import me.rerere.hugeicons.stroke.CheckmarkCircle02
 import me.rerere.hugeicons.stroke.Eye
 import me.rerere.hugeicons.stroke.Wrench01
@@ -66,11 +68,13 @@ fun PermissionModeButton(
         PermissionMode.PLAN -> MaterialTheme.colorScheme.secondaryContainer
         PermissionMode.BUILD -> Color.Transparent
         PermissionMode.YOLO -> MaterialTheme.colorScheme.errorContainer
+        PermissionMode.GOAL -> MaterialTheme.colorScheme.tertiaryContainer
     }
     val contentColor = when (mode) {
         PermissionMode.PLAN -> MaterialTheme.colorScheme.onSecondaryContainer
         PermissionMode.BUILD -> MaterialTheme.colorScheme.onSurfaceVariant
         PermissionMode.YOLO -> MaterialTheme.colorScheme.onErrorContainer
+        PermissionMode.GOAL -> MaterialTheme.colorScheme.onTertiaryContainer
     }
 
     Surface(
@@ -129,12 +133,27 @@ private fun PermissionModePicker(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            listOf(PermissionMode.PLAN, PermissionMode.BUILD, PermissionMode.YOLO).forEach { option ->
+            listOf(PermissionMode.PLAN, PermissionMode.BUILD, PermissionMode.YOLO, PermissionMode.GOAL).forEach { option ->
                 PermissionModeCard(
                     mode = option,
                     selected = option == current,
-                    onClick = { onSelect(option) },
+                    // GOAL 只能通过输入框 /goal 进入：未处于 GOAL 时点击无效；
+                    // 已是 GOAL 时可以点其他模式退出
+                    onClick = {
+                        if (option != PermissionMode.GOAL || current == PermissionMode.GOAL) {
+                            onSelect(option)
+                        }
+                    },
+                    enabled = option != PermissionMode.GOAL || current == PermissionMode.GOAL,
                     modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (current == PermissionMode.GOAL) {
+                Text(
+                    text = stringResource(R.string.permission_mode_goal_exit_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp),
                 )
             }
         }
@@ -147,6 +166,7 @@ private fun PermissionModeCard(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val containerColor by animateColorAsState(
         if (selected) MaterialTheme.colorScheme.primaryContainer
@@ -154,7 +174,9 @@ private fun PermissionModeCard(
     )
     Card(
         onClick = onClick,
-        modifier = modifier,
+        enabled = enabled,
+        modifier = modifier
+            .let { if (enabled) it else it.alpha(0.45f) },
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = if (selected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
@@ -221,16 +243,19 @@ private fun PermissionMode.icon(): ImageVector = when (this) {
     PermissionMode.PLAN -> HugeIcons.Eye
     PermissionMode.BUILD -> HugeIcons.Wrench01
     PermissionMode.YOLO -> HugeIcons.Zap
+    PermissionMode.GOAL -> HugeIcons.AiBrain01
 }
 
 private fun PermissionMode.labelRes(): Int = when (this) {
     PermissionMode.PLAN -> R.string.permission_mode_plan
     PermissionMode.BUILD -> R.string.permission_mode_build
     PermissionMode.YOLO -> R.string.permission_mode_yolo
+    PermissionMode.GOAL -> R.string.permission_mode_goal
 }
 
 private fun PermissionMode.descriptionRes(): Int = when (this) {
     PermissionMode.PLAN -> R.string.permission_mode_plan_desc
     PermissionMode.BUILD -> R.string.permission_mode_build_desc
     PermissionMode.YOLO -> R.string.permission_mode_yolo_desc
+    PermissionMode.GOAL -> R.string.permission_mode_goal_desc
 }
