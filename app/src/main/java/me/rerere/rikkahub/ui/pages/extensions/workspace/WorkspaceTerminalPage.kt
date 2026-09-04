@@ -2,8 +2,10 @@ package me.rerere.rikkahub.ui.pages.extensions.workspace
 
 import android.graphics.Typeface
 import android.view.MotionEvent
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -157,6 +159,7 @@ fun WorkspaceTerminalPage(id: String) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WorkspaceTerminalContent(
     root: String?,
@@ -215,37 +218,23 @@ private fun WorkspaceTerminalContent(
                     )
                     Tab(
                         selected = selectedTab.id == tab.id,
-                        onClick = { onSelectTab(tab.id) },
+                        // 单击选中；双击关闭（弹确认框），避免误触独立的关闭按钮
+                        onClick = {},
                         modifier = Modifier
                             .height(40.dp)
+                            .combinedClickable(
+                                onClick = { onSelectTab(tab.id) },
+                                onDoubleClick = { onCloseTab(tab.id) },
+                            )
                             .semantics {
                                 contentDescription = tabDescription
                             },
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(0.dp),
-                        ) {
-                            Text(
-                                text = tab.number.toString(),
-                                maxLines = 1,
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                            val closeDescription = stringResource(
-                                R.string.workspace_terminal_close_tab,
-                                tab.number,
-                            )
-                            IconButton(
-                                onClick = { onCloseTab(tab.id) },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .semantics {
-                                        contentDescription = closeDescription
-                                    },
-                            ) {
-                                Text(text = "×", fontSize = 18.sp)
-                            }
-                        }
+                        Text(
+                            text = tab.number.toString(),
+                            maxLines = 1,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
                     }
                 }
             }

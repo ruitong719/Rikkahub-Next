@@ -28,6 +28,8 @@ data class WorkspaceBgTaskMeta(
     val conversationId: String? = null,
     val command: String = "",
     val startedAt: Long = 0L,
+    /** 用户指定的自定义输出文件（绝对路径）；null 时输出写入 <taskDir>/stdout.log */
+    val outputFile: String? = null,
 )
 
 data class WorkspaceBgTaskInfo(
@@ -40,6 +42,7 @@ data class WorkspaceBgTaskInfo(
     val pid: Long?,
     val notified: Boolean,
     val stdoutSizeBytes: Long,
+    val outputFile: String?,
 )
 
 /**
@@ -92,8 +95,10 @@ class WorkspaceBgManager(
         command: String,
         cwd: String?,
         conversationId: String?,
+        outputFile: String? = null,
     ): String = withContext(Dispatchers.IO) {
         require(command.isNotBlank()) { "command is required" }
+        require(outputFile == null || outputFile.startsWith("/")) { "outputFile must be an absolute path" }
         workspaceManager.ensureWorkspace(workspaceRoot)
 
         // 并发限制
@@ -113,16 +118,18 @@ class WorkspaceBgManager(
             conversationId = conversationId,
             command = command,
             startedAt = System.currentTimeMillis(),
+            outputFile = outputFile,
         )
         File(taskDir, "meta.json").writeText(Json.encodeToString(WorkspaceBgTaskMeta.serializer(), meta))
 
         // 会话内提交任务：wrapper 记录退出码
         val session = ensureSession(workspaceRoot)
         val workingDir = cwd?.takeIf { it.isNotBlank() } ?: "/workspace"
+        val stdoutTarget = outputFile ?: taskAbsPath(workspaceRoot, taskId, "stdout.log")
         val wrapped = buildString {
             append("( cd ").append(workingDir.shellQuote()).append(" && ")
             append(command)
-            append(" > ").append(taskAbsPath(workspaceRoot, taskId, "stdout.log").shellQuote()).append(" 2>&1; ")
+            append(" > ").append(stdoutTarget.shellQuote()).append(" 2>&1; ")
             append("echo $? > ").append(taskAbsPath(workspaceRoot, taskId, "exit_code").shellQuote())
             append(" ) &\n")
             append("echo $! > ").append(taskAbsPath(workspaceRoot, taskId, "pid").shellQuote()).append("\n")
@@ -167,6 +174,16 @@ class WorkspaceBgManager(
             text.lines().takeLast(n)
         } ?: text.lines()
         lines.joinToString("\n")
+    }
+
+    /** 读取任务自定义输出文件（output_file）的末尾 N 行；未指定或文件不存在时返回 null。 */
+    suspend fun outputFileTail(
+        outputFile: String?,
+        lines: Int = 5,
+    ): String? = withContext(Dispatchers.IO) {
+        val file = outputFile?.takeIf { it.isNotBlank() }?.let(::File) ?: return@withContext null
+        if (!file.isFile) return@withContext null
+        file.readLines().takeLast(lines.coerceAtLeast(1)).joinToString("\n")
     }
 
     suspend fun killTask(workspaceRoot: String, taskId: String): Boolean =
@@ -304,6 +321,7 @@ class WorkspaceBgManager(
             pid = pid,
             notified = File(dir, "notified").exists(),
             stdoutSizeBytes = File(dir, "stdout.log").length(),
+            outputFile = meta?.outputFile,
         )
     }
 

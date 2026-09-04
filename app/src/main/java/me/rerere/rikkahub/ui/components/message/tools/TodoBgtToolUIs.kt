@@ -266,31 +266,55 @@ object BgtToolUI : ToolUIRenderer {
             "status" -> {
                 val status = content?.getStringContent("status")
                 val exitCode = content?.let { parseExitCode(it) } ?: -1
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                val outputTail = content?.getStringContent("outputTail")
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .shimmer(isLoading = context.loading),
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(statusColor(status)),
-                    )
-                    Text(
-                        text = buildString {
-                            append(status ?: "…")
-                            if (exitCode != 0 && status != null && status != "running") {
-                                append(" (exit $exitCode)")
-                            }
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(statusColor(status)),
+                        )
+                        Text(
+                            text = buildString {
+                                append(status ?: "…")
+                                if (exitCode != 0 && status != null && status != "running") {
+                                    append(" (exit $exitCode)")
+                                }
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (!outputTail.isNullOrBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.small)
+                                .background(MaterialTheme.colorScheme.surfaceContainer)
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                        ) {
+                            CodeHighlightText(
+                                code = outputTail,
+                                language = "bash",
+                                fontSize = 11.sp,
+                                lineHeight = 14.sp,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
                 }
             }
 
@@ -370,6 +394,8 @@ object BgtToolUI : ToolUIRenderer {
         val pid = content?.let { parseLong(it, "pid") } ?: 0L
         val duration = content?.let { parseLong(it, "durationSeconds") } ?: 0L
         val stdoutBytes = content?.let { parseLong(it, "stdoutBytes") } ?: 0L
+        val outputFile = content.getStringContent("outputFile")
+        val outputTail = content.getStringContent("outputTail")
         val command = content.getStringContent("command").orEmpty()
         Column(
             modifier = Modifier
@@ -412,6 +438,21 @@ object BgtToolUI : ToolUIRenderer {
                 fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (!outputFile.isNullOrBlank()) {
+                Text(
+                    text = "outputFile: $outputFile",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (!outputTail.isNullOrBlank()) {
+                HighlightCodeBlock(
+                    code = outputTail,
+                    language = "bash",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 

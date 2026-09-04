@@ -43,7 +43,10 @@ fun createWorkspaceBgTools(
                 "Max ${WorkspaceBgManager.MAX_CONCURRENT_TASKS} concurrent tasks per workspace. " +
                 "Only suitable for non-interactive commands (no TTY): without a TTY many programs " +
                 "(python, node, grep pipelines...) block-buffer stdout, so mid-run reads may lag or be empty; " +
-                "use unbuffered modes like `stdbuf -oL` or `python -u` when you need incremental logs.",
+                "use unbuffered modes like `stdbuf -oL` or `python -u` when you need incremental logs. " +
+                "Optional output_file: absolute path inside the workspace where the task stdout/stderr " +
+                "should be written (defaults to .l2s.bg/<taskId>/stdout.log). When set, bgt(action=\"status\") " +
+                "returns the last 5 lines of that file as outputTail.",
             parameters = {
                 InputSchema.Obj(
                     properties = buildJsonObject {
@@ -55,6 +58,11 @@ fun createWorkspaceBgTools(
                             put("type", "string")
                             put("description", "Working directory inside the workspace (absolute path). Defaults to /workspace.")
                         })
+                        put("output_file", buildJsonObject {
+                            put("type", "string")
+                            put("description", "Optional absolute path to write the task's stdout/stderr (e.g. /workspace/build.log). " +
+                                "Defaults to the task's internal stdout.log under .l2s.bg/<taskId>/.")
+                        })
                     },
                     required = listOf("command"),
                 )
@@ -64,12 +72,14 @@ fun createWorkspaceBgTools(
                 val params = it.jsonObject
                 val command = params.string("command") ?: error("command is required")
                 val cwd = params.string("cwd")
+                val outputFile = params.string("output_file")
                 val bgManager = getKoin().get<WorkspaceBgManager>()
                 val taskId = bgManager.startTask(
                     workspaceRoot = rootOf(),
                     command = command,
                     cwd = cwd,
                     conversationId = conversationId,
+                    outputFile = outputFile,
                 )
                 listOf(
                     UIMessagePart.Text(
@@ -90,7 +100,7 @@ fun createWorkspaceBgTools(
             name = "bgt",
             description = "Query or manage background tasks started with bgt_start.\n" +
                 "Actions:\n" +
-                "- status: running/done/failed, exit code, pid, elapsed time (requires bg_id)\n" +
+                "- status: running/done/failed, exit code, pid, elapsed time (requires bg_id); if the task was started with output_file, also returns the last 5 lines of it as outputTail\n" +
                 "- output: read task output, supports tail_lines / max_bytes (requires bg_id); " +
                         "result carries the task status so you can tell finished from still-running\n" +
                 "- kill: terminate a running task with SIGTERM (requires bg_id)\n" +
@@ -114,6 +124,11 @@ fun createWorkspaceBgTools(
                             put("type", "integer")
                             put("description", "action=output only: maximum bytes to read from the end of the output. Defaults to 2MB.")
                         })
+                        put("output_file", buildJsonObject {
+                            put("type", "string")
+                            put("description", "action=status only: absolute path whose last 5 lines should be returned as outputTail. " +
+                                "Defaults to the output_file the task was started with.")
+                        })
                     },
                     required = listOf("action"),
                 )
@@ -126,6 +141,8 @@ fun createWorkspaceBgTools(
                     "status" -> {
                         val bgId = params.string("bg_id") ?: error("bg_id is required for action=status")
                         val info = bgManager.taskInfo(rootOf(), bgId)
+                        val outputFile = params.string("output_file") ?: info.outputFile
+                        val outputTail = bgManager.outputFileTail(outputFile, lines = 5)
                         buildJsonObject {
                             put("bg_id", info.taskId)
                             put("status", info.status.name.lowercase())
@@ -134,6 +151,8 @@ fun createWorkspaceBgTools(
                             put("durationSeconds", (System.currentTimeMillis() - info.startedAt) / 1000)
                             put("command", info.command)
                             put("stdoutBytes", info.stdoutSizeBytes)
+                            put("outputFile", outputFile ?: "")
+                            outputTail?.let { put("outputTail", it) }
                         }
                     }
 

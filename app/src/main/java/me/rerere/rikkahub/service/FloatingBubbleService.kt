@@ -1,5 +1,7 @@
 package me.rerere.rikkahub.service
 
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
@@ -23,6 +25,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import android.view.animation.LinearInterpolator
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.petterp.floatingx.FloatingX
@@ -42,6 +45,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import me.rerere.rikkahub.FLOATING_BUBBLE_NOTIFICATION_CHANNEL_ID
 import me.rerere.rikkahub.R
@@ -50,6 +54,7 @@ import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.model.IconSource
 import me.rerere.rikkahub.ui.floating.FloatingExpandWindow
 import me.rerere.rikkahub.utils.svgToDataUri
+import org.koin.java.KoinJavaComponent.getKoin
 import org.koin.android.ext.android.inject
 import java.io.File
 
@@ -97,6 +102,7 @@ class FloatingBubbleService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val mainHandler = Handler(Looper.getMainLooper())
     private var settingsJob: Job? = null
+    private var generatingJob: Job? = null
 
     private var control: IFxAppControl? = null
     private var bubbleView: BubbleView? = null
@@ -188,6 +194,7 @@ class FloatingBubbleService : Service() {
         super.onDestroy()
         serviceRunning = false
         settingsJob?.cancel()
+        generatingJob?.cancel()
         mainHandler.removeCallbacksAndMessages(null)
         expandWindow?.hide()
         expandWindow = null
@@ -303,6 +310,19 @@ class FloatingBubbleService : Service() {
         }
 
         observeSettings()
+        observeGenerationState()
+    }
+
+    /**
+     * 订阅全局生成状态：任一会话正在输出或工具调用（非静止）时旋转悬浮球，
+     * 生成结束/停止/会话关闭后停止旋转。
+     */
+    private fun observeGenerationState() {
+        if (generatingJob != null) return
+        generatingJob = serviceScope.launch {
+            getKoin().get<ChatService>().anyGenerating
+                .collect { spinning -> bubbleView?.setSpinning(spinning) }
+        }
     }
 
     private fun observeSettings() {
@@ -520,8 +540,36 @@ class FloatingBubbleService : Service() {
         private var iconBitmap: Bitmap? = null
         private var sizePx = 0
 
+        // 生成中旋转动画：整球绕中心匀速自转，静止时复位
+        private var spinning = false
+        private val rotationAnimator by lazy {
+            ObjectAnimator.ofFloat(this, View.ROTATION, 0f, 360f).apply {
+                duration = 4000L
+                repeatCount = ValueAnimator.INFINITE
+                interpolator = LinearInterpolator()
+            }
+        }
+
         init {
             background = drawable
+        }
+
+        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+            super.onSizeChanged(w, h, oldw, oldh)
+            pivotX = w / 2f
+            pivotY = h / 2f
+        }
+
+        /** 生成中（输出/工具调用）旋转，静止时取消动画并复位 */
+        fun setSpinning(spinning: Boolean) {
+            if (this.spinning == spinning) return
+            this.spinning = spinning
+            if (spinning) {
+                rotationAnimator.start()
+            } else {
+                rotationAnimator.cancel()
+                rotation = 0f
+            }
         }
 
         fun setBubbleColor(color: Int) {

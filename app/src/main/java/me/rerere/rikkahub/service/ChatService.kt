@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -227,8 +228,30 @@ class ChatService(
     private val sessions = ConcurrentHashMap<Uuid, ConversationSession>()
     private val _sessionsVersion = MutableStateFlow(0L)
 
+    // 全局生成状态：任一会话处于生成中（含工具调用）为 true，供悬浮球等外部 UI 订阅
+    private val _anyGenerating = MutableStateFlow(false)
+    val anyGenerating: StateFlow<Boolean> = _anyGenerating.asStateFlow()
+
     init {
         startBgTaskAutoResumeWatcher()
+        observeAnyGenerating()
+    }
+
+    /** 聚合所有会话的 generationJob：会话增删（_sessionsVersion）或任一 job 状态变化时重算 */
+    private fun observeAnyGenerating() {
+        appScope.launch {
+            _sessionsVersion
+                .flatMapLatest {
+                    val flows = sessions.values.map { session -> session.generationJob }
+                    if (flows.isEmpty()) {
+                        flowOf(false)
+                    } else {
+                        combine(flows) { jobs -> jobs.any { it?.isActive == true } }
+                    }
+                }
+                .distinctUntilChanged()
+                .collect { _anyGenerating.value = it }
+        }
     }
 
     // 错误状态
