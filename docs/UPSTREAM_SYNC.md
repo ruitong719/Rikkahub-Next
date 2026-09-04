@@ -6,9 +6,63 @@
 ## 当前状态
 
 - **基线**：merge-base `0c52b62b`（上游 2.4.9，v1.00 迭代时整体 merge）
-- **已同步至**：`9365c297`（2026-08-30）—— 上游 `master` 全部提交处理完毕
+- **已同步至**：`5cdab947`（2026-09-03）—— 上游 `master` 全部提交处理完毕
 
-## 全量对账表（`c16fe44f..9365c297`，2026-08-30）
+## 全量对账表（`9365c297..5cdab947`，2026-09-03）
+
+| # | 上游 commit | 主题 | 处理 | fork 落点 |
+|---|---|---|---|---|
+| 81 | `41353567` | feat: 支持关闭自动重试 | 已合入（适配） | `688076d8`（cherry-pick + 门控手工接入 fork 重连环）+ `a77d7c8a`（清理未接线实验开关），见批次说明 G |
+| 82 | `d3a53e0a` | fix: 改进图片选择，使用PickVisualMedia替代 | **跳过** | 上游 #85 自己回滚，净效果为零；fork 现状（GetContent/GetMultipleContents）即回滚后状态；ChatAttachmentPicker.kt fork 不存在 |
+| 83 | `883bde7d` | refactor(settings): 移动 TTS 默认播放倍速设置 | 已合入 | `9a2e890c`，仅 2 处 import 冲突（fork GeneralPage 的 Box/File/Instant 双保留、去重上游 roundToInt）；TTS 组区域自动落位；SpeechPage 零漂移自动合并 |
+| 84 | `4309fdfe` | chore: bump to 2.4.16 | **跳过（语义）** | fork 自行 bump：`fa3b0970`（versionCode 184 / versionName 2.4.16） |
+| 85 | `4b36640a` | fix: 恢复图片选择器的文件浏览入口 | **跳过** | 回滚 commit 本身，无独立价值（同 #82） |
+| 86 | `08c2648b` | chore: 移除记忆id显示 | **跳过** | fork 无记忆 UI（AssistantMemoryPage 不存在，仅数据层 MemoryRepository），空操作 |
+| 87 | `540b9dfa` | fix(backup): 使用一致性快照并在启动时安全恢复备份 | **部分合入（高价值机制）** | `022e0f15` + `fdc19e95`，见批次说明 H |
+| — | `ec20570b` | fix(i18n): 补全 TTS 播放倍速本地化 | **跳过** | 只补 ja/ko-rKR/ru/zh-rTW + zh；fork 惯例仅保留 en/zh，zh 两条 fork 已存在（#88 顺带合入） |
+| 88 | `0f2c495b` | feat(search): 支持切换当前助手与全部助手搜索 | 已合入 | `c43c05c2`，SearchVM imports/OptIn 冲突；4 个已删 locale 按惯例 git rm；values-zh 顺带补上 tts 倍速缺失翻译 |
+| 89 | `5cdab947` | fix: 为opencode端点添加x-opencode-session头 | **fork 替代实现** | `ff48c297`，占位符方案：ClientPresets `{sessionId}` + RequestTags.attachSessionId + 拦截器解析（见批次说明 I） |
+
+## #81–#89 批次说明（2026-09-03）
+
+- **G（#81 自动重试开关）**：上游逻辑 = 网络设置页"自动重试"总开关（`NetworkSetting.enableAutoRetry`
+  默认 true）门控流式/非流式两路重试。fork 只有单循环重连环（#48 路径 A 保留），cherry-pick 时
+  上游双路径块全部弃取、保留 fork 循环，门控手工一行接入 catch：
+  `if (!settings.networkSetting.enableAutoRetry || reconnectAttempt >= MAX || ...) throw e`。
+  同时清理 fork 死配置：`enableStreamAutoReconnect` 实验开关（参数传入 GenerationHandler 但
+  函数体从未使用、并未接线）连同参数链/DataStore key/实验页 UI/strings 一并移除，避免双开关误导
+- **H（#87 备份，只移植高价值机制）**：用户决策——fork 已有一致性快照（DatabaseBackupManager：
+  wal_checkpoint + 主库复制 + wal 兜底）与备份项选择（BackupScope），不搬上游整体重构（BackupManager
+  统一归档/WebDavSync 缩短/S3 删除），只摘：
+  ① `PendingRestore`：noBackupFilesDir 暂存 + journal + 原子移动安装，失败自动回滚保留原数据；
+  ② `DatabaseBackup`：恢复前 normalize（checkpoint + integrity_check）+ 打开暂存库跑 Room 迁移；
+  ③ `AppDatabaseFactory`/`SQLiteConfiguration`：databaseBuilder 从 DataSourceModule 抽出
+  （含 fork 特有 Migration_27_28/28_29/30_31），供暂存库校验复用，DataSourceModule 改用它；
+  ④ `RikkaHubApp.onCreate` 在 Koin 之前 `PendingRestore.applyPendingRestore`
+  （settings 经 `SettingsStore.restoreBeforeInitialization` 落盘）；
+  ⑤ `PreferencesStore`：持久化抽 `persistSettings` + 新增 `restoreBeforeInitialization`；
+  ⑥ `WebDavSync.restoreFromBackupFile` 重写：zip 解压到暂存（db + wal 进 database/、upload/skills/
+  fonts/workspaces 进 files/）→ 校验 → publish → 重启自动安装；删除旧直接覆盖式恢复
+  （restoreSafeEntry/restoreSkillEntry/restoreWorkspaceEntry）。
+  备份 zip 结构、导出流程与备份项选择完全不变，旧备份兼容。
+  ⚠️ 过程失误：初次删除辅助函数时误删了夹在中间的 addFileToZip/addDirectoryToZip
+  （prepareBackupFile 依赖），`:app:compileDebugKotlin` 抓出后 `fdc19e95` 恢复
+- **I（#89 opencode session 头，fork 替代实现）**：上游在 ChatCompletionsAPI 请求构建处写死
+  `host == "opencode.ai"` 时注入 `x-opencode-session: params.sessionId`。fork 采用统一入口方案：
+  ① ai 模块新增 `RequestTags.attachSessionId(params)`，三大 Provider（openai/claude/google）的
+  generateText/streamText 六处请求构建挂 `SessionIdRequestTag`（随请求走，并发会话安全）；
+  ② `ClientPresets` 新增 `SESSION_ID_PLACEHOLDER = "{sessionId}"`，OpenCode 预设 headers 增加
+  `x-opencode-session: {sessionId}`（与 x-opencode-client 并列）；
+  ③ DataSourceModule 共享拦截器读取 tag 并替换占位符，非生成请求（无 tag）跳过含占位符的 header。
+  语义差异：需启用 OpenCode 伪造才注入（遵循既有"伪装 opt-in"原则），上游为无条件注入；
+  覆盖面更广：任何供应商的伪装值手写 `{sessionId}` 均可动态注入
+- **验证状态**：#81/#83/#88 及 #87 移植与 **#89 占位符实现**均已过 `:app:compileDebugKotlin` 全量类型检查
+  （BUILD SUCCESSFUL）；新批次 fork 自有改动（bgt output_file、终端双击关 Tab、悬浮球生成旋转）
+  已完成编译回归；Gradle 完整构建与真机冒烟在 CI/真机补做，重点冒烟 = 网络设置页自动重试开关、
+  恢复备份后重启自动应用、OpenCode 伪装请求头（x-opencode-session）、bgt status 附带输出尾行、
+  终端双击关 Tab 确认框、悬浮球生成中旋转
+
+## #49–#80 批次说明（2026-08-30）
 
 | # | 上游 commit | 主题 | 处理 | fork 落点 |
 |---|---|---|---|---|
