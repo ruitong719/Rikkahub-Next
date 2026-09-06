@@ -1,7 +1,6 @@
 package me.rerere.rikkahub.ui.pages.extensions.workspace
 
 import android.graphics.Typeface
-import android.view.MotionEvent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -10,14 +9,18 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -161,6 +164,7 @@ fun WorkspaceTerminalPage(id: String) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun WorkspaceTerminalContent(
     root: String?,
     state: WorkspaceTerminalTabsState,
@@ -201,7 +205,10 @@ private fun WorkspaceTerminalContent(
         modifier = Modifier
             .fillMaxSize()
             .padding(contentPadding)
-            .imePadding(),
+            .consumeWindowInsets(contentPadding)
+            // Resize to the final IME height at animation start so the toolbar moves immediately
+            // and terminal rows stay stable instead of sending a SIGWINCH for every frame.
+            .windowInsetsPadding(WindowInsets.imeAnimationTarget),
         color = Color.Black,
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -293,12 +300,6 @@ private fun WorkspaceTerminalTabContent(
                         attachSession(tab.session)
                         tab.client.terminalView = this
                         viewClient.terminalView = this
-                        setOnTouchListener { _, event ->
-                            if (event.action == MotionEvent.ACTION_UP) {
-                                viewClient.focusAndShowKeyboard()
-                            }
-                            false
-                        }
                         post {
                             viewClient.focusAndShowKeyboard()
                         }
@@ -312,12 +313,6 @@ private fun WorkspaceTerminalTabContent(
                     terminalView.setTerminalViewClient(viewClient)
                     tab.client.terminalView = terminalView
                     viewClient.terminalView = terminalView
-                    terminalView.setOnTouchListener { _, event ->
-                        if (event.action == MotionEvent.ACTION_UP) {
-                            viewClient.focusAndShowKeyboard()
-                        }
-                        false
-                    }
                     terminalView.attachSession(tab.session)
                     terminalView.onScreenUpdated()
                 },
