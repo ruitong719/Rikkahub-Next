@@ -1,14 +1,17 @@
 package me.rerere.rikkahub.service
 
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.data.model.Conversation
 import java.util.concurrent.atomic.AtomicInteger
@@ -40,6 +43,7 @@ class ConversationSession(
 
     // 生成任务（内聚在 session 中）
     private val _generationJob = MutableStateFlow<Job?>(null)
+    private val activeJobs = mutableSetOf<Job>()
     val generationJob: StateFlow<Job?> = _generationJob.asStateFlow()
     val isGenerating: Boolean get() = _generationJob.value?.isActive == true
     val isInUse: Boolean get() = refCount.get() > 0 || isGenerating
@@ -163,12 +167,36 @@ class ConversationSession(
         }
     }
 
-    // 生成槽位锁：登记/预留互斥，消除"检查空闲 + 登记"与并发发起者之间的竞态窗口
+    // 生成槽位锁：登记/预留互斥，消除\"检查空闲 + 登记\"与并发发起者之间的竞态窗口
     private val slotLock = Any()
 
-    fun setJob(job: Job?) = synchronized(slotLock) {
-        _generationJob.value?.cancel()
-        attachGenerationJob(job)
+    // 关联任务集合：生成主任务 + 审批排队任务（连续审批不互相取消，仅登记；停止时统一取消）
+    private val activeJobs = mutableSetOf<Job>()
+
+    /**
+     * 登记任务。默认取消前一个（沿用旧语义）；
+     * 审批等排队任务用 [cancelPrevious] = false 串行化，互不打断。
+     */
+    fun setJob(job: Job?, cancelPrevious: Boolean = true) = synchronized(slotLock) {
+        val previous = _generationJob.value
+        _generationJob.value = job
+        if (cancelPrevious) previous?.cancel()
+        if (job != null) activeJobs.add(job)
+        job?.invokeOnCompletion { cause ->
+            synchronized(slotLock) {
+                activeJobs.remove(job)
+                // 排队任务被取消时同步取消其前驱（连续审批：避免前驱完成又启动下一个审批）
+                if (!cancelPrevious && cause is CancellationException) previous?.cancel()
+                // 仅当当前登记的仍是该 job 时才清空：
+                // flush 场景旧 job 完成时可能已登记新 job，不能顶掉它
+                if (_generationJob.value === job) {
+                    _generationJob.value = null
+                }
+                if (refCount.get() <= 0) {
+                    scheduleIdleCheck()
+                }
+            }
+        }
     }
 
     /**
@@ -191,19 +219,30 @@ class ConversationSession(
 
     private fun attachGenerationJob(job: Job?) {
         _generationJob.value = job
+        if (job != null) activeJobs.add(job)
         job?.invokeOnCompletion {
-            // 仅当当前登记的仍是该 job 时才清空：
-            // flush 场景旧 job 完成时可能已登记新 job，不能顶掉它
-            if (_generationJob.value === job) {
-                _generationJob.value = null
-            }
-            if (refCount.get() <= 0) {
-                scheduleIdleCheck()
+            synchronized(slotLock) {
+                activeJobs.remove(job)
+                // 仅当当前登记的仍是该 job 时才清空：
+                // flush 场景旧 job 完成时可能已登记新 job，不能顶掉它
+                if (_generationJob.value === job) {
+                    _generationJob.value = null
+                }
+                if (refCount.get() <= 0) {
+                    scheduleIdleCheck()
+                }
             }
         }
     }
 
     fun getJob(): Job? = _generationJob.value
+
+    fun cancelJobs(): List<Job> = synchronized(slotLock) {
+        activeJobs.toList().also { jobs ->
+            // 先取消等待者（审批排队），避免前驱完成时又启动下一个审批
+            jobs.asReversed().forEach { it.cancel() }
+        }
+    }
 
     private fun scheduleIdleCheck() {
         idleCheckJob?.cancel()
@@ -221,9 +260,21 @@ class ConversationSession(
     }
 
     fun cleanup() {
-        _generationJob.value?.cancel()
+        cancelJobs()
         _generationJob.value = null
         idleCheckJob?.cancel()
         idleCheckJob = null
+    }
+}
+
+/** Serialize approval saves without cancelling earlier decisions; stopping cancels the whole chain. */
+internal suspend fun afterPreviousGeneration(previous: Job?, block: suspend () -> Unit) {
+    try {
+        previous?.join()
+        block()
+    } catch (e: CancellationException) {
+        previous?.cancel()
+        withContext(NonCancellable) { previous?.join() }
+        throw e
     }
 }

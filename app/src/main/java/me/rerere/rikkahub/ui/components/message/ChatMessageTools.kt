@@ -101,7 +101,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
     // ask_user 仅在 Pending 待答时走交互表单（需要 onToolAnswer 回调提交）；
     // 已答/YOLO 不可用等终态交给注册式渲染器 AskUserToolUI 展示
     if (tool.toolName == ASK_USER_TOOL_NAME) {
-        val interactive = tool.approvalState is ToolApprovalState.Pending && onToolAnswer != null
+        val interactive = tool.isPending && onToolAnswer != null
         if (interactive) {
             AskUserToolStep(tool = tool, loading = loading, onToolAnswer = onToolAnswer)
             return
@@ -129,7 +129,7 @@ fun ChainOfThoughtScope.ChatMessageToolStep(
     var showResult by remember { mutableStateOf(false) }
     var showDenyDialog by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(true) }
-    val isPending = tool.approvalState is ToolApprovalState.Pending
+    val isPending = tool.isPending
     val isDenied = tool.approvalState is ToolApprovalState.Denied
     val images = tool.output.filterIsInstance<UIMessagePart.Image>()
 
@@ -279,6 +279,8 @@ private fun ChainOfThoughtScope.AskUserToolStep(
     loading: Boolean,
     onToolAnswer: ((toolCallId: String, answer: String) -> Unit)?,
 ) {
+    val isPending = tool.isPending
+    val isAnswered = tool.approvalState is ToolApprovalState.Answered
     val arguments = tool.inputAsJson()
 
     // 新格式（header/options{label,description}/multiple/custom）+ 旧 selection_type 兼容解析
