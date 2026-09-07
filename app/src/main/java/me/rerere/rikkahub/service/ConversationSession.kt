@@ -197,6 +197,7 @@ class ConversationSession(
                 }
             }
         }
+        job?.start()
     }
 
     /**
