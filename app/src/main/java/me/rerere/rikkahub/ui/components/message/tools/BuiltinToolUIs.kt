@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -66,6 +67,7 @@ import me.rerere.rikkahub.ui.components.ui.Favicon
 import me.rerere.rikkahub.ui.components.ui.FaviconRow
 import me.rerere.rikkahub.ui.modifier.shimmer
 import me.rerere.rikkahub.utils.JsonInstantPretty
+import me.rerere.rikkahub.utils.jsonPrimitiveOrNull
 import me.rerere.rikkahub.utils.openUrl
 import me.rerere.rikkahub.utils.toLocalString
 import org.koin.compose.koinInject
