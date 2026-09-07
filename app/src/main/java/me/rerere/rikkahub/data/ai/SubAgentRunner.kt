@@ -16,7 +16,7 @@ import me.rerere.rikkahub.data.model.SubAgentToolCategory
 import kotlin.uuid.Uuid
 
 /**
- * Subagent 执行核心：复用 GenerationHandler.generateText 作为嵌套 Agent 循环。
+ * Subagent 执行核心：复用 GenerationLoop.generateText 作为嵌套 Agent 循环。
  *
  * 上下文语义（用户拍板）：继承主 Agent 系统提示 + 带入主 Agent 对话记录
  * （过滤 think 过程），再叠加 task；不应用主 Agent 的 input/output transformers。
@@ -28,7 +28,7 @@ import kotlin.uuid.Uuid
  * 并发由 [SubAgentRunMonitor.tryAcquire] 按对话限额。
  */
 class SubAgentRunner(
-    private val generationHandler: GenerationHandler,
+    private val generationLoop: GenerationLoop,
     private val monitor: SubAgentRunMonitor,
 ) {
     suspend fun run(
@@ -157,7 +157,7 @@ class SubAgentRunner(
         val ownMessageStart = messages.size
 
         var finalMessages: List<UIMessage> = emptyList()
-        generationHandler.generateText(
+        generationLoop.generateText(
             settings = settings,
             model = model,
             messages = messages,

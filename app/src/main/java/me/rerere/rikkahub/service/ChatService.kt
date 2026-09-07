@@ -51,7 +51,7 @@ import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.GenerationChunk
 import me.rerere.rikkahub.data.ai.PermissionModePolicy
-import me.rerere.rikkahub.data.ai.GenerationHandler
+import me.rerere.rikkahub.data.ai.GenerationLoop
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.ai.context.RollingContextSummary
 import me.rerere.rikkahub.data.ai.context.createRollingContextPlan
@@ -65,13 +65,11 @@ import me.rerere.rikkahub.data.ai.extractFileMutationTrail
 import me.rerere.rikkahub.data.ai.parseGoalReviewOutcome
 import me.rerere.rikkahub.data.ai.TranslationHandler
 import me.rerere.rikkahub.data.ai.mcp.McpManager
-import me.rerere.rikkahub.data.ai.tools.local.LocalTools
+import me.rerere.rikkahub.data.ai.tools.ChatToolFactory
+import me.rerere.rikkahub.data.ai.tools.InvalidMcpServerNamesException
 import me.rerere.rikkahub.data.ai.tools.local.TodoStore
 import me.rerere.rikkahub.data.ai.tools.local.TodoItem
-import me.rerere.rikkahub.data.ai.tools.createSearchTools
-import me.rerere.rikkahub.data.ai.tools.createSkillTools
 import me.rerere.rikkahub.data.ai.tools.createSubAgentTools
-import me.rerere.rikkahub.data.ai.tools.createWorkspaceTools
 import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
 import me.rerere.rikkahub.data.ai.transformers.AgentMdTransformer
@@ -214,11 +212,11 @@ class ChatService(
     private val appEventBus: AppEventBus,
     private val settingsStore: SettingsStore,
     private val conversationRepo: ConversationRepository,
-    private val generationHandler: GenerationHandler,
+    private val generationLoop: GenerationLoop,
     private val translationHandler: TranslationHandler,
     private val templateTransformer: TemplateTransformer,
     private val providerManager: ProviderManager,
-    private val localTools: LocalTools,
+    private val chatToolFactory: ChatToolFactory,
     val mcpManager: McpManager,
     private val filesManager: FilesManager,
     private val skillManager: SkillManager,
@@ -238,8 +236,8 @@ class ChatService(
     // 视觉模型降级：主模型不支持图片时，用视觉模型把图片转成文字描述
     private val visionImageToTextTransformer = VisionImageToTextTransformer(providerManager)
 
-    // subagent 嵌套执行核心（复用 GenerationHandler，无需 Koin 注册）
-    private val subAgentRunner = SubAgentRunner(generationHandler, subAgentRunMonitor)
+    // subagent 嵌套执行核心（复用 GenerationLoop，无需 Koin 注册）
+    private val subAgentRunner = SubAgentRunner(generationLoop, subAgentRunMonitor)
 
     // 统一会话管理
     private val sessions = ConcurrentHashMap<Uuid, ConversationSession>()
@@ -792,7 +790,55 @@ class ChatService(
                 requestStartIndex = rollingContextWindowStartIndex(currentMessages, rollingThresholdTokens)
             }
 
-            generationHandler.generateText(
+            // 组装本轮工具集：主工具（搜索/本地/工作区/技能/MCP）+ subagent 工具 + 权限模式 + 会话授权
+            val tools = try {
+                applyConversationGrants(
+                    tools = PermissionModePolicy.apply(
+                        tools = buildList {
+                            val mainTools = chatToolFactory.createTools(
+                                settings = settings,
+                                assistant = assistant,
+                                model = model,
+                                workspaceCwd = conversation.workspaceCwd,
+                                conversationId = conversationId,
+                            )
+                            addAll(mainTools)
+                            // subagent 工具：catalog = 主工具池（不含 subagent 工具，v1 禁止嵌套）
+                            if (assistant.subagentIds.isNotEmpty()) {
+                                addAll(
+                                    createSubAgentTools(
+                                        subAgents = settings.subagents.filter { it.id in assistant.subagentIds },
+                                        assistant = assistant,
+                                        settings = settings,
+                                        conversationSystemPrompt = conversation.customSystemPrompt,
+                                        conversationHistory = conversation.currentMessages,
+                                        toolCatalog = mainTools,
+                                        allSkills = skillManager.listSkills(),
+                                        subAgentRunner = subAgentRunner,
+                                        conversationId = conversationId,
+                                    )
+                                )
+                            }
+                        },
+                        mode = conversation.permissionMode,
+                    ),
+                    grants = session.toolGrants,
+                )
+            } catch (e: InvalidMcpServerNamesException) {
+                // MCP 服务器名校验失败：中止整个生成（保持原行为）
+                addError(
+                    error = IllegalStateException(
+                        context.getString(
+                            R.string.error_mcp_invalid_server_name,
+                            e.names.joinToString(", "),
+                        )
+                    ),
+                    conversationId = conversationId,
+                )
+                return
+            }
+
+            generationLoop.generateText(
                 settings = settings,
                 model = model,
                 processingStatus = session.processingStatus,
@@ -802,7 +848,7 @@ class ChatService(
                 conversationSystemPrompt = conversation.customSystemPrompt,
                 onAutoReconnect = { attempt, maxAttempts, error ->
                     _reconnectNotices.tryEmit(StreamReconnectNotice(conversationId, attempt, maxAttempts))
-                    // 重试原因上屏：下次尝试开始时由 GenerationHandler 清除，取消时也会清
+                    // 重试原因上屏：下次尝试开始时由 GenerationLoop 清除，取消时也会清
                     session.processingStatus.value = context.getString(
                         R.string.chat_generation_network_retrying,
                         error.networkErrorMessage(context),
@@ -839,78 +885,7 @@ class ChatService(
                     )
                 },
                 outputTransformers = outputTransformers,
-                tools = applyConversationGrants(
-                    tools = PermissionModePolicy.apply(
-                        tools = buildList {
-                        // MCP 工具名校验：无效时中止整个生成（保持原行为）
-                    mcpManager.getAllAvailableTools().also { allTools ->
-                        val invalidNames = allTools
-                            .map { it.second }
-                            .distinct()
-                            .filter { name -> name.isEmpty() || !name.all { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' } }
-                        if (invalidNames.isNotEmpty()) {
-                            addError(
-                                error = IllegalStateException(
-                                    context.getString(
-                                        R.string.error_mcp_invalid_server_name,
-                                        invalidNames.joinToString(", ")
-                                    )
-                                ),
-                                conversationId = conversationId,
-                            )
-                            return
-                        }
-                    }
-                    val mainTools = buildList {
-                        if (assistant.enableWebSearch) {
-                            addAll(createSearchTools(settings))
-                        }
-                        addAll(localTools.getTools(assistant.localTools, conversationId))
-                        addAll(createWorkspaceToolsIfReady(assistant.workspaceId?.toString(), conversation.workspaceCwd, conversationId))
-                        if (assistant.enabledSkills.isNotEmpty()) {
-                            addAll(
-                                createSkillTools(
-                                    enabledSkills = assistant.enabledSkills,
-                                    allSkills = skillManager.listSkills(),
-                                )
-                            )
-                        }
-                        mcpManager.getAllAvailableTools().forEach { (serverId, serverName, tool) ->
-                            add(
-                                Tool(
-                                    name = "mcp__${serverName}__${tool.name}",
-                                    description = tool.description ?: "",
-                                    parameters = { tool.inputSchema },
-                                    needsApproval = { tool.needsApproval },
-                                    execute = {
-                                        mcpManager.callTool(serverId, tool.name, it.jsonObject)
-                                    },
-                                )
-                            )
-                        }
-                    }
-                    addAll(mainTools)
-                    // subagent 工具：catalog = 主工具池（不含 subagent 工具，v1 禁止嵌套）
-                    if (assistant.subagentIds.isNotEmpty()) {
-                        addAll(
-                            createSubAgentTools(
-                                subAgents = settings.subagents.filter { it.id in assistant.subagentIds },
-                                assistant = assistant,
-                                settings = settings,
-                                conversationSystemPrompt = conversation.customSystemPrompt,
-                                conversationHistory = conversation.currentMessages,
-                                toolCatalog = mainTools,
-                                allSkills = skillManager.listSkills(),
-                                subAgentRunner = subAgentRunner,
-                                conversationId = conversationId,
-                            )
-                        )
-                    }
-                    },
-                        mode = conversation.permissionMode,
-                    ),
-                    grants = session.toolGrants,
-                ),
+                tools = tools,
             ).onCompletion {
                 // 可能被取消了，或者意外结束，兜底更新
                 val updatedConversation = getConversationFlow(conversationId).value.copy(
@@ -979,23 +954,6 @@ class ChatService(
                 base(args) && !grants.covers(tool.name, ToolGrants.relevantPaths(tool.name, args))
             }
         )
-    }
-
-    private suspend fun createWorkspaceToolsIfReady(
-        workspaceId: String?,
-        cwd: String? = null,
-        conversationId: Uuid? = null,
-    ): List<Tool> {
-        if (workspaceId.isNullOrBlank()) return emptyList()
-        val workspace = workspaceRepository.getById(workspaceId) ?: return emptyList()
-        if (workspace.shellStatus != WorkspaceShellStatus.READY.name) {
-            Log.d(
-                TAG,
-                "createWorkspaceToolsIfReady: skip workspace tools, workspace=$workspaceId, status=${workspace.shellStatus}"
-            )
-            return emptyList()
-        }
-        return createWorkspaceTools(workspaceId, workspaceRepository, cwd, conversationId?.toString())
     }
 
     /** 后台任务完成提醒：绑定当前对话，任务完成后下次生成时注入 <bg_reminder> */
@@ -1099,7 +1057,7 @@ class ChatService(
         val todoText = todoStore.todos(conversationId).value.joinToString("\n") {
             "[${it.status.name.lowercase()}] ${it.content}"
         }
-        val toolCatalog = createWorkspaceToolsIfReady(workspaceId, conversation.workspaceCwd, conversationId)
+        val toolCatalog = chatToolFactory.createWorkspaceToolsIfReady(workspaceId, conversation.workspaceCwd, conversationId)
         val resultJson = subAgentRunner.run(
             subAgent = buildGoalReviewerSubAgent(),
             assistant = assistant,

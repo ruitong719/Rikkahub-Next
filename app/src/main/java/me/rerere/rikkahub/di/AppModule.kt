@@ -3,6 +3,7 @@ package me.rerere.rikkahub.di
 import android.content.Context
 import kotlinx.serialization.json.Json
 import me.rerere.rikkahub.AppScope
+import me.rerere.rikkahub.data.ai.tools.ChatToolFactory
 import me.rerere.rikkahub.data.ai.tools.local.LocalTools
 import me.rerere.rikkahub.data.ai.tools.local.TodoStore
 import me.rerere.rikkahub.data.event.AppEventBus
@@ -73,17 +74,26 @@ val appModule = module {
     }
 
     single {
+        ChatToolFactory(
+            localTools = get(),
+            mcpManager = get(),
+            skillManager = get(),
+            workspaceRepository = get(),
+        )
+    }
+
+    single {
         ChatService(
             context = get(),
             appScope = get(),
             appEventBus = get(),
             settingsStore = get(),
             conversationRepo = get(),
-            generationHandler = get(),
+            generationLoop = get(),
             translationHandler = get(),
             templateTransformer = get(),
             providerManager = get(),
-            localTools = get(),
+            chatToolFactory = get(),
             mcpManager = get(),
             filesManager = get(),
             skillManager = get(),

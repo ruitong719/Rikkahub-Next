@@ -78,7 +78,7 @@ internal fun Throwable.hasRetryableNetworkCause(): Boolean {
     return false
 }
 
-class GenerationHandler(
+class GenerationLoop(
     private val context: Context,
     private val providerManager: ProviderManager,
     private val json: Json,
