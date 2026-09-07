@@ -42,6 +42,7 @@ import me.rerere.rikkahub.data.model.PermissionMode
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.FavoriteRepository
 import me.rerere.rikkahub.service.ChatError
+import me.rerere.rikkahub.service.QueuedUserMessage
 import me.rerere.rikkahub.service.ChatService
 import me.rerere.rikkahub.service.StreamReconnectNotice
 import me.rerere.rikkahub.ui.hooks.writeStringPreference
@@ -89,6 +90,19 @@ class ChatVM(
         .getQueuedMessagesFlow(_conversationId)
         .map { it.size }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    // 生成中排队消息明细（驱动队列面板展示/编辑/删除）
+    val queuedMessages: StateFlow<List<QueuedUserMessage>> = chatService
+        .getQueuedMessagesFlow(_conversationId)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    fun removeQueuedMessage(messageId: Uuid) {
+        chatService.removeQueuedMessage(_conversationId, messageId)
+    }
+
+    fun updateQueuedMessage(messageId: Uuid, parts: List<UIMessagePart>) {
+        chatService.updateQueuedMessage(_conversationId, messageId, parts)
+    }
 
     val conversationJobs = chatService
         .getConversationJobs()

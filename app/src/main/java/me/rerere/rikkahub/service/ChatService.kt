@@ -377,6 +377,16 @@ class ChatService(
         return session.queuedMessages
     }
 
+    /** 移除生成中排队消息（面板删除） */
+    fun removeQueuedMessage(conversationId: Uuid, messageId: Uuid) {
+        sessions[conversationId]?.removeQueued(messageId)
+    }
+
+    /** 编辑生成中排队消息（面板编辑） */
+    fun updateQueuedMessage(conversationId: Uuid, messageId: Uuid, parts: List<UIMessagePart>) {
+        sessions[conversationId]?.updateQueued(messageId, parts)
+    }
+
     fun getProcessingStatusFlow(conversationId: Uuid): StateFlow<String?> {
         // 用 getOrCreateSession 保证 UI 观察的是生成循环写入的同一份 Flow，否则状态永远到不了界面
         return getOrCreateSession(conversationId).processingStatus

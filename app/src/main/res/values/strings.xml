@@ -1392,6 +1392,13 @@
   <string name="bg_task_delete">Delete task</string>
   <string name="bg_task_refresh">Refresh</string>
   <string name="message_queued_toast">Message queued — will be sent when generation finishes. Clear the input and tap stop to insert it now.</string>
+  <string name="chat_page_queue_pending_count">Queued · %1$d</string>
+  <string name="chat_page_queue_remove">Remove</string>
+  <string name="chat_page_queue_edit_title">Edit queued message</string>
+  <string name="chat_page_queue_image">[Image]</string>
+  <string name="chat_page_queue_file">[File]</string>
+  <string name="chat_page_queue_audio">[Audio]</string>
+  <string name="chat_page_queue_video">[Video]</string>
   <string name="bg_auto_resume_error_title">Background task auto-resume failed</string>
   <string name="bg_auto_resume_gave_up">Failed to deliver the background task result after several attempts. Auto-resume has been stopped; send a message manually to see the result.</string>
   <string name="subagent_monitor_sheet_title">Subagents (%1$d enabled)</string>

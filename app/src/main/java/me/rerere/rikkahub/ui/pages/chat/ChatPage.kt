@@ -80,6 +80,7 @@ import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.service.ChatError
 import me.rerere.rikkahub.ui.components.ai.ChatInput
 import me.rerere.rikkahub.ui.components.ai.FilesPicker
+import me.rerere.rikkahub.ui.components.ai.MessageQueuePanel
 import me.rerere.rikkahub.ui.components.ai.SearchMode
 import me.rerere.rikkahub.ui.components.ai.completion.WorkspaceCompletionProvider
 import me.rerere.rikkahub.ui.components.ai.useCropLauncher
@@ -355,48 +356,55 @@ private fun ChatPageContent(
                 )
             },
             bottomBar = {
-                ChatInput(
-                    state = inputState,
-                    loading = loadingJob != null,
-                    queuedCount = queuedCount,
-                    settings = setting,
-                    hazeState = hazeState,
-                    completionProviders = completionProviders,
-                    onCancelClick = {
-                        vm.stopGeneration()
-                    },
-                    enableSearch = enableWebSearch,
-                    onUpdateSearchMode = { mode ->
-                        val current = setting.getCurrentAssistant()
-                        val model = setting.getCurrentChatModel()
-                        vm.updateSettings(
-                            setting.copy(
-                                assistants = setting.assistants.map { assistant ->
-                                    if (assistant.id == current.id) {
-                                        assistant.copy(enableWebSearch = mode == SearchMode.LOCAL)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // 生成中排队消息面板（上游 MessageQueuePanel 移植：可视化/编辑/删除）
+                    MessageQueuePanel(
+                        state = vm.queuedMessages.collectAsStateWithLifecycle().value,
+                        onRemove = { vm.removeQueuedMessage(it) },
+                        onUpdate = { id, parts -> vm.updateQueuedMessage(id, parts) },
+                    )
+                    ChatInput(
+                        state = inputState,
+                        loading = loadingJob != null,
+                        queuedCount = queuedCount,
+                        settings = setting,
+                        hazeState = hazeState,
+                        completionProviders = completionProviders,
+                        onCancelClick = {
+                            vm.stopGeneration()
+                        },
+                        enableSearch = enableWebSearch,
+                        onUpdateSearchMode = { mode ->
+                            val current = setting.getCurrentAssistant()
+                            val model = setting.getCurrentChatModel()
+                            vm.updateSettings(
+                                setting.copy(
+                                    assistants = setting.assistants.map { assistant ->
+                                        if (assistant.id == current.id) {
+                                            assistant.copy(enableWebSearch = mode == SearchMode.LOCAL)
+                                        } else {
+                                            assistant
+                                        }
+                                    },
+                                    providers = if (model == null) {
+                                        setting.providers
                                     } else {
-                                        assistant
-                                    }
-                                },
-                                providers = if (model == null) {
-                                    setting.providers
-                                } else {
-                                    setting.providers.map { provider ->
-                                        provider.editModel(
-                                            model.copy(
-                                                tools = if (mode == SearchMode.BUILT_IN) {
-                                                    model.tools + BuiltInTools.Search
-                                                } else {
-                                                    model.tools - BuiltInTools.Search
-                                                }
+                                        setting.providers.map { provider ->
+                                            provider.editModel(
+                                                model.copy(
+                                                    tools = if (mode == SearchMode.BUILT_IN) {
+                                                        model.tools + BuiltInTools.Search
+                                                    } else {
+                                                        model.tools - BuiltInTools.Search
+                                                    }
+                                                )
                                             )
-                                        )
-                                    }
-                                },
+                                        }
+                                    },
+                                )
                             )
-                        )
-                    },
-                    onSendClick = {
+                        },
+                        onSendClick = {
                         if (currentChatModel == null) {
                             toaster.show("请先选择模型", type = ToastType.Error)
                             return@ChatInput
@@ -467,6 +475,7 @@ private fun ChatPageContent(
                     onUpdatePermissionMode = vm::updatePermissionMode,
                     messages = conversation.messageNodes.flatMap { it.messages },
                 )
+                }
             },
             containerColor = Color.Transparent,
         ) { innerPadding ->

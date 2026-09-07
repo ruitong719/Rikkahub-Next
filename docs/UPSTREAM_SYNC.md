@@ -6,7 +6,75 @@
 ## 当前状态
 
 - **基线**：merge-base `0c52b62b`（上游 2.4.9，v1.00 迭代时整体 merge）
-- **已同步至**：`5cdab947`（2026-09-03）—— 上游 `master` 全部提交处理完毕
+- **已同步至**：`12ee935e`（2026-09-07）—— 上游 `master` 全部提交处理完毕（#90–#109 批次）
+
+## 全量对账表（`5cdab947..12ee935e`，2026-09-07）
+
+| # | 上游 commit | 主题 | 处理 | fork 落点 |
+|---|---|---|---|---|
+| 90 | `c73f8972` | chore: 新增 gpt 6 到注册表 | 已合入 | `af18424b`，零冲突 |
+| 91 | `5736c05e` | fix: 修复代码块覆盖导出残留旧内容 | 已合入 | `f50a6840`，自动（fork 上下文差异自动化解；"wt" 模式 + UTF-8 + IO 线程语义不变） |
+| 92 | `aac5e43e` | feat: 工作区文件管理支持显示图片文件缩略图 | 已合入（适配） | `eaddcc5c`，唯一冲突在 import 区（fork 的 LifecycleResumeEffect/Dispatchers 等双保留）；卡片/VM/Repository/WorkspaceManager 全部自动 |
+| 93 | `b153028d` | chore: bump to 2.4.17 | **跳过（语义）** | fork 自管版本号，本次统一 bump：`版本 185 / 2.5.0`（见文末） |
+| 94 | `a8f8c3a1` | Preserve Exa freshness evidence in web search (#1854) | 已合入（适配） | `928484cf` + `be13a921`（补 import）：结果卡片带 publishedDate 胶囊与检索参数 chip；上游 diff 复活了 fork 已删除的 MemoryToolUI（570ffee3 移除记忆），剔除；fork 无 jsonPrimitiveOrNull 导入导致编译失败，补两个 import |
+| 95 | `ab8b6cc8` | fix(ai): move provider blocking work to IO dispatcher | 已合入 | `db40bb50`，ResponseAPI 一处"新旧代码共存"冲突，取上游 use{} 版；三家流式 flowOn(IO) 自动 |
+| 96 | `1d86b3c1` | fix: prevent terminal keyboard gesture and resize issues | 已合入 | `3478abfb`，seclist 冲突仅 import（fork 的 combinedClickable 残留，下一条清理） |
+| 97 | `104040df` | feat: improve terminal tabs and merge navigation into tab bar | 已合入（**修复 bug，回滚 fork 双击关 Tab**） | `32e7e259`，见批次说明 J |
+| 98 | `5902feab` | fix: allow image-only messages without empty text parts | 已合入 | `e2d35da4`，零冲突 |
+| 99 | `7b76847f` | fix: prevent keyboard flicker when moving conversations | 已合入 | `5fa38781`，import 冲突双保留 |
+| 100 | `097cdb90` | refactor: centralize chat tool assembly in ChatToolFactory | 已合入（适配） | `70ba38b1`，见批次说明 K |
+| 101 | `66de8b30` | feat: 消息发送队列 | **跳过（用户决策 C）** | fork 自研队列语义不同（生成中实时可见 vs 串行发送）；仅移植面板 UI，见批次说明 L |
+| 102 | `580e05d6` | feat(asr): support server VAD and Volcengine bidirectional streaming | 已合入 | `f410bc4a`，零冲突（speech 模块 fork 仅 9 行漂移） |
+| 103 | `a621e277` | feat(chat): add voice mode with queued input and optional TTS | **跳过** | 架构上依赖 #101 的上游队列（语音输入→串行队列→TTS）；用户决策暂不引入语音模式 |
+| 104 | `74397a32` | chore: 新增 MaruCode 提供商 | **部分采纳** | `9a21ac31`，仅 RecommendedProviders 条目（README/赞助墙 fork 是重写版不跟；maru.png 弃用） |
+| 105 | `a61d116d` | feat: 支持自定义 response api路径 | 已合入 | `1efc7786`，ProviderConfigure 一处冲突取上游（enabled = !provider.builtIn） |
+| 106 | `55506496` | fix: 修复连续工具审批丢失及取消状态误标 | 已合入（适配） | `cd184f08` + `6807e8f8`，见批次说明 M |
+| 107 | `f2f687f0` | Refine web chat composer, pickers, and message alignment | 已合入（适配） | `3961c271`，extension-picker.tsx 取 fork 版（fork 已删 mode/lorebook tab，上游 hunk 不适用）；其余 8 文件自动 |
+| 108 | `e5247be0` | chore: update deps | 已合入 | `b7e3b903`，零冲突（coil 3.6.2 / haze beta02）；沙箱需 aliyun central 镜像才能拉到新构件，init.gradle 已补 |
+| 109 | `12ee935e` | chore: bump to 2.5.0 | **跳过（语义）** | 并入 fork 统一 bump（185 / 2.5.0） |
+
+## #90–#109 批次说明（2026-09-07）
+
+- **J（#96/#97 终端标签页 = bug 修复）**：fork `41b96f1e` 把标签页 × 按钮换成
+  `Tab(onClick={})` 外层挂 `combinedClickable`（单击选中/双击关闭）。**根因**：Material3
+  `Tab` 内部自带 `selectable`（tabClickable），位于布局树更内层，指针事件内层先消费 UP，
+  外层 `combinedClickable` 的 tap 检测看到 UP 已被消费即取消——单击选中与双击关闭
+  **全部失效**（不是"开新标签后旧标签不可点"，而是改动后永远不可点；单标签时感知不到）。
+  修复 = 整体采纳上游 `104040df` 实现（Tab 本体可点 + 48dp 独立 × 按钮 + 标签加宽 160–240dp +
+  选中标签跑马灯标题 + 返回键/新建键并入顶栏一行），fork 双击关 Tab 特性放弃（用户决策：
+  "不好改就回滚到上游实现"）。代价 = WorkspaceTerminalPage.kt 与上游 master 逐字节一致
+  （Session/SessionManager 保留 fork 的 @Suppress(DEPRECATION)）；顺手补 zh 三个缺失字符串
+  （terminals tab/new_tab/close_tab）。⚠️ 若以后再动此文件，引用上游新基线
+- **K（#100 ChatToolFactory）**：上游把 GenerationHandler→GenerationLoop（新文件）+ 工具组装
+  抽到 ChatToolFactory。fork 的 GenerationHandler 是自研循环（自动重连/队列注入/权限模式/
+  GOAL 等），**只做结构对齐**：① GenerationHandler.kt 改名 GenerationLoop.kt、类改名
+  （内容零改动，TAG 常量同上游保留旧名）；② 新建 fork 版 ChatToolFactory：无 memory 工具与
+  最近聊天引用（fork 已移除记忆），localTools/工作区工具带 conversationId（会话级提示词注入），
+  搜索注入沿用 fork 语义（assistant.enableWebSearch 直接判定，#1666 统一），MCP 名校验失败抛
+  InvalidMcpServerNamesException 由 ChatService 捕获中止；③ subagent 工具与权限模式包装
+  （PermissionModePolicy.apply + applyConversationGrants）仍留在 ChatService（会话级组装）；
+  createWorkspaceToolsIfReady 移入工厂（GOAL 评审复用同一实现）
+- **L（#101/#103 队列与语音模式，用户拍板 C）**：上游队列=生成结束后串行发送（面板可编辑/
+  删除/暂停），fork 队列=生成循环内实时可见（onPollQueuedMessages 快路径插入对话 + 打断回滚
+  requeueFront + 后台任务自动拉起 + 审批 flush），语义不同且 fork 队列与审批/GOAL/自动重连
+  深度耦合，整体替换风险高。**决策：跳队列架构，只移植上游 MessageQueuePanel 面板 UI 到
+  fork 队列**（排队消息可视化 + 编辑 + 删除；无暂停语义）：QueuedUserMessage 增加 id/parts
+  访问器，Session 新增 removeQueued/updateQueued，ChatService/ChatVM 各加删改入口，
+  ChatPage bottomBar 以 Column 包面板 + ChatInput，en/zh 各 7 条字符串。语音模式不跟
+- **M（#106 审批修复适配）**：采纳上游机制——ConversationSession 增 activeJobs +
+  setJob(cancelPrevious) + cancelJobs + afterPreviousGeneration（fork 版用 slotLock 统一
+  锁、保留 beginGenerationIfIdle/attachGenerationJob 并同步登记 activeJobs）；handleToolApproval
+  改为"不取消前 job、afterPreviousGeneration 串行化 + 过期审批忽略"，**保留** fork 全部
+  扩展（alwaysAllow 目录授权、resetAutoResumeGuards、flushQueuedMessages、emitGenerationDone）；
+  cancelToolByUser 不再标 Denied（isPending 新增 !isExecuted 语义，取消工具不等待审批不
+  恢复执行）。ConversationSessionTest 为 fork 适配版（fork 会话无 onGenerationFinished 回调，
+  相关断言移除；末条 messageQueue 测试不适用删除）。setJob 补 job.start() 对齐上游
+- **验证状态**：全量 `:app:compileDebugKotlin` BUILD SUCCESSFUL（含 #106 后第二次全量）。
+  沙箱依赖新版本（coil 3.6.2 等）需 aliyun central 镜像（~/.gradle/init.gradle 已加
+  aliyunCentral，仅限沙箱不进仓库）。**真机冒烟建议**：终端标签页单击切换/× 关闭确认/
+  加号新建后旧标签可点、连续双击审批不丢、停止生成后取消工具不显示待审批、工作区文件
+  图片缩略图、搜索卡片日期胶囊、排队面板编辑/删除、Response API 自定义路径、语音
+  （未合，无）。web-ui 改动未在沙箱构建（无 pnpm），真机构建时验证
 
 ## 全量对账表（`9365c297..5cdab947`，2026-09-03）
 
