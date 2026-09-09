@@ -8,9 +8,9 @@ import me.rerere.rikkahub.utils.JsonInstant
 import me.rerere.workspace.Workspace
 import me.rerere.workspace.WorkspaceShellStatus
 
-/** 写入安全区出厂默认：工作区文件区 + 临时目录 */
-val DEFAULT_WRITABLE_ROOTS: List<String> = listOf("/workspace", "/tmp")
-const val DEFAULT_WRITABLE_ROOTS_JSON: String = "[\"/workspace\",\"/tmp\"]"
+/** 写入安全区出厂默认：工作区文件区 + 临时目录 + 技能目录（对齐上游 019c46ae；仅影响新建工作区） */
+val DEFAULT_WRITABLE_ROOTS: List<String> = listOf("/workspace", "/tmp", "/skills")
+const val DEFAULT_WRITABLE_ROOTS_JSON: String = "[\"/workspace\",\"/tmp\",\"/skills\"]"
 
 @Entity(
     tableName = "workspaces",
