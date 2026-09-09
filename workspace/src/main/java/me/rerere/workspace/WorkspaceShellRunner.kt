@@ -22,6 +22,7 @@ data class WorkspaceShellContext(
     val bindMounts: List<WorkspaceBindMount> = emptyList(),
     // 实时输出回调, 在输出收集线程上触发, 实现方需自行保证线程安全; null 时行为与纯阻塞一致
     val onOutput: ((isStderr: Boolean, chunk: String) -> Unit)? = null,
+    val shellCompatibilityMode: Boolean = false,
 )
 
 class HostShellRunner : WorkspaceShellRunner {

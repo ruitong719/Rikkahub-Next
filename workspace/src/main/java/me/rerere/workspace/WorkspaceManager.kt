@@ -213,6 +213,7 @@ class WorkspaceManager(
         stdin: ByteArray? = null,
         extraBindMounts: List<WorkspaceBindMount> = emptyList(),
         onOutput: ((isStderr: Boolean, chunk: String) -> Unit)? = null,
+        shellCompatibilityMode: Boolean = false,
     ): WorkspaceCommandResult {
         require(command.isNotBlank()) { "Command is required" }
         val workingDir = fileSystem.resolve(filesDir(root), cwd)
@@ -232,6 +233,7 @@ class WorkspaceManager(
                 stdin = stdin,
                 bindMounts = bindMounts + extraBindMounts,
                 onOutput = onOutput,
+                shellCompatibilityMode = shellCompatibilityMode,
             )
         )
     }

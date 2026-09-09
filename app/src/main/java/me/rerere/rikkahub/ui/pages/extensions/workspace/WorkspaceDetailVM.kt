@@ -56,6 +56,13 @@ class WorkspaceDetailVM(
         }
     }
 
+    private val _settingsError = MutableStateFlow<String?>(null)
+    val settingsError = _settingsError.asStateFlow()
+
+    fun dismissSettingsError() {
+        _settingsError.value = null
+    }
+
     /** 覆盖写入安全区（rootfs 绝对路径前缀） */
     fun setWritableRoots(roots: List<String>) {
         viewModelScope.launch {
@@ -197,6 +204,20 @@ class WorkspaceDetailVM(
                 file
             }.onSuccess(onReady).onFailure { error ->
                 _state.update { it.copy(error = error.message ?: "导出文件失败") }
+            }
+        }
+    }
+
+    fun setShellCompatibilityMode(enabled: Boolean) {
+        viewModelScope.launch {
+            try {
+                repository.setShellCompatibilityMode(id, enabled)
+                val workspace = repository.getById(id)
+                _state.update { it.copy(workspace = workspace) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _settingsError.value = error.message.orEmpty()
             }
         }
     }

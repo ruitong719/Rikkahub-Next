@@ -47,6 +47,8 @@ data class WorkspaceEntity(
     // 空数组 = 全部强制审批（fail-safe）；解析失败回退 DEFAULT_WRITABLE_ROOTS
     @ColumnInfo("writable_roots", defaultValue = "[\"/workspace\",\"/tmp\"]")
     val writableRoots: String = DEFAULT_WRITABLE_ROOTS_JSON,
+    @ColumnInfo("shell_compatibility_mode", defaultValue = "0")
+    val shellCompatibilityMode: Boolean = false,
 ) {
     fun toolApprovalOverrides(): Map<String, Boolean> = runCatching {
         JsonInstant.decodeFromString<Map<String, Boolean>>(toolApprovals)
