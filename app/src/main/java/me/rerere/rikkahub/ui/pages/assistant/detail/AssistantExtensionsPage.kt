@@ -7,10 +7,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.LargeFlexibleTopAppBar
@@ -21,11 +24,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,7 +57,9 @@ fun AssistantExtensionsPage(id: String) {
     val navController = LocalNavController.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState { 3 }
+    val pagerState = rememberPagerState { 4 }
+    var showTimeReminderIntervalDialog by remember { mutableStateOf(false) }
+    var timeReminderIntervalInput by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -87,6 +96,11 @@ fun AssistantExtensionsPage(id: String) {
                     selected = pagerState.currentPage == 2,
                     onClick = { scope.launch { pagerState.animateScrollToPage(2) } },
                     text = { Text(stringResource(R.string.assistant_extensions_page_tab_subagents)) }
+                )
+                Tab(
+                    selected = pagerState.currentPage == 3,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(3) } },
+                    text = { Text(stringResource(R.string.assistant_extensions_page_tab_reminder)) }
                 )
             }
 
@@ -207,8 +221,94 @@ fun AssistantExtensionsPage(id: String) {
                             }
                         }
                     }
+
+                    3 -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(PaddingValues(16.dp)),
+                        ) {
+                            // 时间提醒总开关（fork 3029165a 自研功能，UI 入口随记忆页删除而丢失，本次补回）
+                            ListItem(
+                                supportingContent = { Text(stringResource(R.string.assistant_page_time_reminder_desc)) },
+                                trailingContent = {
+                                    Switch(
+                                        checked = assistant.enableTimeReminder,
+                                        onCheckedChange = { checked ->
+                                            vm.update(assistant.copy(enableTimeReminder = checked))
+                                        },
+                                    )
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            ) {
+                                Text(stringResource(R.string.assistant_page_time_reminder))
+                            }
+
+                            // 间隔配置：仅在开关打开时显示
+                            if (assistant.enableTimeReminder) {
+                                ListItem(
+                                    selected = false,
+                                    onClick = {
+                                        timeReminderIntervalInput = assistant.timeReminderIntervalMinutes.toString()
+                                        showTimeReminderIntervalDialog = true
+                                    },
+                                    supportingContent = {
+                                        Text(stringResource(R.string.assistant_page_time_reminder_interval_desc))
+                                    },
+                                    trailingContent = {
+                                        Text(
+                                            stringResource(
+                                                R.string.assistant_page_time_reminder_interval_value,
+                                                assistant.timeReminderIntervalMinutes
+                                            )
+                                        )
+                                    },
+                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                ) {
+                                    Text(stringResource(R.string.assistant_page_time_reminder_interval))
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+
+    if (showTimeReminderIntervalDialog) {
+        val interval = timeReminderIntervalInput.toIntOrNull()?.takeIf { it > 0 }
+        AlertDialog(
+            onDismissRequest = { showTimeReminderIntervalDialog = false },
+            title = { Text(stringResource(R.string.assistant_page_time_reminder_interval)) },
+            text = {
+                TextField(
+                    value = timeReminderIntervalInput,
+                    onValueChange = { timeReminderIntervalInput = it },
+                    label = { Text(stringResource(R.string.assistant_page_time_reminder_interval_label)) },
+                    supportingText = { Text(stringResource(R.string.assistant_page_time_reminder_interval_hint)) },
+                    isError = interval == null,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = interval != null,
+                    onClick = {
+                        interval?.let {
+                            vm.update(assistant.copy(timeReminderIntervalMinutes = it))
+                        }
+                        showTimeReminderIntervalDialog = false
+                    },
+                ) {
+                    Text(stringResource(R.string.assistant_page_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimeReminderIntervalDialog = false }) {
+                    Text(stringResource(R.string.assistant_page_cancel))
+                }
+            },
+        )
     }
 }

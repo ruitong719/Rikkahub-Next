@@ -24,6 +24,7 @@
   <string name="assistant_extensions_page_tab_quick_messages">Quick Messages</string>
   <string name="assistant_extensions_page_tab_skills">Skills</string>
   <string name="assistant_extensions_page_tab_subagents">Subagents</string>
+  <string name="assistant_extensions_page_tab_reminder">Time Reminder</string>
   <string name="assistant_extensions_page_empty_subagents">No subagents yet</string>
   <string name="assistant_extensions_page_title">Extensions</string>
   <string name="assistant_page_actions">Actions</string>
@@ -122,6 +123,11 @@
   <string name="assistant_page_thinking_budget">Thinking Budget</string>
   <string name="assistant_page_time_reminder">Time Reminder</string>
   <string name="assistant_page_time_reminder_desc">Automatically inject time reminders before messages with large time gaps to help AI understand conversation intervals</string>
+  <string name="assistant_page_time_reminder_interval">Time reminder interval</string>
+  <string name="assistant_page_time_reminder_interval_label">Interval (minutes)</string>
+  <string name="assistant_page_time_reminder_interval_hint">Enter a positive whole number. A reminder is inserted when the message gap exceeds this interval.</string>
+  <string name="assistant_page_time_reminder_interval_desc">Insert a reminder when the message gap exceeds this interval. Always remind before the first user message.</string>
+  <string name="assistant_page_time_reminder_interval_value">%1$d min</string>
   <string name="assistant_page_title">Assistant Settings</string>
   <string name="assistant_page_top_p">Top P</string>
   <string name="assistant_page_top_p_value">Top P: %s</string>
