@@ -22,7 +22,8 @@ data class Assistant(
     val systemPrompt: String = "",
     val temperature: Float? = null,
     val topP: Float? = null,
-    // 上下文 Token 阈值, 超出后启用滚动摘要上下文。0 表示使用默认值 (32K)
+    // 上下文 Token 阈值, 超出后启用滚动摘要上下文。
+    // 0 = 默认值 (32K)；UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS = 无上限（永不压缩）
     val rollingContextCompressionThresholdTokens: Int = DEFAULT_ROLLING_CONTEXT_THRESHOLD_TOKENS,
     val streamOutput: Boolean = true,
     val messageTemplate: String = "{{ message }}",

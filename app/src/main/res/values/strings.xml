@@ -1422,6 +1422,7 @@
   <string name="assistant_page_context_message_limit_desc">When the conversation exceeds this token threshold, earlier messages are compressed into a rolling summary. The model receives the summary plus recent messages, keeping context manageable while preserving key information.</string>
   <string name="assistant_page_context_message_limit_count">Context token threshold: %s</string>
   <string name="assistant_page_context_message_limit_unlimited">Default threshold (32K tokens)</string>
+  <string name="assistant_page_context_message_limit_no_limit">No limit (never compress)</string>
   <string name="assistant_page_context_message_limit_hint">Enter 0 for the default threshold, a token count like 32000, or a shorthand like 32K. Range is %1$d to %2$d.</string>
   <string name="assistant_page_context_message_limit_out_of_range">The token threshold must be between %1$d and %2$d. It has been adjusted.</string>
   <string name="assistant_page_context_message_preset_default">Default</string>

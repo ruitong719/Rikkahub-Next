@@ -1298,6 +1298,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="assistant_page_context_message_limit_desc">当对话超出此 Token 阈值时，早期消息将被压缩为滚动摘要。模型接收摘要加最近的对话，在保持上下文可管理的同时保留关键信息。</string>
   <string name="assistant_page_context_message_limit_count">上下文 Token 阈值: %s</string>
   <string name="assistant_page_context_message_limit_unlimited">默认阈值 (32K tokens)</string>
+  <string name="assistant_page_context_message_limit_no_limit">无上限（不压缩）</string>
   <string name="assistant_page_context_message_limit_hint">输入 0 表示默认阈值，支持 32000 或 64K 这样的写法，范围 %1$d ~ %2$d</string>
   <string name="assistant_page_context_message_limit_out_of_range">Token 阈值需在 %1$d ~ %2$d 之间，已自动调整。</string>
   <string name="assistant_page_context_message_preset_default">默认</string>

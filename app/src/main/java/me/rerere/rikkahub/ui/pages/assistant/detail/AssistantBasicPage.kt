@@ -49,6 +49,7 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.context.DEFAULT_ROLLING_CONTEXT_THRESHOLD_TOKENS
 import me.rerere.rikkahub.data.ai.context.MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS
+import me.rerere.rikkahub.data.ai.context.UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS
 import me.rerere.rikkahub.data.ai.context.estimateContextTokens
 import me.rerere.rikkahub.data.ai.context.effectiveRollingContextThreshold
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
@@ -440,6 +441,7 @@ internal fun AssistantBasicContent(
                             parseTokenThresholdInput(input)
                                 ?.takeIf {
                                     it == 0 ||
+                                        it == UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS ||
                                         (it >= MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS && it <= MAX_CONTEXT_TOKEN_THRESHOLD)
                                 }
                                 ?.takeIf { it != assistant.rollingContextCompressionThresholdTokens }
@@ -469,6 +471,7 @@ internal fun AssistantBasicContent(
                     ),
                     singleLine = true,
                     isError = tokenThresholdInput.isNotBlank() &&
+                        parsedTokenThreshold != UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS &&
                         (parsedTokenThreshold == null ||
                             parsedTokenThreshold in 1 until MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS ||
                             parsedTokenThreshold > MAX_CONTEXT_TOKEN_THRESHOLD),
@@ -489,12 +492,17 @@ internal fun AssistantBasicContent(
                     recentConversation,
                     assistant.rollingContextCompressionThresholdTokens
                 ) {
-                    estimateCarriedMessages(
-                        messages = recentConversation?.currentMessages.orEmpty(),
-                        thresholdTokens = effectiveRollingContextThreshold(
-                            assistant.rollingContextCompressionThresholdTokens
-                        ),
+                    val effectiveThreshold = effectiveRollingContextThreshold(
+                        assistant.rollingContextCompressionThresholdTokens
                     )
+                    if (effectiveThreshold == UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS) {
+                        null // 无上限时不压缩，无需估算可携带量
+                    } else {
+                        estimateCarriedMessages(
+                            messages = recentConversation?.currentMessages.orEmpty(),
+                            thresholdTokens = effectiveThreshold,
+                        )
+                    }
                 }
                 if (carriedVolume != null) {
                     Text(
@@ -531,16 +539,23 @@ internal fun AssistantBasicContent(
                     )
                 }
 
+                val currentThreshold = assistant.rollingContextCompressionThresholdTokens
                 Text(
-                    text = if (assistant.rollingContextCompressionThresholdTokens > 0) stringResource(
-                        R.string.assistant_page_context_message_limit_count,
-                        formatTokenThreshold(assistant.rollingContextCompressionThresholdTokens)
-                    ) else stringResource(R.string.assistant_page_context_message_limit_unlimited),
+                    text = when {
+                        currentThreshold == UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS -> stringResource(
+                            R.string.assistant_page_context_message_limit_no_limit
+                        )
+                        currentThreshold > 0 -> stringResource(
+                            R.string.assistant_page_context_message_limit_count,
+                            formatTokenThreshold(currentThreshold)
+                        )
+                        else -> stringResource(R.string.assistant_page_context_message_limit_unlimited)
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.75f),
                 )
 
-                if (assistant.rollingContextCompressionThresholdTokens > 0) {
+                if (currentThreshold > 0 && currentThreshold != UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS) {
                     Text(
                         text = stringResource(R.string.assistant_page_context_message_limit_warning),
                         style = MaterialTheme.typography.labelSmall,
@@ -705,10 +720,18 @@ internal fun AssistantBasicContent(
 }
 
 /** 阈值输入上限, 与预设档位最大值一致 */
-private const val MAX_CONTEXT_TOKEN_THRESHOLD = 512_000
+private const val MAX_CONTEXT_TOKEN_THRESHOLD = 2_000_000
 
-/** 阈值预设档位 (token), 0 表示默认阈值 */
-private val TOKEN_THRESHOLD_PRESETS = intArrayOf(0, 64_000, 128_000, 256_000, 512_000)
+/** 阈值预设档位 (token), 0 表示默认阈值, 末尾为「无上限」哨兵 */
+private val TOKEN_THRESHOLD_PRESETS = intArrayOf(
+    0,
+    64_000,
+    128_000,
+    256_000,
+    512_000,
+    1_000_000,
+    UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS,
+)
 
 /**
  * 把输入值规范化: 0(默认) 保留, 其余收拢到 [MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS] ~ [MAX_CONTEXT_TOKEN_THRESHOLD]
@@ -718,6 +741,7 @@ private val TOKEN_THRESHOLD_PRESETS = intArrayOf(0, 64_000, 128_000, 256_000, 51
  */
 internal fun normalizeTokenThreshold(value: Int): Int = when {
     value == 0 -> 0
+    value == UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS -> UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS
     value < MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS -> MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS
     value > MAX_CONTEXT_TOKEN_THRESHOLD -> MAX_CONTEXT_TOKEN_THRESHOLD
     else -> value
@@ -727,7 +751,11 @@ internal fun normalizeTokenThreshold(value: Int): Int = when {
  * 解析 Token 阈值输入, 支持纯数字 (32000) 与 K/M 后缀 (32K, 1.5M) 两种写法
  */
 private fun parseTokenThresholdInput(input: String): Int? {
-    val match = TOKEN_THRESHOLD_INPUT_REGEX.matchEntire(input.trim()) ?: return null
+    val trimmed = input.trim()
+    if (trimmed.equals("unlimited", ignoreCase = true) || trimmed == "∞") {
+        return UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS
+    }
+    val match = TOKEN_THRESHOLD_INPUT_REGEX.matchEntire(trimmed) ?: return null
     val number = match.groupValues[1].toFloatOrNull() ?: return null
     val multiplier = when (match.groupValues[2].uppercase()) {
         "K" -> 1_000f
@@ -743,15 +771,19 @@ private val TOKEN_THRESHOLD_INPUT_REGEX = Regex("(\\d+(?:\\.\\d+)?)\\s*([KkMm]?)
  * 格式化 Token 阈值为人类可读形式 (e.g. "32K", "128K", "1M")
  */
 private fun formatTokenThreshold(tokens: Int): String = when {
+    tokens == UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS -> "Unlimited"
     tokens <= 0 -> "Default (32K)"
     tokens % 1_000_000 == 0 -> "${tokens / 1_000_000}M"
     tokens % 1_000 == 0 -> "${tokens / 1_000}K"
     else -> tokens.toString()
 }
 
-/** 输入框展示用格式化; 0 表示默认阈值, 必须保持可解析回 0 */
-private fun formatThresholdInput(tokens: Int): String =
-    if (tokens <= 0) "0" else formatTokenThreshold(tokens)
+/** 输入框展示用格式化; 0 表示默认阈值, 必须保持可解析回原值（含 Unlimited 哨兵） */
+private fun formatThresholdInput(tokens: Int): String = when {
+    tokens == UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS -> "Unlimited"
+    tokens <= 0 -> "0"
+    else -> formatTokenThreshold(tokens)
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -769,10 +801,12 @@ private fun TokenThresholdPresetChips(
                 onClick = { onSelect(preset) },
                 label = {
                     Text(
-                        text = if (preset == 0) {
-                            stringResource(R.string.assistant_page_context_message_preset_default)
-                        } else {
-                            formatTokenThreshold(preset)
+                        text = when (preset) {
+                            0 -> stringResource(R.string.assistant_page_context_message_preset_default)
+                            UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS -> stringResource(
+                                R.string.assistant_page_context_message_limit_no_limit
+                            )
+                            else -> formatTokenThreshold(preset)
                         }
                     )
                 },

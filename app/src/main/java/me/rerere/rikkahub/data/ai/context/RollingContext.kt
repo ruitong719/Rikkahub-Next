@@ -23,6 +23,13 @@ data class RollingContextPlan(
 const val MIN_ROLLING_CONTEXT_THRESHOLD_TOKENS = 4_000
 const val DEFAULT_ROLLING_CONTEXT_THRESHOLD_TOKENS = 32_000
 
+/**
+ * 「无上限」哨兵：阈值设为该值时永不触发滚动压缩。
+ * 用 Int.MAX_VALUE 而非新语义值，是为了让现有的 `workingTokens < threshold` 判断自然成立，
+ * 无需改动压缩逻辑本身。
+ */
+const val UNLIMITED_ROLLING_CONTEXT_THRESHOLD_TOKENS = Int.MAX_VALUE
+
 /** Normalizes legacy disabled settings now that rolling context is always active. */
 fun effectiveRollingContextThreshold(configuredThresholdTokens: Int): Int =
     configuredThresholdTokens.takeIf { it > 0 } ?: DEFAULT_ROLLING_CONTEXT_THRESHOLD_TOKENS
