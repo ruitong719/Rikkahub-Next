@@ -95,7 +95,12 @@ object EditFileToolUI : ToolUIRenderer {
         return generateUnifiedDiff(oldText, newText, path)
     }
 
-    override fun hasSummary(context: ToolUIContext): Boolean = diffOf(context) != null
+    // 内联摘要只在「等待审批」或「已执行」时展示：
+    // 自动执行时参数补全的瞬间会先用 old_text/new_text 合成预览（≤10 行）撑大卡片，
+    // 紧接着执行完成又换成行数不同的 metadata diff 缩回，看起来像跳动；
+    // 等待审批时保留预览（此时用户本来就需要看到将要发生的改动），执行后再切到真实 diff。
+    override fun hasSummary(context: ToolUIContext): Boolean =
+        (context.tool.isPending || context.tool.isExecuted) && diffOf(context) != null
 
     @Composable
     override fun Summary(context: ToolUIContext) {

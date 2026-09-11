@@ -826,7 +826,9 @@ private fun Paragraph(
     val latexColorArgb = LocalContentColor.current.toArgb()
     FlowRow(
         modifier = modifier.then(
-            if (node.nextSibling() != null) Modifier.padding(bottom = LocalTextStyle.current.fontSize.toDp())
+            // 流式尾部段落常以换行结尾，解析器会挂一个 EOL 兄弟节点；
+            // 只把「真实块级兄弟」当作后继，避免段间距随 chunk 是否带换行反复加减。
+            if (node.nextNonBlankSibling() != null) Modifier.padding(bottom = LocalTextStyle.current.fontSize.toDp())
             else Modifier
         )
     ) {
@@ -1300,13 +1302,24 @@ private fun ASTNode.getTextInNode(text: String, type: IElementType): String {
     return text.substring(startOffset, endOffset)
 }
 
-private fun ASTNode.nextSibling(): ASTNode? {
+/**
+ * 下一个「非空」兄弟节点（跳过 EOL / 空白）。
+ *
+ * 流式输出时最后一个段落常以换行结尾，解析器会把 EOL 作为兄弟节点挂在段落之后
+ * （实测：`"text"` → 无兄弟；`"text\n"` → 兄弟为 EOL）。若把 EOL 也当成后继，
+ * 段间距会随 chunk 是否带换行来回加减，导致卡片底部跳 1~2 行。
+ */
+private fun ASTNode.nextNonBlankSibling(): ASTNode? {
     val brother = this.parent?.children ?: return null
     for (i in brother.indices) {
         if (brother[i] == this) {
-            if (i + 1 < brother.size) {
-                return brother[i + 1]
+            for (j in i + 1 until brother.size) {
+                val type = brother[j].type
+                if (type != MarkdownTokenTypes.EOL && type != MarkdownTokenTypes.WHITE_SPACE) {
+                    return brother[j]
+                }
             }
+            return null
         }
     }
     return null
