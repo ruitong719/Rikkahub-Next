@@ -6,7 +6,53 @@
 ## 当前状态
 
 - **基线**：merge-base `0c52b62b`（上游 2.4.9，v1.00 迭代时整体 merge）
-- **已同步至**：`12ee935e`（2026-09-07）—— 上游 `master` 全部提交处理完毕（#90–#109 批次）
+- **已同步至**：`2689e753`（2026-09-10）—— 上游 `master` 全部提交处理完毕（#110–#134 批次）
+
+## 全量对账表（`12ee935e..7b92f89e`，2026-09-08）
+
+| # | 上游 commit | 主题 | 处理 | fork 落点 |
+|---|---|---|---|---|
+| 110 | `3d75f83f` | fix(web-ui): 修复选择模型弹窗厂商标签堆叠 | 已合入 | `cdc5bde0`，零冲突 |
+| 111 | `ab07ac1f` | feat(ai): 注册支持多模态的 DeepSeek V4.1 Flash | 已合入 | `0f32bfd3`，零冲突 |
+| 112 | `5b4d7895` | feat: 支持自定义时间提醒间隔 | 已合入（适配） | `17e1846d`，见批次说明 N |
+| 113 | `dee88dca` | fix(chat): edit_file 入参非 JSON 时崩溃 | 已合入 | `8dad6225`，唯一漂移是 fork 工具名集合 |
+| 114 | `20e552f9` | fix: 添加 X-Session-ID 头 | **跳过（用户决策）** | fork #89 占位符方案已覆盖 opencode 头 |
+| 115 | `05a85a09` | chore: ask_user 选项支持自定义文本回复 | **跳过** | fork 自研 ask_user 已对齐 opencode QuestionV2 |
+| 116 | `45275025` | chore: 上下文限制支持 1~19 | **跳过** | fork 已整体移除消息条数限制 |
+| 117 | `3896b6d6` | feat: 图片生成页支持长按多选 | 已合入（适配） | `7f3dda35` |
+| 118 | `1a1e672e` | fix: 名称输入空格，保存时 trim | 已合入 | `9ef86bd5` |
+| 119 | `019c46ae` | chore: /skills 加入免强制审批可写安全区 | 已合入（适配） | `3688bdb9`，见批次说明 O |
+| 120 | `77a58c2c` | fix: 统计页遇非法 JSON 崩溃 | 已合入 | `ef696777` |
+| 121 | `fcb04126` | fix(web): ask_user 多选 | **跳过** | fork 自研新协议（multiple/custom）更优 |
+| 122 | `7b92f89e` | fix: 禁用代码块连字 | 已合入 | `f9703ebc`，零冲突 |
+
+## 全量对账表（`7b92f89e..2689e753`，2026-09-10）
+
+| # | 上游 commit | 主题 | 处理 | fork 落点 |
+|---|---|---|---|---|
+| 123 | `5bf6d8c2` | docs: 新增apimart赞助商 | **跳过** | README 为 fork 重写版；赞助内容 fork 侧统一清理 |
+| 124 | `7dd2b3f8` | docs: 新增apimart赞助商 | **跳过** | 同上 |
+| 125 | `8b3e094b` | docs: 新增apimart赞助商，移除ack ai | **不采纳（反向清理）** | `d3bcbbc1`：移除全部赞助商（供应商条目/README/SponsorAPI/设置字段/死字符串），仅保留 fork 自研 OpenCode Zen |
+| 126 | `a7ee362f` | fix(theme): 修复退出工作区终端后系统栏图标颜色异常 | 已合入 | `c92b0179`，零冲突 |
+| 127 | `03246406` | feat(workspace): 新增 Shell 兼容模式并调整基础信息页布局 | 已合入（适配） | `c54b4c3b` + `bfa95757`（schema 35.json），见批次说明 P |
+| 128 | `7038e981` | feat: 工作区html/svg支持预览 | 已合入 | `b74ddc05`，自动合并 |
+| 129 | `6e0aa7d4` | fix(chat): 允许工具执行完成前打开调用详情 | 已合入 | `d61c8c19`，onClick 条件冲突取上游（恒可点） |
+| 130 | `42b933d8` | feat: add DEV badge to debug launcher icon | **跳过（用户决策）** | 与 fork 使用场景无关 |
+| 131 | `513b784c` | feat: add translator shortcut and unify intent navigation | 已合入（适配） | `c288c86b`，见批次说明 Q |
+| 132 | `a9b35ba2` | chore: bump to 2.5.1 | **跳过（语义）** | fork 自行 bump：186 / 2.5.1 |
+| 133 | `46cacf23` | chore: 注册deepseek-flash | 已合入 | `73d9c2e9`，零冲突 |
+| 134 | `2689e753` | feat: 支持读取AGENTS.md | 已合入（适配） | `fa438728`，见批次说明 R |
+
+## #110–#134 批次说明（2026-09-08 ~ 2026-09-10）
+
+- **N（#112 时间提醒间隔）**：数据层逐字节对齐上游（Transformer 阈值参数化 + Assistant 字段 + 测试）；UI 放 AssistantExtensionsPage 第 4 个 tab「时间提醒」，补回 `enableTimeReminder` 总开关与间隔输入。
+- **O（#119 /skills 安全区）**：fork 已把安全区重构为每工作区可配 `WorkspaceEntity.writableRoots`，适配 = 改默认值加 `/skills`，仅影响新建工作区。
+- **P（#127 Shell 兼容模式）**：DB fork 34 → **35**（新增 `shell_compatibility_mode` + `AutoMigration(34,35)` + 生成 `35.json`）；workspace 模块 `WorkspaceShellContext`/`executeCommand` 透传，`ProotShellRunner` 设 `PROOT_NO_SECCOMP=1`；详情页按用户决策**采纳上游 CardGroup 布局 + 兼容模式开关**，同时**保留** fork 自研的手机存储挂载卡、安全区卡与第 3 个「提示词」tab；4 个已删 locale 保持删除，仅 en/zh 加 3 条字符串。
+- **Q（#131 翻译快捷方式 + 意图导航）**：Manifest 加 `ACTION_TRANSLATE`、shortcuts 加翻译入口、新增 `ic_translate`；`RouteActivity` 手工把组合树内的 `ShareHandler` 换成上游 `handleIntent` + `pendingIntents`（挂 `onNewIntent`），修「应用已在前台时再分享/点翻译丢失」；保留 fork 悬浮球/音量键注册。
+- **R（#134 AGENTS.md）**：`AgentMdTransformer` 主体改用上游，优先读 rootfs 内 `/root/.agents/AGENTS.md`、`/workspace/AGENTS.md`、当前目录 `AGENTS.md`（≤64KB，仅 shell 就绪时），**读不到回退 `settings.globalAgentMd`**；原 `/agent` 目录整目录注入移除（挂载与提示词描述保留）。
+- **fork 自有（非上游）**：排队消息 UI 由「上游 MessageQueuePanel 卡片列表」改为 **fork 自研气泡列表**（每条队列消息一个右对齐气泡，点击展开显示全文 + 尾部删除按钮），并清理上游移植的编辑弹窗与相关死代码/字符串。
+- **另**：`0673a0db` 修复 `d2e416eb` 漏掉的 huge-icons import（编译阻塞项）；`d3bcbbc1` 赞助内容清理。
+- **验证状态**：全部改动过 `:app:compileDebugKotlin`（BUILD SUCCESSFUL）。**真机冒烟建议**：工作区 Shell 兼容模式开关/终端、html/svg 预览、系统栏图标颜色、工具执行中点击详情、翻译快捷方式与分享跳转、工作区 AGENTS.md 注入、排队消息气泡展开/删除。
 
 ## 全量对账表（`5cdab947..12ee935e`，2026-09-07）
 

@@ -13,7 +13,7 @@
 
 本项目是 [RikkaHub](https://github.com/rikkahub/rikkahub)（[AGPL-3.0](LICENSE)）的 **Fork**：
 
-- **基线**：上游 `master` 2.4.9（`0c52b62b`），已同步上游至 `c167c70e`，持续跟踪上游更新
+- **基线**：上游 `master` 2.4.9（`0c52b62b`），已同步上游至 `2689e753`，持续跟踪上游更新
 - 与上游的 commit 合并对账见 [docs/UPSTREAM_SYNC.md](docs/UPSTREAM_SYNC.md)；功能合入、review 与构建验证记录见 [docs/CHANGES.md](docs/CHANGES.md)
 
 > [!WARNING]
