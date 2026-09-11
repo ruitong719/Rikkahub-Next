@@ -150,7 +150,7 @@ class SettingsStore(
         // 更新检查地址（为空时回退到 DEFAULT_UPDATE_URL）
         val UPDATE_URL = stringPreferencesKey("update_url")
 
-        // 全局 AGENTS.md 指令文本（工作区存在 /workspace/agent.md 时以文件为准）
+        // 全局 AGENTS.md 指令文本（工作区 rootfs 内读不到 AGENTS.md 时兜底）
         val GLOBAL_AGENT_MD = stringPreferencesKey("global_agent_md")
 
         // TTS

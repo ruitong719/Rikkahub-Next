@@ -49,7 +49,7 @@
 - **O（#119 /skills 安全区）**：fork 已把安全区重构为每工作区可配 `WorkspaceEntity.writableRoots`，适配 = 改默认值加 `/skills`，仅影响新建工作区。
 - **P（#127 Shell 兼容模式）**：DB fork 34 → **35**（新增 `shell_compatibility_mode` + `AutoMigration(34,35)` + 生成 `35.json`）；workspace 模块 `WorkspaceShellContext`/`executeCommand` 透传，`ProotShellRunner` 设 `PROOT_NO_SECCOMP=1`；详情页按用户决策**采纳上游 CardGroup 布局 + 兼容模式开关**，同时**保留** fork 自研的手机存储挂载卡、安全区卡与第 3 个「提示词」tab；4 个已删 locale 保持删除，仅 en/zh 加 3 条字符串。
 - **Q（#131 翻译快捷方式 + 意图导航）**：Manifest 加 `ACTION_TRANSLATE`、shortcuts 加翻译入口、新增 `ic_translate`；`RouteActivity` 手工把组合树内的 `ShareHandler` 换成上游 `handleIntent` + `pendingIntents`（挂 `onNewIntent`），修「应用已在前台时再分享/点翻译丢失」；保留 fork 悬浮球/音量键注册。
-- **R（#134 AGENTS.md）**：`AgentMdTransformer` 主体改用上游，优先读 rootfs 内 `/root/.agents/AGENTS.md`、`/workspace/AGENTS.md`、当前目录 `AGENTS.md`（≤64KB，仅 shell 就绪时），**读不到回退 `settings.globalAgentMd`**；原 `/agent` 目录整目录注入移除（挂载与提示词描述保留）。
+- **R（#134 AGENTS.md）**：`AgentMdTransformer` 主体改用上游，优先读 rootfs 内 `/root/.agents/AGENTS.md`、`/workspace/AGENTS.md`、当前目录 `AGENTS.md`（≤64KB，仅 shell 就绪时），**读不到回退 `settings.globalAgentMd`**；并彻底移除原 `/agent` 目录机制（bind mount、WebDAV 备份、工作区提示词段与相关死代码/字符串）。
 - **fork 自有（非上游）**：排队消息 UI 由「上游 MessageQueuePanel 卡片列表」改为 **fork 自研气泡列表**（每条队列消息一个右对齐气泡，点击展开显示全文 + 尾部删除按钮），并清理上游移植的编辑弹窗与相关死代码/字符串。
 - **另**：`0673a0db` 修复 `d2e416eb` 漏掉的 huge-icons import（编译阻塞项）；`d3bcbbc1` 赞助内容清理。
 - **验证状态**：全部改动过 `:app:compileDebugKotlin`（BUILD SUCCESSFUL）。**真机冒烟建议**：工作区 Shell 兼容模式开关/终端、html/svg 预览、系统栏图标颜色、工具执行中点击详情、翻译快捷方式与分享跳转、工作区 AGENTS.md 注入、排队消息气泡展开/删除。

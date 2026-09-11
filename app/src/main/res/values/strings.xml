@@ -834,7 +834,7 @@
   <string name="setting_page_preferences_general_desc">Interaction behavior, scrolling, input settings</string>
   <string name="setting_page_agent_md">Agent Instructions (AGENTS.md)</string>
   <string name="setting_page_agent_md_title">Global agent.md</string>
-  <string name="setting_page_agent_md_desc">Injected into the system prompt after the assistant prompt. When the /agent directory contains .md files (agent.md first, then others sorted), they take precedence over this text.</string>
+  <string name="setting_page_agent_md_desc">Injected into the system prompt after the assistant prompt. Used as a fallback when the workspace rootfs contains no readable AGENTS.md (/root/.agents, /workspace, or the current directory).</string>
   <string name="setting_page_agent_md_set">Set — tap to edit</string>
   <string name="setting_page_agent_md_not_set">Not set — tap to edit</string>
   <string name="setting_page_agent_md_clear">Clear</string>
@@ -1191,7 +1191,6 @@
   <string name="workspace_prompt_segment_usage">Usage hints</string>
   <string name="workspace_prompt_segment_skills">Skills note</string>
   <string name="workspace_prompt_segment_upload">Upload note</string>
-  <string name="workspace_prompt_segment_agent">Agent note</string>
   <string name="workspace_prompt_segment_mount">Mount note</string>
   <string name="workspace_prompt_customized">Customized</string>
   <string name="workspace_prompt_section_tools">Tool prompts</string>

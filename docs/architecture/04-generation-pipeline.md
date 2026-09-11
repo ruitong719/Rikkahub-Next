@@ -49,8 +49,8 @@ handleMessageComplete():                                    [ChatService.kt]
 | 3 | DocumentAsPromptTransformer | Document part 解析成 `<UploadFile name path="/upload/...">` 文本前置（PDF/DOCX/PPTX/EPUB 用 :document 模块解析为 Markdown 字符串） |
 | 4 | OcrTransformer | 主模型无 IMAGE 能力时把图片交给 ocr_model 识别（LruCache 64 条/3 天，持久 ocr_cache.json；显示"正在识别图片"） |
 | 5 | TemplateTransformer | Pebble 引擎渲染 assistant.messageTemplate（变量 message/role/time/date；用消息自身 createdAt 保证 prompt cache 稳定） |
-| 6 | WorkspaceReminderTransformer | 助手绑定 READY 工作区时 system 追加 `<workspace>` 块：环境说明+工具清单(WORKSPACE_TOOL_NAMES×用户覆盖提示词?默认 DEFAULT_WORKSPACE_TOOL_PROMPTS)+/skills、/upload、/agent 说明+cwd |
-| 7 | AgentMdTransformer | `/agent` 目录 *.md(agent.md 优先)拼进 system；空目录回退 settings.globalAgentMd |
+| 6 | WorkspaceReminderTransformer | 助手绑定 READY 工作区时 system 追加 `<workspace>` 块：环境说明+工具清单(WORKSPACE_TOOL_NAMES×用户覆盖提示词?默认 DEFAULT_WORKSPACE_TOOL_PROMPTS)+/skills、/upload 说明+cwd |
+| 7 | AgentMdTransformer | rootfs 内 AGENTS.md(/root/.agents、/workspace、cwd，≤64KB)拼进 system；读不到回退 settings.globalAgentMd |
 | 8 | VisionImageToTextTransformer | 视觉降级网关：主模型无图片能力且配了 visionModelId 时，图片→视觉模型文字描述（内存缓存；失败写 "[图片（无法解析）]"） |
 | 9 | BackgroundTaskReminderTransformer | 扫描本对话已完成未提醒的后台任务注入 `<bg_reminder>` 并标已提醒 |
 

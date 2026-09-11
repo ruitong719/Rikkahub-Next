@@ -116,7 +116,7 @@ Non-Gradle auxiliary projects at repo root:
   - OcrTransformer: OCR images via the OCR model when the main model cannot see images
   - TemplateTransformer: Apply Pebble templates to user messages with variables like time/date
   - WorkspaceReminderTransformer: append the `<workspace>` system block for assistants bound to a READY workspace
-  - AgentMdTransformer: prepend markdown files from the `/agent` directory (falls back to globalAgentMd)
+  - AgentMdTransformer: prepend workspace AGENTS.md read from the rootfs (falls back to globalAgentMd)
   - VisionImageToTextTransformer: degrade images to text descriptions via the configured vision model
   - BackgroundTaskReminderTransformer: notify about finished workspace background tasks
 
@@ -137,7 +137,7 @@ Non-Gradle auxiliary projects at repo root:
 
 - **Workspace**: A sandboxed Linux environment per assistant/conversation backed by PRoot
   (:workspace module; docs/architecture/08-workspace-sandbox.md). Files live in two storage areas — FILES mounted at
-  `/workspace` and the LINUX rootfs — plus fixed bind mounts (/skills, /upload, /tool_outputs, /agent). Supports
+  `/workspace` and the LINUX rootfs — plus fixed bind mounts (/skills, /upload, /tool_outputs). Supports
   persistent background tasks that survive app death and auto-resume the LLM on completion.
 
 - **SubAgent**: User-defined sub-agents invoked by the main agent through generated `subagent_<slug>` tools

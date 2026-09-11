@@ -28,7 +28,7 @@ app 侧常驻会话:
 - `linux/` —— LINUX 区，rootfs 本体（ubuntu-base 等）
 - `tmp/` —— PROOT_TMP_DIR
 
-固定 bindMounts（DI 注入）：`/skills`(SkillManager 技能)、`/tool_outputs`(工具大输出)、`/upload`(聊天附件)、`/agent`(AgentMd 目录)——同一份表同时用于 proot `-b` 参数与文件工具路径解析（避免漂移）。
+固定 bindMounts（DI 注入）：`/skills`(SkillManager 技能)、`/tool_outputs`(工具大输出)、`/upload`(聊天附件)——同一份表同时用于 proot `-b` 参数与文件工具路径解析（避免漂移）。
 
 ## 2. Shell 执行链路
 

@@ -96,7 +96,7 @@ internal fun PromptSettingsPage(settings: Settings, vm: SettingVM, contentPaddin
             )
         }
         item {
-            // AGENT 指令：/agent 目录下的 .md 文件优先，此处为全局兜底文本
+            // AGENT 指令：工作区 rootfs 内 AGENTS.md 优先，此处为全局兜底文本
             PromptSettingItem(
                 title = stringResource(R.string.setting_page_agent_md),
                 promptDescription = stringResource(R.string.setting_page_agent_md_desc),

@@ -12,10 +12,9 @@ object WorkspacePromptSegment {
     const val USAGE_HINT = "usage_hint"
     const val SKILLS = "skills"
     const val UPLOAD = "upload"
-    const val AGENT = "agent"
     const val MOUNT = "mount"
 
-    val ALL = listOf(IDENTITY, FILES_AREA, USAGE_HINT, SKILLS, UPLOAD, AGENT, MOUNT)
+    val ALL = listOf(IDENTITY, FILES_AREA, USAGE_HINT, SKILLS, UPLOAD, MOUNT)
 }
 
 fun defaultWorkspacePromptSegment(key: String): String = when (key) {
@@ -37,10 +36,6 @@ fun defaultWorkspacePromptSegment(key: String): String = when (key) {
         "- Files the user uploaded are mounted at `/upload`. Treat `/upload` as READ-ONLY: read uploaded " +
             "files from `/upload/<file-name>`, but never modify, overwrite, or delete anything there. " +
             "If you need to change an uploaded file, copy it into `/workspace` first and edit the copy."
-    WorkspacePromptSegment.AGENT ->
-        "- The agent instructions directory is mounted at `/agent`. It contains Markdown files " +
-            "(e.g. `agent.md`) that define the assistant's behavior; follow them. You may append to " +
-            "existing files there, but prefer editing `/workspace` files for your own work."
     WorkspacePromptSegment.MOUNT ->
         "- Phone directories are mounted under `/mnt`: the device's shared storage root is bound " +
             "at `/mnt/storage` (equivalent to `/sdcard`). This is a live bind mount of the real phone " +

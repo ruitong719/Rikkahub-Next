@@ -1081,7 +1081,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_page_preferences_general_desc">交互行为、滚动、输入设置</string>
   <string name="setting_page_agent_md">Agent 指令（AGENTS.md）</string>
   <string name="setting_page_agent_md_title">全局 agent.md</string>
-  <string name="setting_page_agent_md_desc">注入到系统提示词中（助手提示词之后）。当 /agent 目录下存在 .md 文件（agent.md 优先，其余按文件名排序）时，以文件内容为准（优先于此处文本）。</string>
+  <string name="setting_page_agent_md_desc">注入到系统提示词中（助手提示词之后）。当工作区 rootfs 内读不到 AGENTS.md（/root/.agents、/workspace 或当前目录）时作为兜底文本。</string>
   <string name="setting_page_agent_md_set">已设置——点击编辑</string>
   <string name="setting_page_agent_md_not_set">未设置——点击编辑</string>
   <string name="setting_page_agent_md_clear">清空</string>
@@ -1131,7 +1131,6 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="workspace_prompt_segment_usage">用法偏好</string>
   <string name="workspace_prompt_segment_skills">Skills 说明</string>
   <string name="workspace_prompt_segment_upload">上传目录说明</string>
-  <string name="workspace_prompt_segment_agent">Agent 指令说明</string>
   <string name="workspace_prompt_segment_mount">挂载说明</string>
   <string name="workspace_prompt_customized">已自定义</string>
   <string name="workspace_prompt_section_tools">工具提示词</string>

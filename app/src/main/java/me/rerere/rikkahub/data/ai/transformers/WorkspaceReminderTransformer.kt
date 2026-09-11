@@ -69,7 +69,6 @@ private fun buildWorkspacePrompt(
         appendLine(seg(WorkspacePromptSegment.USAGE_HINT))
         appendLine(seg(WorkspacePromptSegment.SKILLS))
         appendLine(seg(WorkspacePromptSegment.UPLOAD))
-        appendLine(seg(WorkspacePromptSegment.AGENT))
         if (!cwd.isNullOrBlank()) {
             appendLine("- Current working directory: `$cwd`. Use this as the default context for file operations and shell commands.")
         }

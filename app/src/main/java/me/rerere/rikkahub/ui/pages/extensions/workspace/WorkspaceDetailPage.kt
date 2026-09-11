@@ -777,15 +777,17 @@ private fun WorkspacePromptsPage(
     }
 }
 
-private fun promptSegmentLabel(key: String): Int = when (key) {
-    WorkspacePromptSegment.IDENTITY -> R.string.workspace_prompt_segment_identity
-    WorkspacePromptSegment.FILES_AREA -> R.string.workspace_prompt_segment_files
-    WorkspacePromptSegment.USAGE_HINT -> R.string.workspace_prompt_segment_usage
-    WorkspacePromptSegment.SKILLS -> R.string.workspace_prompt_segment_skills
-    WorkspacePromptSegment.UPLOAD -> R.string.workspace_prompt_segment_upload
-    WorkspacePromptSegment.MOUNT -> R.string.workspace_prompt_segment_mount
-    else -> R.string.workspace_prompt_segment_agent
-}
+private val workspacePromptSegmentLabels = mapOf(
+    WorkspacePromptSegment.IDENTITY to R.string.workspace_prompt_segment_identity,
+    WorkspacePromptSegment.FILES_AREA to R.string.workspace_prompt_segment_files,
+    WorkspacePromptSegment.USAGE_HINT to R.string.workspace_prompt_segment_usage,
+    WorkspacePromptSegment.SKILLS to R.string.workspace_prompt_segment_skills,
+    WorkspacePromptSegment.UPLOAD to R.string.workspace_prompt_segment_upload,
+    WorkspacePromptSegment.MOUNT to R.string.workspace_prompt_segment_mount,
+)
+
+private fun promptSegmentLabel(key: String): Int =
+    workspacePromptSegmentLabels[key] ?: R.string.workspace_prompt_segment_identity
 
 @Composable
 private fun WorkspacePromptSegmentEditDialog(
