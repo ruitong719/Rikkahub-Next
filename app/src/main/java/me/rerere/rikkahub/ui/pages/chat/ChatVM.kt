@@ -100,10 +100,6 @@ class ChatVM(
         chatService.removeQueuedMessage(_conversationId, messageId)
     }
 
-    fun updateQueuedMessage(messageId: Uuid, parts: List<UIMessagePart>) {
-        chatService.updateQueuedMessage(_conversationId, messageId, parts)
-    }
-
     val conversationJobs = chatService
         .getConversationJobs()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())

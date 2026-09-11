@@ -1379,9 +1379,7 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="bg_task_delete">删除任务</string>
   <string name="bg_task_refresh">刷新</string>
   <string name="message_queued_toast">已加入队列，生成结束后自动发送；清空输入后点停止可立即插入</string>
-  <string name="chat_page_queue_pending_count">排队中 · %1$d</string>
   <string name="chat_page_queue_remove">移除</string>
-  <string name="chat_page_queue_edit_title">编辑排队消息</string>
   <string name="chat_page_queue_image">[图片]</string>
   <string name="chat_page_queue_file">[文件]</string>
   <string name="chat_page_queue_audio">[音频]</string>

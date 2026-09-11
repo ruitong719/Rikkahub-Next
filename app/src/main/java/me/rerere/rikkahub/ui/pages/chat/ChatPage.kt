@@ -357,11 +357,10 @@ private fun ChatPageContent(
             },
             bottomBar = {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    // 生成中排队消息面板（上游 MessageQueuePanel 移植：可视化/编辑/删除）
+                    // 生成中排队消息气泡（点击展开，展开后尾部删除）
                     MessageQueuePanel(
                         state = vm.queuedMessages.collectAsStateWithLifecycle().value,
                         onRemove = { vm.removeQueuedMessage(it) },
-                        onUpdate = { id, parts -> vm.updateQueuedMessage(id, parts) },
                     )
                     ChatInput(
                         state = inputState,

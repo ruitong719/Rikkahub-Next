@@ -377,14 +377,9 @@ class ChatService(
         return session.queuedMessages
     }
 
-    /** 移除生成中排队消息（面板删除） */
+    /** 移除生成中排队消息（气泡删除） */
     fun removeQueuedMessage(conversationId: Uuid, messageId: Uuid) {
         sessions[conversationId]?.removeQueued(messageId)
-    }
-
-    /** 编辑生成中排队消息（面板编辑） */
-    fun updateQueuedMessage(conversationId: Uuid, messageId: Uuid, parts: List<UIMessagePart>) {
-        sessions[conversationId]?.updateQueued(messageId, parts)
     }
 
     fun getProcessingStatusFlow(conversationId: Uuid): StateFlow<String?> {

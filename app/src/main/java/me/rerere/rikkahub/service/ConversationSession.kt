@@ -138,7 +138,7 @@ class ConversationSession(
         _queuedMessages.update { messages.map { QueuedUserMessage(it, answer = true) } + it }
     }
 
-    /** 移除指定排队消息（面板删除）。返回被移除的消息，不存在时返回 null。 */
+    /** 移除指定排队消息（气泡删除）。返回被移除的消息，不存在时返回 null。 */
     fun removeQueued(id: Uuid): QueuedUserMessage? {
         var removed: QueuedUserMessage? = null
         _queuedMessages.update { current ->
@@ -146,22 +146,6 @@ class ConversationSession(
             if (removed == null) current else current.filterNot { it.id == id }
         }
         return removed
-    }
-
-    /** 编辑指定排队消息的内容（面板编辑）。返回更新后的消息，不存在时返回 null。 */
-    fun updateQueued(id: Uuid, parts: List<UIMessagePart>): QueuedUserMessage? {
-        var updated: QueuedUserMessage? = null
-        _queuedMessages.update { current ->
-            current.map { item ->
-                if (item.id == id) {
-                    updated = item.copy(message = item.message.copy(parts = parts))
-                    updated
-                } else {
-                    item
-                }
-            }
-        }
-        return updated
     }
 
     // 空闲检查任务
