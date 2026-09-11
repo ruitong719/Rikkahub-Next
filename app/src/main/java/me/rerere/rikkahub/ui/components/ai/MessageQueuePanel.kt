@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,8 +35,8 @@ import me.rerere.rikkahub.service.QueuedUserMessage
 /**
  * 生成期间排队消息的气泡列表。
  *
- * 每条排队消息渲染为一个右对齐气泡（内含消息内容）：点击气泡展开/收起；
- * 展开后气泡尾部出现删除按钮，点击移除该条排队消息。同时只展开一个。
+ * 每条排队消息渲染为一个右对齐气泡：收起时是半透明主题色小圆圈（不显示文字），
+ * 点击展开为一行消息内容 + 尾部删除按钮，再点收起。同时只展开一个。
  * 队列条数角标由 ChatInput 自带的 BadgedBox 展示。
  */
 @Composable
@@ -69,6 +70,9 @@ internal fun MessageQueuePanel(
     }
 }
 
+/** 收起态小圆圈直径：比输入栏发送按钮（30dp）略大 */
+private val QueueBubbleCollapsedSize = 36.dp
+
 @Composable
 private fun QueueBubble(
     message: QueuedUserMessage,
@@ -76,37 +80,46 @@ private fun QueueBubble(
     onClick: () -> Unit,
     onRemove: () -> Unit,
 ) {
+    if (!expanded) {
+        // 收起：不显示文字，只有一个半透明的主题色小圆圈
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.30f),
+            modifier = Modifier
+                .size(QueueBubbleCollapsedSize)
+                .clickable(onClick = onClick),
+            content = {},
+        )
+        return
+    }
+    // 展开：一行消息内容 + 尾部删除按钮
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier
-            .widthIn(max = 280.dp)
-            .clickable(onClick = onClick),
+        modifier = Modifier.clickable(onClick = onClick),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = message.queuePreview(),
                 style = MaterialTheme.typography.bodySmall,
-                maxLines = if (expanded) Int.MAX_VALUE else 1,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = if (expanded) 204.dp else 256.dp),
+                modifier = Modifier.widthIn(max = 200.dp),
             )
-            if (expanded) {
-                IconButton(
-                    onClick = onRemove,
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        imageVector = HugeIcons.Delete01,
-                        contentDescription = stringResource(R.string.chat_page_queue_remove),
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.size(28.dp),
+            ) {
+                Icon(
+                    imageVector = HugeIcons.Delete01,
+                    contentDescription = stringResource(R.string.chat_page_queue_remove),
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
