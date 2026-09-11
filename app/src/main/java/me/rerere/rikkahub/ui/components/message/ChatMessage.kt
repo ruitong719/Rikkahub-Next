@@ -320,12 +320,12 @@ private fun MessagePartsBlock(
                 if (block.steps.isNotEmpty()) {
                     val isReasoningOnlyBlock = block.steps.fastAll { it is ThinkingStep.ReasoningStep }
                     ChainOfThought(
-                        // 流式期间禁用尺寸动画：thinking/代码块高度随 chunk 反复跳变，
-                        // 动画会让整张卡片抽搐并放大布局开销；生成结束后恢复动画
-                        modifier = if (loading) Modifier else Modifier.animateContentSize(),
+                        // 与上游一致：卡片始终保留尺寸动画。此前流式期间按 loading 关掉动画，
+                        // 会让每次内容高度变化（工具摘要出现、段落增删）都变成瞬时硬跳
+                        // （表现为卡片"突然撑大又缩回"）。
+                        modifier = Modifier.animateContentSize(),
                         steps = block.steps,
                         collapsedAdaptiveWidth = isReasoningOnlyBlock,
-                        animateSize = !loading,
                         cardColors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = settings.displaySetting.bubbleOpacity),
                         ),
