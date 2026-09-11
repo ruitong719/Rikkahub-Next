@@ -35,6 +35,9 @@ import androidx.compose.ui.unit.dp
 import kotlin.uuid.Uuid
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.hugeicons.HugeIcons
+import me.rerere.hugeicons.stroke.ArrowDown01
+import me.rerere.hugeicons.stroke.ArrowUp01
+import me.rerere.hugeicons.stroke.Delete01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.service.QueuedUserMessage
 import me.rerere.rikkahub.ui.hooks.ChatInputState
