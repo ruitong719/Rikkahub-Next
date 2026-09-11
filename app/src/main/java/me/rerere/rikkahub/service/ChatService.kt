@@ -230,8 +230,8 @@ class ChatService(
     // workspace 系统提示注入 (依赖 workspaceRepository, 故在类内构造)
     private val workspaceReminderTransformer = WorkspaceReminderTransformer(workspaceRepository, workspaceMountManager)
 
-    // AGENTS.md 注入：/agent 目录下全部 *.md（agent.md 优先），否则用设置里的全局文本
-    private val agentMdTransformer = AgentMdTransformer()
+    // AGENTS.md 注入：优先工作区 rootfs 内的 AGENTS.md（/root/.agents、/workspace、cwd），读不到时用设置里的全局文本
+    private val agentMdTransformer = AgentMdTransformer(workspaceRepository)
 
     // 视觉模型降级：主模型不支持图片时，用视觉模型把图片转成文字描述
     private val visionImageToTextTransformer = VisionImageToTextTransformer(providerManager)
