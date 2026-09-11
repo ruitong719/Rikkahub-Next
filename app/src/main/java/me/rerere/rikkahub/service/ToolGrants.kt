@@ -2,65 +2,52 @@ package me.rerere.rikkahub.service
 
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import me.rerere.rikkahub.data.ai.tools.BashPathScanner
+import me.rerere.rikkahub.data.ai.tools.WorkspaceWritePolicy
 
 /**
- * 会话级工具授权表（「本次会话内全部同意」）。
+ * 会话级目录授权表（「本次会话内全部同意」）。
  *
- * 两种授权粒度：
- * - 目录子树：对带路径概念的工具（read/write/edit/export/bash），授予目标文件父目录的完全访问；
- *   之后同会话内落在该前缀下的调用不再弹审批
- * - 整工具：无路径概念的审批型工具（create_backup、bgt_start 等）按工具名整会话放行
+ * 授权粒度是**目录**：一次审批授予 [WorkspaceWritePolicy.unitFor] 算出的授权单元
+ * （/workspace 首层目录、/mnt/storage 挂载根、或普通路径的父目录），
+ * 之后同会话内落在该前缀下的 write/edit（以及 bash 检测出的写路径）不再弹审批。
  *
  * 内存态，挂在 ConversationSession 上随进程/会话回收而失效——即「本次会话」语义。
  */
 class ToolGrants {
     private val dirs = LinkedHashSet<String>()
-    private val tools = LinkedHashSet<String>()
 
     @Synchronized
     fun grantDir(prefix: String) {
         dirs += normalizeDir(prefix)
     }
 
+    /** 所有路径都已被某个已授权目录覆盖时返回 true；paths 为空表示该调用不受目录审批约束 */
     @Synchronized
-    fun grantTool(toolName: String) {
-        tools += toolName
-    }
-
-    /** 该工具调用是否已被已有授权覆盖；paths 为空时仅整工具授权生效 */
-    @Synchronized
-    fun covers(toolName: String, paths: List<String>): Boolean {
-        if (toolName in tools) return true
+    fun covers(paths: List<String>): Boolean {
         if (paths.isEmpty()) return false
-        return paths.all { path ->
-            dirs.any { dir -> path == dir || path.startsWith("$dir/") }
-        }
+        return paths.all { path -> dirs.any { WorkspaceWritePolicy.isInside(path, it) } }
     }
 
     companion object {
         fun normalizeDir(dir: String): String = dir.trimEnd('/').ifBlank { "/" }
 
         /**
-         * 计算一次工具调用的相关路径（rootfs 绝对路径）。
-         * read/write/edit 取 path；export 取 source；bash 用启发式扫描器提取命令中的路径。
+         * 计算一次工具调用的相关写入路径（rootfs 绝对路径）。
+         * 只有 write/edit 与 bash（定向检测）参与目录审批，其余工具返回空。
          */
         fun relevantPaths(toolName: String, args: JsonElement): List<String> {
             val obj = args as? JsonObject ?: return emptyList()
             fun str(key: String): String? =
                 (obj[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
-            val key = when (toolName) {
-                "read", "write", "edit" -> "path"
-                "bash" -> return BashPathScanner.extractPaths(str("command") ?: "")
-                else -> return emptyList()
+            return when (toolName) {
+                "write", "edit" -> str("path")?.let { listOf(it) } ?: emptyList()
+                "bash" -> BashPathScanner.extractWritePaths(str("command") ?: "")
+                else -> emptyList()
             }
-            val path = str(key) ?: return emptyList()
-            return listOf(path)
         }
-
-        fun parentDir(path: String): String =
-            path.substringBeforeLast('/', "/").ifBlank { "/" }
     }
 }

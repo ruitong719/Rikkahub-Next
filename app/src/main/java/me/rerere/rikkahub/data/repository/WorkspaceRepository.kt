@@ -19,6 +19,7 @@ import me.rerere.workspace.WorkspaceBindMount
 import me.rerere.workspace.WorkspaceCommandResult
 import me.rerere.workspace.WorkspaceFileEntry
 import me.rerere.workspace.WorkspaceManager
+import me.rerere.workspace.WorkspaceSearchMatch
 import me.rerere.workspace.WorkspaceShellStatus
 import me.rerere.workspace.WorkspaceStorageArea
 import java.io.ByteArrayOutputStream
@@ -106,19 +107,7 @@ class WorkspaceRepository(
         dao.setShellCompatibilityMode(id, enabled, System.currentTimeMillis())
     }
 
-    suspend fun setToolApproval(id: String, toolName: String, needsApproval: Boolean): Boolean {
-        val workspace = dao.getById(id) ?: return false
-        val overrides = workspace.toolApprovalOverrides() + (toolName to needsApproval)
-        dao.upsert(
-            workspace.copy(
-                toolApprovals = JsonInstant.encodeToString(overrides),
-                updatedAt = System.currentTimeMillis(),
-            )
-        )
-        return true
-    }
-
-    /** 覆盖写入安全区（rootfs 绝对路径前缀列表）；空列表 = 所有写路径都强制审批 */
+    /** 覆盖免审批区（rootfs 绝对路径前缀列表）；空列表 = 无免审批区 */
     suspend fun setWritableRoots(id: String, roots: List<String>): Boolean {
         val workspace = dao.getById(id) ?: return false
         dao.upsert(
@@ -346,6 +335,36 @@ class WorkspaceRepository(
         val workspace = dao.getById(id) ?: error("Workspace not found: $id")
         manager.ensureWorkspace(workspace.root)
         manager.moveFile(workspace.root, source, target, overwrite)
+    }
+
+    /**
+     * FILES 区 glob（NIO PathMatcher）。pattern/path 均为工作区相对语义，越界由引擎拒绝。
+     * 只读，供 `glob` 工具使用。
+     */
+    suspend fun glob(
+        id: String,
+        pattern: String,
+        path: String = "",
+    ): List<WorkspaceFileEntry> = withContext(Dispatchers.IO) {
+        val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        manager.ensureWorkspace(workspace.root)
+        manager.glob(workspace.root, pattern, path)
+    }
+
+    /**
+     * FILES 区 grep（正则/字面量 + includeGlob）。只读，供 `grep` 工具使用。
+     */
+    suspend fun grep(
+        id: String,
+        query: String,
+        path: String = "",
+        regex: Boolean = false,
+        ignoreCase: Boolean = true,
+        includeGlob: String? = null,
+    ): List<WorkspaceSearchMatch> = withContext(Dispatchers.IO) {
+        val workspace = dao.getById(id) ?: error("Workspace not found: $id")
+        manager.ensureWorkspace(workspace.root)
+        manager.grep(workspace.root, query, path, regex, ignoreCase, includeGlob)
     }
 
     suspend fun executeCommand(

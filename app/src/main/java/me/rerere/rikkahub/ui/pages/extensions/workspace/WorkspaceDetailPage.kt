@@ -83,7 +83,6 @@ import me.rerere.hugeicons.stroke.Settings03
 import me.rerere.hugeicons.stroke.Share08
 import me.rerere.rikkahub.Screen
 import me.rerere.rikkahub.data.ai.tools.DEFAULT_WORKSPACE_TOOL_PROMPTS
-import me.rerere.rikkahub.data.ai.tools.resolveWorkspaceToolApproval
 import me.rerere.rikkahub.data.ai.tools.WorkspacePromptSegment
 import me.rerere.rikkahub.data.ai.tools.resolveWorkspacePromptSegment
 import me.rerere.rikkahub.data.db.entity.WorkspaceEntity
@@ -222,7 +221,6 @@ fun WorkspaceDetailPage(id: String) {
                     workspace = state.workspace,
                     installProgress = installProgress,
                     onInstallRootfs = { showInstallDialog = true },
-                    onToolApprovalChange = vm::setToolApproval,
                     onUpdateWritableRoots = vm::setWritableRoots,
                     storageAccessGranted = storageAccessGranted,
                     onGrantStorageAccess = { vm.grantStorageAccess(context) },
@@ -377,7 +375,6 @@ private fun WorkspaceBasicPage(
     workspace: WorkspaceEntity?,
     installProgress: RootfsInstallProgress?,
     onInstallRootfs: () -> Unit,
-    onToolApprovalChange: (String, Boolean) -> Unit,
     storageAccessGranted: Boolean,
     onGrantStorageAccess: () -> Unit,
     onUpdateWritableRoots: (List<String>) -> Unit,
@@ -479,16 +476,9 @@ private fun WorkspaceBasicPage(
         }
 
         item {
-            WorkspaceWritableRootsCard(
+            WorkspaceFreeZonesCard(
                 workspace = workspace,
                 onUpdate = onUpdateWritableRoots,
-            )
-        }
-
-        item {
-            WorkspaceToolApprovalCard(
-                workspace = workspace,
-                onToolApprovalChange = onToolApprovalChange,
             )
         }
     }
@@ -550,48 +540,6 @@ private fun WorkspaceStorageMountCard(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun WorkspaceToolApprovalCard(
-    workspace: WorkspaceEntity?,
-    onToolApprovalChange: (String, Boolean) -> Unit,
-) {
-    val overrides = workspace?.toolApprovalOverrides().orEmpty()
-    val tools = workspaceToolApprovalItems()
-
-    CardGroup(
-        title = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(stringResource(R.string.workspace_detail_tool_approval))
-                Text(
-                    text = stringResource(R.string.workspace_detail_tool_approval_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-    ) {
-        tools.forEach { (toolName, label) ->
-            item(
-                headlineContent = { Text(label) },
-                supportingContent = {
-                    Text(
-                        text = toolName,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                trailingContent = {
-                    Switch(
-                        checked = resolveWorkspaceToolApproval(toolName, overrides),
-                        onCheckedChange = { onToolApprovalChange(toolName, it) },
-                        enabled = workspace != null,
-                    )
-                },
-            )
         }
     }
 }
@@ -700,7 +648,7 @@ private fun WorkspacePromptsPage(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    workspaceToolApprovalItems().forEach { (toolName, label) ->
+                    workspaceToolItems().forEach { (toolName, label) ->
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -761,7 +709,7 @@ private fun WorkspacePromptsPage(
     if (tool != null && workspace != null) {
         ToolPromptEditDialog(
             toolName = tool,
-            label = workspaceToolApprovalItems().firstOrNull { it.first == tool }?.second ?: tool,
+            label = workspaceToolItems().firstOrNull { it.first == tool }?.second ?: tool,
             currentPrompt = toolOverrides[tool] ?: DEFAULT_WORKSPACE_TOOL_PROMPTS[tool].orEmpty(),
             isDefault = tool !in toolOverrides,
             onSave = { prompt ->
@@ -909,18 +857,21 @@ private fun ToolPromptEditDialog(
 }
 
 @Composable
-private fun workspaceToolApprovalItems() = listOf(
+private fun workspaceToolItems() = listOf(
     "read" to stringResource(R.string.workspace_detail_tool_read_file),
     "write" to stringResource(R.string.workspace_detail_tool_write_file),
     "edit" to stringResource(R.string.workspace_detail_tool_edit_file),
     "bash" to stringResource(R.string.workspace_detail_tool_shell),
+    "glob" to stringResource(R.string.workspace_detail_tool_glob),
+    "grep" to stringResource(R.string.workspace_detail_tool_grep),
+    "git" to stringResource(R.string.workspace_detail_tool_git),
     "bgt_start" to stringResource(R.string.workspace_detail_tool_bg_start),
     "bgt" to stringResource(R.string.workspace_detail_tool_bgt),
     "create_backup" to stringResource(R.string.workspace_detail_tool_create_backup),
 )
 
 @Composable
-private fun WorkspaceWritableRootsCard(
+private fun WorkspaceFreeZonesCard(
     workspace: WorkspaceEntity?,
     onUpdate: (List<String>) -> Unit,
 ) {

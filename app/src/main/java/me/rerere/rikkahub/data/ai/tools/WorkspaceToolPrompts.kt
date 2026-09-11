@@ -14,6 +14,9 @@ val WORKSPACE_TOOL_NAMES = listOf(
     "write",
     "edit",
     "bash",
+    "glob",
+    "grep",
+    "git",
     "bgt_start",
     "bgt",
     "create_backup",
@@ -22,15 +25,24 @@ val WORKSPACE_TOOL_NAMES = listOf(
 val DEFAULT_WORKSPACE_TOOL_PROMPTS: Map<String, String> = mapOf(
     "read" to
         "Read a file from the workspace files area (absolute paths inside Rootfs). " +
-        "Returns line-numbered content with offset/limit paging. " +
-        "Directories cannot be read with this tool; use bash ls instead.",
+        "Returns line-numbered content with offset/limit paging; a directory path returns its entries. " +
+        "Use glob/grep to find files or content instead of shelling out.",
     "write" to
         "Write a UTF-8 text file into the workspace files area. Prefer edit for existing files.",
     "edit" to
         "Make precise string replacements in an existing file (old_text/new_text; whitespace-tolerant fallbacks).",
     "bash" to
         "Run a shell command inside the workspace PRoot Linux environment (files area mounted at /workspace). " +
-        "For terminal operations only; use read/write/edit for file contents and ls for directory listings.",
+        "For terminal operations only; use read/write/edit for file contents and glob/grep for finding files or content.",
+    "glob" to
+        "Find files by glob pattern inside the workspace files area (read-only; e.g. \"**/*.kt\"). " +
+        "Prefer this over bash find/ls. Does not search the Linux rootfs system directories.",
+    "grep" to
+        "Search file contents in the workspace files area by regex or literal string (read-only). " +
+        "Supports include glob and case-insensitive matching; prefer this over bash grep/rg.",
+    "git" to
+        "Inspect the git repository inside the workspace with read-only commands " +
+        "(status/diff/log/show/branch/ls-files/blame/rev-parse). Never commits or modifies files.",
     "bgt_start" to
         "Start a long-running command as a persistent background task in the workspace (returns a bg_id immediately).",
     "bgt" to

@@ -9,8 +9,8 @@ package me.rerere.rikkahub.data.ai.prompts
 internal val DEFAULT_PLAN_MODE_PROMPT = """<system-reminder>
 # Permission Mode: PLAN
 You are currently in PLAN mode (read-only research):
-- Mutating tools are disabled: you cannot modify files, run shell commands (`bash` is fully disabled), dispatch subagents, or export/backup data.
-- Research with read-only tools (`read`, search, conversation tools) only.
+- Mutating tools are disabled: you cannot modify files, run shell commands (`bash` is disabled), dispatch subagents, or export/backup data.
+- Research with read-only tools only: `read` (files and directories), `glob` (find files by pattern), `grep` (search file contents), `git` (read-only status/diff/log/branch), plus search and conversation tools.
 - When you have enough context, present a concise implementation plan (steps, files to change, risks). Do NOT attempt workarounds to bypass plan mode.
 - The user will switch back to build mode when they want the plan executed.
 This supersedes any other instructions you have received.

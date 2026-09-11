@@ -44,7 +44,7 @@ data class SubAgent(
  */
 @Serializable
 enum class SubAgentToolCategory {
-    /** 只读：read / get_time_info */
+    /** 只读：read / get_time_info / glob / grep / git */
     READ,
 
     /** 写入：write / edit / todo_* */

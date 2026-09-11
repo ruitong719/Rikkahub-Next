@@ -158,6 +158,9 @@ val CATEGORY_TOOLS: Map<SubAgentToolCategory, Set<String>> = mapOf(
     SubAgentToolCategory.READ to setOf(
         "read",
         "get_time_info",
+        "glob",
+        "grep",
+        "git",
     ),
     SubAgentToolCategory.WRITE to setOf(
         "write",

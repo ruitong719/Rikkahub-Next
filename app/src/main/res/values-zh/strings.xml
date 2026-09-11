@@ -211,7 +211,7 @@
   <string name="chat_message_add_favorite">添加收藏</string>
   <string name="chat_message_remove_favorite">取消收藏</string>
   <string name="chat_message_tool_approve">批准</string>
-  <string name="chat_message_tool_approve_always">本次会话内全部同意</string>
+  <string name="chat_message_tool_approve_always">允许该目录（本次会话）</string>
   <string name="chat_message_tool_ask_questions">询问 %d 个问题</string>
   <string name="chat_message_tool_ask_user_yolo">当前处于 YOLO 模式，不支持 ask_user，请切换模式</string>
   <string name="chat_message_tool_call_generic">调用工具 %1$s</string>
@@ -1148,8 +1148,6 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="workspace_detail_loading">加载中</string>
   <string name="workspace_detail_enable_shell">启用 Shell</string>
   <string name="workspace_detail_enable_shell_desc">允许此工作区使用本地Rootfs运行终端环境</string>
-  <string name="workspace_detail_tool_approval">工具审批</string>
-  <string name="workspace_detail_tool_approval_desc">启用后，AI 调用此工具前需要用户确认</string>
   <string name="workspace_detail_tool_list_files">列出文件</string>
   <string name="workspace_detail_tool_read_file">读取文件</string>
   <string name="workspace_detail_tool_write_file">写入文件</string>
@@ -1157,6 +1155,9 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="workspace_detail_tool_delete_file">删除文件</string>
   <string name="workspace_detail_tool_move_file">移动文件</string>
   <string name="workspace_detail_tool_shell">执行命令</string>
+  <string name="workspace_detail_tool_glob">查找文件</string>
+  <string name="workspace_detail_tool_grep">搜索内容</string>
+  <string name="workspace_detail_tool_git">Git（只读）</string>
   <string name="workspace_detail_tool_bgt">后台任务管理</string>
   <string name="workspace_detail_tool_bg_start">启动后台任务</string>
   <string name="workspace_detail_tool_create_backup">在工作区创建备份</string>
@@ -1170,8 +1171,8 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="workspace_detail_mount_granted">已连接手机存储，改动实时生效</string>
   <string name="workspace_detail_mount_need_permission">需授予「所有文件访问」权限后生效</string>
   <string name="workspace_detail_mount_grant">去授权</string>
-  <string name="workspace_writable_roots_title">写入安全区</string>
-  <string name="workspace_writable_roots_desc">Write/Edit/Bash 调用若目标路径在这些 rootfs 前缀之外，始终需要审批；清空列表则全部强制审批。</string>
+  <string name="workspace_writable_roots_title">免审批区域</string>
+  <string name="workspace_writable_roots_desc">这些 rootfs 前缀内的写入永不弹审批。/workspace 单独处理：直接写在 /workspace 本层免审批，写进它的首层子目录时每个目录审批一次（会话级）。/mnt/storage 整个挂载点审批一次即可。</string>
   <string name="workspace_writable_roots_add_hint">绝对路径前缀，如 /mnt/photos</string>
   <string name="workspace_writable_roots_add">添加</string>
   <string name="workspace_writable_roots_invalid">必须是以 / 开头的绝对路径</string>

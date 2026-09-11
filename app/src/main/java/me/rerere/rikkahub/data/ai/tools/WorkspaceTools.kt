@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.data.ai.tools
 
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -31,19 +32,13 @@ import kotlin.coroutines.coroutineContext
 private const val SHELL_TIMEOUT_MAX_SECONDS = 600L
 private const val MAX_READ_FILE_BYTES = 8L * 1024 * 1024
 
-val WorkspaceToolDefaultApprovals: Map<String, Boolean> = mapOf(
-    "read" to false,
-    "write" to false,
-    "edit" to false,
-    "bash" to true,
-    "bgt_start" to true,
-    "bgt" to false,
-    "create_backup" to true,
-)
-
-fun resolveWorkspaceToolApproval(name: String, overrides: Map<String, Boolean>): Boolean =
-    overrides[name] ?: WorkspaceToolDefaultApprovals[name] ?: false
-
+/**
+ * 组装工作区工具。
+ *
+ * 审批已改为**目录级**（[WorkspaceWritePolicy]）：不再有逐工具开关，只有 write/edit
+ * 以及 bash 定向检测出的写路径会弹审批；read/glob/grep/git/bgt/backup 一律放行。
+ * 免审批区来自工作区配置 [WorkspaceRepository]，默认 [DEFAULT_WRITABLE_ROOTS]。
+ */
 suspend fun createWorkspaceTools(
     workspaceId: String?,
     workspaceRepository: WorkspaceRepository,
@@ -52,19 +47,31 @@ suspend fun createWorkspaceTools(
 ): List<Tool> {
     if (workspaceId.isNullOrBlank()) return emptyList()
     val workspace = workspaceRepository.getById(workspaceId)
-    val approvalOverrides = workspace?.toolApprovalOverrides().orEmpty()
-    fun needsApproval(name: String) = resolveWorkspaceToolApproval(name, approvalOverrides)
-    val writableRoots = workspace?.writableRootsList() ?: DEFAULT_WRITABLE_ROOTS
+    val freeZones = workspace?.writableRootsList() ?: DEFAULT_WRITABLE_ROOTS
+
+    val writeApproval: (JsonElement) -> Boolean = { args ->
+        runCatching {
+            WorkspaceWritePolicy.needsApproval(args.jsonObject.absolutePath("path"), freeZones)
+        }.getOrDefault(true)
+    }
+    val bashApproval: (JsonElement) -> Boolean = { args ->
+        val command = args.jsonObject.string("command").orEmpty()
+        BashPathScanner.extractWritePaths(command).any { WorkspaceWritePolicy.needsApproval(it, freeZones) }
+    }
+    val allow: (String) -> Boolean = { false }
 
     val shellCwd = cwd?.removePrefix("/workspace/")?.removePrefix("/workspace")
 
     return listOf(
-        createReadFileTool(workspaceId, ::needsApproval, workspaceRepository),
-        createWriteFileTool(workspaceId, ::needsApproval, workspaceRepository, writableRoots),
-        createEditFileTool(workspaceId, ::needsApproval, workspaceRepository, writableRoots),
-        createShellTool(workspaceId, ::needsApproval, workspaceRepository, shellCwd, conversationId, writableRoots),
-    ) + createWorkspaceBgTools(workspaceId, ::needsApproval, workspaceRepository, conversationId) +
-        listOf(createWorkspaceBackupTool(workspaceId, ::needsApproval, workspaceRepository))
+        createReadFileTool(workspaceId, allow, workspaceRepository),
+        createWriteFileTool(workspaceId, writeApproval, workspaceRepository),
+        createEditFileTool(workspaceId, writeApproval, workspaceRepository),
+        createShellTool(workspaceId, bashApproval, workspaceRepository, shellCwd, conversationId),
+        createGlobTool(workspaceId, allow, workspaceRepository),
+        createGrepTool(workspaceId, allow, workspaceRepository),
+        createGitTool(workspaceId, allow, workspaceRepository),
+    ) + createWorkspaceBgTools(workspaceId, allow, workspaceRepository, conversationId) +
+        listOf(createWorkspaceBackupTool(workspaceId, allow, workspaceRepository))
 }
 
 private val IMAGE_EXTENSIONS = setOf(
@@ -302,9 +309,8 @@ private fun readTextPage(path: String, text: String, offset: Int, limit: Int): S
 
 private fun createWriteFileTool(
     workspaceId: String,
-    needsApproval: (String) -> Boolean,
+    approval: (JsonElement) -> Boolean,
     workspaceRepository: WorkspaceRepository,
-    writableRoots: List<String>,
 ) = Tool(
     name = "write",
     description = """
@@ -331,7 +337,7 @@ private fun createWriteFileTool(
             required = listOf("path", "text"),
         )
     },
-    needsApproval = { needsApproval("write") || it.forcedPathApproval("path", writableRoots) },
+    needsApproval = approval,
     execute = {
         val params = it.jsonObject
         val path = params.absolutePath("path")
@@ -344,9 +350,8 @@ private fun createWriteFileTool(
 
 private fun createEditFileTool(
     workspaceId: String,
-    needsApproval: (String) -> Boolean,
+    approval: (JsonElement) -> Boolean,
     workspaceRepository: WorkspaceRepository,
-    writableRoots: List<String>,
 ) = Tool(
     name = "edit",
     description = """
@@ -379,7 +384,7 @@ private fun createEditFileTool(
             required = listOf("path", "old_text", "new_text"),
         )
     },
-    needsApproval = { needsApproval("edit") || it.forcedPathApproval("path", writableRoots) },
+    needsApproval = approval,
     execute = {
         val params = it.jsonObject
         val path = params.absolutePath("path")
@@ -413,13 +418,307 @@ private fun createEditFileTool(
     },
 )
 
-private fun createShellTool(
+private fun createGlobTool(
     workspaceId: String,
     needsApproval: (String) -> Boolean,
     workspaceRepository: WorkspaceRepository,
+) = Tool(
+    name = "glob",
+    description = """
+        Find files by glob pattern inside the workspace files area (mounted at /workspace). Read-only.
+        Usage:
+        - Patterns use Java NIO glob syntax, e.g. `**/*.kt`, `app/src/**/*.ts`, `*.md`.
+        - Omit path to search the whole workspace; pass a subdirectory (relative or /workspace/...) to narrow it.
+        - This only searches the workspace files area, NOT the Linux rootfs system directories.
+        - Prefer this over bash find/ls for locating files.
+    """.trimIndent().replace("\n", " "),
+    parameters = {
+        InputSchema.Obj(
+            properties = buildJsonObject {
+                put("pattern", buildJsonObject {
+                    put("type", "string")
+                    put("description", "The glob pattern to match files against (e.g. \"**/*.kt\")")
+                })
+                put("path", buildJsonObject {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Directory to search in, relative to the workspace files area or prefixed with /workspace. Defaults to the workspace root."
+                    )
+                })
+            },
+            required = listOf("pattern"),
+        )
+    },
+    needsApproval = { needsApproval("glob") },
+    execute = {
+        val params = it.jsonObject
+        val pattern = params.string("pattern")?.trim().orEmpty()
+        require(pattern.isNotEmpty()) { "pattern is required" }
+        val path = params.string("path")?.toWorkspaceRelativePath("path") ?: ""
+        val entries = workspaceRepository.glob(workspaceId, pattern, path)
+        listOf(
+            UIMessagePart.Text(
+                buildJsonObject {
+                    put("pattern", pattern)
+                    put("count", entries.size)
+                    put(
+                        "matches",
+                        buildJsonArray {
+                            entries.forEach { entry ->
+                                add(
+                                    buildJsonObject {
+                                        put("path", "/workspace/" + entry.path)
+                                        put("type", if (entry.isDirectory) "directory" else "file")
+                                        if (!entry.isDirectory) put("sizeBytes", entry.sizeBytes)
+                                    }
+                                )
+                            }
+                        }
+                    )
+                }.toString()
+            )
+        )
+    },
+)
+
+private fun createGrepTool(
+    workspaceId: String,
+    needsApproval: (String) -> Boolean,
+    workspaceRepository: WorkspaceRepository,
+) = Tool(
+    name = "grep",
+    description = """
+        Search file contents inside the workspace files area (mounted at /workspace) by regex or literal string. Read-only.
+        Usage:
+        - By default the query is a literal string with case-insensitive matching; pass regex=true for a regular expression.
+        - Use include to restrict to a file glob (e.g. "*.kt", "**/*.ts").
+        - Omit path to search the whole workspace; pass a subdirectory (relative or /workspace/...) to narrow it.
+        - This only searches the workspace files area, NOT the Linux rootfs system directories.
+        - Prefer this over bash grep/rg for searching code.
+    """.trimIndent().replace("\n", " "),
+    parameters = {
+        InputSchema.Obj(
+            properties = buildJsonObject {
+                put("pattern", buildJsonObject {
+                    put("type", "string")
+                    put("description", "The string or regex to search for in file contents")
+                })
+                put("path", buildJsonObject {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Directory to search in, relative to the workspace files area or prefixed with /workspace. Defaults to the workspace root."
+                    )
+                })
+                put("regex", buildJsonObject {
+                    put("type", "boolean")
+                    put("description", "Treat pattern as a regular expression. Defaults to false (literal).")
+                })
+                put("ignore_case", buildJsonObject {
+                    put("type", "boolean")
+                    put("description", "Case-insensitive matching. Defaults to true.")
+                })
+                put("include", buildJsonObject {
+                    put("type", "string")
+                    put("description", "Optional file glob to include in the search (e.g. \"*.kt\").")
+                })
+            },
+            required = listOf("pattern"),
+        )
+    },
+    needsApproval = { needsApproval("grep") },
+    execute = {
+        val params = it.jsonObject
+        val pattern = params.string("pattern")?.trim().orEmpty()
+        require(pattern.isNotEmpty()) { "pattern is required" }
+        val path = params.string("path")?.toWorkspaceRelativePath("path") ?: ""
+        val regex = params.bool("regex") ?: false
+        val ignoreCase = params.bool("ignore_case") ?: true
+        val include = params.string("include")?.trim()?.takeIf { it.isNotEmpty() }
+        val matches = workspaceRepository.grep(workspaceId, pattern, path, regex, ignoreCase, include)
+        listOf(
+            UIMessagePart.Text(
+                buildJsonObject {
+                    put("pattern", pattern)
+                    put("count", matches.size)
+                    put(
+                        "matches",
+                        buildJsonArray {
+                            matches.forEach { match ->
+                                add(
+                                    buildJsonObject {
+                                        put("path", "/workspace/" + match.path)
+                                        put("line", match.line)
+                                        put(
+                                            "text",
+                                            if (match.text.length > GREP_MAX_LINE_CHARS) {
+                                                match.text.take(GREP_MAX_LINE_CHARS) + "..."
+                                            } else match.text
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    )
+                }.toString()
+            )
+        )
+    },
+)
+
+private const val GREP_MAX_LINE_CHARS = 500
+
+/** git 只读子命令白名单（路线 A：rootfs 内 git 二进制，固定 argv，不拼接 shell） */
+private val GIT_READONLY_ACTIONS = listOf(
+    "status",
+    "diff",
+    "log",
+    "show",
+    "branch",
+    "ls-files",
+    "blame",
+    "rev-parse",
+)
+
+private fun createGitTool(
+    workspaceId: String,
+    needsApproval: (String) -> Boolean,
+    workspaceRepository: WorkspaceRepository,
+) = Tool(
+    name = "git",
+    description = """
+        Inspect the git repository inside the workspace using read-only git commands. Paths are inside the workspace files area (/workspace).
+        Usage:
+        - action selects a read-only subcommand: status, diff, log, show, branch, ls-files, blame, rev-parse.
+        - target is an optional path or revision argument (for diff/log/ls-files it is a pathspec; for show/blame/rev-parse it is a revision or file). Must not start with '-'.
+        - This never commits, checks out, resets, stages, or pushes; it only observes.
+        - Requires git to be installed in the workspace rootfs.
+    """.trimIndent().replace("\n", " "),
+    parameters = {
+        InputSchema.Obj(
+            properties = buildJsonObject {
+                put("action", buildJsonObject {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Read-only git action. One of: ${GIT_READONLY_ACTIONS.joinToString(", ")}."
+                    )
+                })
+                put("path", buildJsonObject {
+                    put("type", "string")
+                    put(
+                        "description",
+                        "Directory inside the workspace files area to run git in, relative or prefixed with /workspace. Defaults to /workspace."
+                    )
+                })
+                put("target", buildJsonObject {
+                    put("type", "string")
+                    put("description", "Optional path or revision argument. Must not start with '-'.")
+                })
+            },
+            required = listOf("action"),
+        )
+    },
+    needsApproval = { needsApproval("git") },
+    execute = {
+        val params = it.jsonObject
+        val action = params.string("action")?.trim()?.lowercase().orEmpty()
+        require(action in GIT_READONLY_ACTIONS) {
+            "unsupported action: $action. Allowed: ${GIT_READONLY_ACTIONS.joinToString(", ")}"
+        }
+        val dir = params.string("path")?.toRootfsWorkspacePath("path") ?: "/workspace"
+        val target = params.string("target")?.trim()?.takeIf { it.isNotEmpty() }
+        if (target != null) {
+            require(!target.startsWith("-")) { "target must not start with '-'" }
+            require(!target.contains('\u0000')) { "target contains invalid character" }
+        }
+        val argv = gitArgv(action, target)
+        val command = "git -C ${dir.shellQuote()} " + argv.joinToString(" ") { it.shellQuote() }
+        val result = workspaceRepository.executeCommand(
+            id = workspaceId,
+            command = command,
+            timeoutMillis = WorkspaceManager.DEFAULT_COMMAND_TIMEOUT_MS,
+        )
+        val notRepo = result.stderr.contains("not a git repository", ignoreCase = true)
+        val gitMissing = result.exitCode == 127 ||
+            result.stderr.contains("git: command not found") ||
+            result.stderr.contains("git: not found")
+        listOf(
+            UIMessagePart.Text(
+                buildJsonObject {
+                    put("action", action)
+                    put("path", dir)
+                    put("exitCode", result.exitCode)
+                    put("stdout", result.stdout)
+                    if (result.stderr.isNotBlank()) put("stderr", result.stderr)
+                    if (result.truncated) put("truncated", true)
+                    when {
+                        gitMissing -> put(
+                            "hint",
+                            "git is not installed in the workspace rootfs. Install it via bash (e.g. `apt-get update && apt-get install -y git`)."
+                        )
+                        notRepo -> put(
+                            "hint",
+                            "This directory is not a git repository. Initialize or clone one inside the workspace first."
+                        )
+                    }
+                }.toString()
+            )
+        )
+    },
+)
+
+private fun gitArgv(action: String, target: String?): List<String> = when (action) {
+    "status" -> listOf("status", "--porcelain=v1", "-b")
+    "diff" -> buildList {
+        add("diff")
+        add("--no-color")
+        if (target != null) {
+            add("--")
+            add(target)
+        }
+    }
+    "log" -> buildList {
+        add("log")
+        add("--no-color")
+        add("-n")
+        add("50")
+        if (target != null) {
+            add("--")
+            add(target)
+        }
+    }
+    "show" -> buildList {
+        add("show")
+        add("--no-color")
+        add("--stat")
+        add("-n")
+        add("1")
+        if (target != null) add(target)
+    }
+    "branch" -> listOf("branch", "--no-color", "-a")
+    "ls-files" -> buildList {
+        add("ls-files")
+        if (target != null) {
+            add("--")
+            add(target)
+        }
+    }
+    "blame" -> {
+        requireNotNull(target) { "target (file path) is required for blame" }
+        listOf("blame", "--no-color", target)
+    }
+    "rev-parse" -> listOf("rev-parse", "--show-toplevel", "--abbrev-ref", "HEAD")
+    else -> error("unsupported action: $action")
+}
+
+private fun createShellTool(
+    workspaceId: String,
+    approval: (JsonElement) -> Boolean,
+    workspaceRepository: WorkspaceRepository,
     defaultCwd: String? = null,
     conversationId: String? = null,
-    writableRoots: List<String>,
 ) = Tool(
     name = "bash",
     description = buildString {
@@ -461,7 +760,7 @@ private fun createShellTool(
             required = listOf("command"),
         )
     },
-    needsApproval = { needsApproval("bash") || it.commandTouchesOutsideRoots(writableRoots) },
+    needsApproval = approval,
     execute = {
         val params = it.jsonObject
         val command = params.string("command") ?: error("command is required")
@@ -511,6 +810,9 @@ private fun createShellTool(
 
 private fun kotlinx.serialization.json.JsonObject.string(name: String): String? =
     this[name]?.jsonPrimitive?.contentOrNull
+
+private fun kotlinx.serialization.json.JsonObject.bool(name: String): Boolean? =
+    this[name]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull()
 
 private suspend fun WorkspaceRepository.readTextInRootfs(
     workspaceId: String,
@@ -644,20 +946,37 @@ private fun kotlinx.serialization.json.JsonObject.absolutePath(name: String): St
     return path
 }
 
-// 写入安全区（按工作区配置，见 WorkspaceEntity.writableRoots）：
-// 区外的 write/edit/bash 调用强制审批（即使工具级审批已被用户关闭）
-private fun kotlinx.serialization.json.JsonElement.forcedPathApproval(
-    name: String,
-    writableRoots: List<String>,
-): Boolean = runCatching {
-    !BashPathScanner.isInsideRoots(jsonObject.absolutePath(name), writableRoots)
-}.getOrDefault(true)
+/**
+ * glob/grep 用：接受工作区相对路径或以 /workspace 开头的路径，归一为引擎 resolvePath 语义的相对路径。
+ * 其它绝对路径（rootfs 系统目录）明确拒绝——这两个工具只覆盖 FILES 区。
+ */
+private fun String.toWorkspaceRelativePath(field: String): String {
+    val raw = trim().replace('\\', '/')
+    require(raw.isNotEmpty()) { "$field must not be empty" }
+    require(!raw.contains('\u0000')) { "$field contains invalid character" }
+    val stripped = when {
+        raw == "/workspace" -> ""
+        raw.startsWith("/workspace/") -> raw.removePrefix("/workspace")
+        raw.startsWith("/") -> error("$field must be inside the workspace files area (/workspace/...): $raw")
+        else -> raw
+    }
+    return stripped.trim('/')
+}
 
-private fun kotlinx.serialization.json.JsonElement.commandTouchesOutsideRoots(
-    writableRoots: List<String>,
-): Boolean = runCatching {
-    BashPathScanner.touchesOutsideRoots(jsonObject.string("command").orEmpty(), writableRoots)
-}.getOrDefault(true)
+/**
+ * git 用：接受工作区相对路径或以 /workspace 开头的路径，归一为 /workspace 下的 rootfs 绝对路径。
+ */
+private fun String.toRootfsWorkspacePath(field: String): String {
+    val raw = trim().replace('\\', '/')
+    require(raw.isNotEmpty()) { "$field must not be empty" }
+    require(!raw.contains('\u0000')) { "$field contains invalid character" }
+    return when {
+        raw == "/workspace" -> "/workspace"
+        raw.startsWith("/workspace/") -> raw.trimEnd('/')
+        raw.startsWith("/") -> error("$field must be inside the workspace files area (/workspace/...): $raw")
+        else -> "/workspace/" + raw.trimStart('/').trimEnd('/')
+    }
+}
 
 private fun String.rootfsName(): String =
     trimEnd('/').substringAfterLast('/').ifBlank { "/" }

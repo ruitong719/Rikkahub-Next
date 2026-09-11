@@ -67,6 +67,7 @@ import me.rerere.rikkahub.data.ai.TranslationHandler
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.ChatToolFactory
 import me.rerere.rikkahub.data.ai.tools.InvalidMcpServerNamesException
+import me.rerere.rikkahub.data.ai.tools.WorkspaceWritePolicy
 import me.rerere.rikkahub.data.ai.tools.local.TodoStore
 import me.rerere.rikkahub.data.ai.tools.local.TodoItem
 import me.rerere.rikkahub.data.ai.tools.createSubAgentTools
@@ -631,7 +632,8 @@ class ChatService(
         session.resetAutoResumeGuards()
         val previousJob = session.getJob()
 
-        // 「本次会话内全部同意」：按该调用的相关路径注册目录授权（无路径概念的工具按工具名），
+        // 「本次会话内全部同意」：按该调用涉及的写入路径注册目录级授权
+        // （/workspace 首层目录、/mnt/storage 挂载根、或父目录），
         // 同批其他 Pending 调用在生成恢复后的下一轮经 applyConversationGrants 自动放行
         if (approved && alwaysAllow && answer == null) {
             val toolCall = session.state.value.messageNodes
@@ -640,12 +642,8 @@ class ChatService(
                 .filterIsInstance<UIMessagePart.Tool>()
                 .firstOrNull { it.toolCallId == toolCallId }
             if (toolCall != null) {
-                val paths = ToolGrants.relevantPaths(toolCall.toolName, toolCall.inputAsJson())
-                if (paths.isEmpty()) {
-                    session.toolGrants.grantTool(toolCall.toolName)
-                } else {
-                    paths.forEach { session.toolGrants.grantDir(ToolGrants.parentDir(it)) }
-                }
+                ToolGrants.relevantPaths(toolCall.toolName, toolCall.inputAsJson())
+                    .forEach { session.toolGrants.grantDir(WorkspaceWritePolicy.unitFor(it)) }
             }
         }
 
@@ -964,7 +962,7 @@ class ChatService(
         val base = tool.needsApproval
         tool.copy(
             needsApproval = { args ->
-                base(args) && !grants.covers(tool.name, ToolGrants.relevantPaths(tool.name, args))
+                base(args) && !grants.covers(ToolGrants.relevantPaths(tool.name, args))
             }
         )
     }

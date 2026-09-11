@@ -209,7 +209,7 @@
   <string name="chat_message_add_favorite">Add Favorite</string>
   <string name="chat_message_remove_favorite">Remove Favorite</string>
   <string name="chat_message_tool_approve">Approve</string>
-  <string name="chat_message_tool_approve_always">Allow for this conversation</string>
+  <string name="chat_message_tool_approve_always">Allow this directory for this conversation</string>
   <string name="chat_message_tool_ask_questions">Ask %d questions</string>
   <string name="chat_message_tool_ask_user_yolo">YOLO mode is active: ask_user is unavailable. Switch the permission mode to ask the user.</string>
   <string name="chat_message_tool_call_generic">Called tool %1$s</string>
@@ -1208,8 +1208,6 @@
   <string name="workspace_detail_loading">Loading</string>
   <string name="workspace_detail_enable_shell">Enable Shell</string>
   <string name="workspace_detail_enable_shell_desc">Allow this workspace to run a terminal environment using local Rootfs</string>
-  <string name="workspace_detail_tool_approval">Tool Approval</string>
-  <string name="workspace_detail_tool_approval_desc">When enabled, user confirmation is required before AI calls this tool</string>
   <string name="workspace_detail_tool_prompt_hint">Tap a tool to edit the prompt injected into the model\'s system context</string>
   <string name="workspace_detail_tool_prompt_label">Prompt</string>
   <string name="workspace_detail_tool_prompt_using_default">Using the default prompt. Edit to customize.</string>
@@ -1222,13 +1220,16 @@
   <string name="workspace_detail_tool_delete_file">Delete File</string>
   <string name="workspace_detail_tool_move_file">Move File</string>
   <string name="workspace_detail_tool_shell">Execute Command</string>
+  <string name="workspace_detail_tool_glob">Find Files</string>
+  <string name="workspace_detail_tool_grep">Search Contents</string>
+  <string name="workspace_detail_tool_git">Git (read-only)</string>
   <string name="workspace_detail_mount_title">Phone Storage Mount</string>
   <string name="workspace_detail_mount_desc">Bind the phone\'s shared storage root into the workspace at /mnt/storage (requires the \"All files access\" permission). The AI\'s reads and writes apply to real phone files in real time.</string>
   <string name="workspace_detail_mount_granted">Connected to phone storage; changes apply in real time</string>
   <string name="workspace_detail_mount_need_permission">Requires the \"All files access\" permission to take effect</string>
   <string name="workspace_detail_mount_grant">Grant</string>
-  <string name="workspace_writable_roots_title">Writable safe roots</string>
-  <string name="workspace_writable_roots_desc">Write/Edit/Bash calls targeting paths outside these rootfs prefixes always require approval. Empty list means everything requires approval.</string>
+  <string name="workspace_writable_roots_title">Approval-free zones</string>
+  <string name="workspace_writable_roots_desc">Writes inside these rootfs prefixes never require approval. /workspace is handled separately: writing directly in /workspace is free, while writing into its first-level subdirectories asks once per directory (per conversation). /mnt/storage asks once for the whole mount.</string>
   <string name="workspace_writable_roots_add_hint">Absolute path prefix, e.g. /mnt/photos</string>
   <string name="workspace_writable_roots_add">Add</string>
   <string name="workspace_writable_roots_invalid">Must be an absolute path starting with /</string>
