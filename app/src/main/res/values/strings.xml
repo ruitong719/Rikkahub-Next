@@ -1342,6 +1342,17 @@
   <string name="tool_ui_shell_default">Shell</string>
   <string name="tool_ui_shell_running">running…</string>
   <string name="tool_ui_shell_pending">waiting to run</string>
+  <string name="tool_ui_glob">Find files: %s</string>
+  <string name="tool_ui_glob_default">Find files</string>
+  <string name="tool_ui_grep">Search: %s</string>
+  <string name="tool_ui_grep_default">Search contents</string>
+  <string name="tool_ui_git">git %s</string>
+  <string name="tool_ui_git_default">git</string>
+  <string name="tool_ui_git_running">reading…</string>
+  <string name="tool_ui_git_pending">waiting to run</string>
+  <string name="tool_ui_git_no_output">No output</string>
+  <string name="tool_ui_search_result_count">%1$d results</string>
+  <string name="tool_ui_search_more">+%1$d more</string>
   <string name="tool_ui_shell_timeout">timeout</string>
   <string name="tool_ui_shell_exit">exit %s</string>
   <string name="tool_ui_shell_live_output">Live output</string>

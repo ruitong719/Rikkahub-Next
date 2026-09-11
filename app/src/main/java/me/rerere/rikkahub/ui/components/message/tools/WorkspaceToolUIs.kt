@@ -48,6 +48,8 @@ import me.rerere.hugeicons.stroke.FileAdd
 import me.rerere.hugeicons.stroke.FileEdit
 import me.rerere.hugeicons.stroke.FileView
 import me.rerere.hugeicons.stroke.Folder01
+import me.rerere.hugeicons.stroke.GitFork
+import me.rerere.hugeicons.stroke.Search01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.richtext.DiffAddedColor
 import me.rerere.rikkahub.ui.components.richtext.DiffRemovedColor
@@ -726,4 +728,342 @@ private fun languageOf(path: String?): String = when (
     "sql" -> "sql"
     "gradle" -> "groovy"
     else -> "plaintext"
+}
+
+// ---- 只读检索工具（glob / grep / git） ----
+
+/** glob / grep 结果的一行：path 必有，grep 额外带 line/text */
+private data class SearchRow(
+    val path: String,
+    val line: Int? = null,
+    val text: String? = null,
+)
+
+private const val SEARCH_SUMMARY_MAX_ROWS = 8
+
+/** 解析 glob/grep 输出里的 matches 数组（path / line / text） */
+private fun JsonElement?.searchRows(): List<SearchRow> =
+    this?.jsonObjectOrNull?.get("matches")?.jsonArrayOrNull?.mapNotNull { element ->
+        val obj = element.jsonObjectOrNull ?: return@mapNotNull null
+        val path = obj.getStringContent("path") ?: return@mapNotNull null
+        SearchRow(
+            path = path,
+            line = obj["line"]?.jsonPrimitiveOrNull?.intOrNull,
+            text = obj.getStringContent("text"),
+        )
+    } ?: emptyList()
+
+private fun JsonElement?.searchCount(fallback: Int): Int =
+    this?.jsonObjectOrNull?.get("count")?.jsonPrimitiveOrNull?.intOrNull ?: fallback
+
+private fun SearchRow.displayText(): String = buildString {
+    append(path)
+    line?.let { append(':').append(it) }
+    text?.trim()?.takeIf { it.isNotEmpty() }?.let { append("  ").append(it) }
+}
+
+@Composable
+private fun SearchRowLine(row: SearchRow, fontSize: TextUnit, lineHeight: TextUnit) {
+    Text(
+        text = row.displayText(),
+        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+        fontSize = fontSize,
+        lineHeight = lineHeight,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/** glob/grep 共用的折叠摘要：命中条数 + 前若干行 */
+@Composable
+private fun SearchSummary(total: Int, rows: List<SearchRow>, loading: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .shimmer(isLoading = loading),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = stringResource(R.string.tool_ui_search_result_count, total),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+            rows.take(SEARCH_SUMMARY_MAX_ROWS).forEach { row ->
+                SearchRowLine(row, fontSize = 11.sp, lineHeight = 14.sp)
+            }
+            if (rows.size > SEARCH_SUMMARY_MAX_ROWS) {
+                Text(
+                    text = stringResource(R.string.tool_ui_search_more, rows.size - SEARCH_SUMMARY_MAX_ROWS),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
+        }
+    }
+}
+
+/** glob/grep 共用的详情：pattern + 全部命中行（可滚动） */
+@Composable
+private fun SearchPreview(header: String, pattern: String?, total: Int, rows: List<SearchRow>) {
+    Column(
+        modifier = Modifier
+            .fillMaxHeight(0.8f)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = header,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = stringResource(R.string.tool_ui_search_result_count, total),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+        }
+        if (!pattern.isNullOrBlank()) {
+            Text(
+                text = pattern,
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                color = MaterialTheme.colorScheme.secondary,
+            )
+        }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            items(rows) { row ->
+                SearchRowLine(row, fontSize = 11.sp, lineHeight = 15.sp)
+            }
+        }
+    }
+}
+
+/** glob 工具：标题显示 pattern，摘要/详情列出命中路径 */
+object GlobToolUI : ToolUIRenderer {
+    override val toolName: String = "glob"
+
+    override fun icon(context: ToolUIContext): ImageVector = HugeIcons.Folder01
+
+    @Composable
+    override fun title(context: ToolUIContext): String {
+        val pattern = context.arguments.getStringContent("pattern")
+        return if (pattern.isNullOrBlank()) {
+            stringResource(R.string.tool_ui_glob_default)
+        } else {
+            stringResource(R.string.tool_ui_glob, pattern)
+        }
+    }
+
+    override fun hasSummary(context: ToolUIContext): Boolean = context.content != null
+
+    @Composable
+    override fun Summary(context: ToolUIContext) {
+        val rows = remember(context) { context.content.searchRows() }
+        SearchSummary(
+            total = context.content.searchCount(rows.size),
+            rows = rows,
+            loading = context.loading,
+        )
+    }
+
+    @Composable
+    override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
+        val rows = remember(context) { context.content.searchRows() }
+        if (rows.isEmpty()) {
+            DefaultToolPreview(context = context)
+            return
+        }
+        SearchPreview(
+            header = stringResource(R.string.tool_ui_glob_default),
+            pattern = context.arguments.getStringContent("pattern"),
+            total = context.content.searchCount(rows.size),
+            rows = rows,
+        )
+    }
+}
+
+/** grep 工具：标题显示 pattern，摘要/详情按 path:line 展示命中行 */
+object GrepToolUI : ToolUIRenderer {
+    override val toolName: String = "grep"
+
+    override fun icon(context: ToolUIContext): ImageVector = HugeIcons.Search01
+
+    @Composable
+    override fun title(context: ToolUIContext): String {
+        val pattern = context.arguments.getStringContent("pattern")
+        return if (pattern.isNullOrBlank()) {
+            stringResource(R.string.tool_ui_grep_default)
+        } else {
+            stringResource(R.string.tool_ui_grep, pattern)
+        }
+    }
+
+    override fun hasSummary(context: ToolUIContext): Boolean = context.content != null
+
+    @Composable
+    override fun Summary(context: ToolUIContext) {
+        val rows = remember(context) { context.content.searchRows() }
+        SearchSummary(
+            total = context.content.searchCount(rows.size),
+            rows = rows,
+            loading = context.loading,
+        )
+    }
+
+    @Composable
+    override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
+        val rows = remember(context) { context.content.searchRows() }
+        if (rows.isEmpty()) {
+            DefaultToolPreview(context = context)
+            return
+        }
+        SearchPreview(
+            header = stringResource(R.string.tool_ui_grep_default),
+            pattern = context.arguments.getStringContent("pattern"),
+            total = context.content.searchCount(rows.size),
+            rows = rows,
+        )
+    }
+}
+
+/** git 工具（只读）：标题显示子命令，摘要/详情展示 stdout/stderr */
+object GitToolUI : ToolUIRenderer {
+    private const val SUMMARY_MAX_LINES = 10
+
+    override val toolName: String = "git"
+
+    override fun icon(context: ToolUIContext): ImageVector = HugeIcons.GitFork
+
+    @Composable
+    override fun title(context: ToolUIContext): String {
+        val action = context.arguments.getStringContent("action")
+        return if (action.isNullOrBlank()) {
+            stringResource(R.string.tool_ui_git_default)
+        } else {
+            stringResource(R.string.tool_ui_git, action)
+        }
+    }
+
+    override fun hasSummary(context: ToolUIContext): Boolean = context.content != null
+
+    @Composable
+    override fun Summary(context: ToolUIContext) {
+        val content = context.content ?: return
+        val stdout = remember(content) { content.getStringContent("stdout").orEmpty().trim() }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            ShellExitStatus(content, MaterialTheme.typography.labelSmall)
+            if (stdout.isNotEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .shimmer(isLoading = context.loading),
+                ) {
+                    Text(
+                        text = stdout.lineSequence().take(SUMMARY_MAX_LINES).joinToString("\n"),
+                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                        fontSize = 11.sp,
+                        lineHeight = 14.sp,
+                        maxLines = SUMMARY_MAX_LINES,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+
+    @Composable
+    override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
+        val content = context.content
+        val dir = context.arguments.getStringContent("path")
+        val scrollState = rememberScrollState()
+        Column(
+            modifier = Modifier
+                .fillMaxHeight(0.8f)
+                .padding(16.dp)
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.tool_ui_git_default),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (content != null) {
+                    ShellExitStatus(content, MaterialTheme.typography.labelMedium)
+                } else {
+                    Text(
+                        text = stringResource(
+                            if (context.loading) R.string.tool_ui_git_running else R.string.tool_ui_git_pending
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
+            }
+            if (!dir.isNullOrBlank()) {
+                Text(
+                    text = "# path: $dir",
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
+            if (content == null) return@Column
+            content.getStringContent("hint")?.takeIf { it.isNotBlank() }?.let { hint ->
+                Text(
+                    text = hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            val stdout = content.getStringContent("stdout").orEmpty()
+            val stderr = content.getStringContent("stderr").orEmpty()
+            if (stdout.isNotEmpty()) {
+                Text(text = "stdout", style = MaterialTheme.typography.labelMedium)
+                HighlightCodeBlock(
+                    code = stdout,
+                    language = "plaintext",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (stderr.isNotEmpty()) {
+                Text(
+                    text = "stderr",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                HighlightCodeBlock(
+                    code = stderr,
+                    language = "plaintext",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (stdout.isEmpty() && stderr.isEmpty() && content.getStringContent("hint").isNullOrBlank()) {
+                Text(
+                    text = stringResource(R.string.tool_ui_git_no_output),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
+        }
+    }
 }

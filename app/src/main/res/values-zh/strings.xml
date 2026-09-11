@@ -1272,6 +1272,17 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="tool_ui_shell_default">Shell</string>
   <string name="tool_ui_shell_running">运行中…</string>
   <string name="tool_ui_shell_pending">等待执行</string>
+  <string name="tool_ui_glob">查找文件: %s</string>
+  <string name="tool_ui_glob_default">查找文件</string>
+  <string name="tool_ui_grep">搜索: %s</string>
+  <string name="tool_ui_grep_default">搜索内容</string>
+  <string name="tool_ui_git">git %s</string>
+  <string name="tool_ui_git_default">git</string>
+  <string name="tool_ui_git_running">读取中…</string>
+  <string name="tool_ui_git_pending">等待执行</string>
+  <string name="tool_ui_git_no_output">无输出</string>
+  <string name="tool_ui_search_result_count">%1$d 条结果</string>
+  <string name="tool_ui_search_more">还有 %1$d 条</string>
   <string name="tool_ui_shell_timeout">timeout</string>
   <string name="tool_ui_shell_exit">exit %s</string>
   <string name="tool_ui_shell_live_output">实时输出</string>
