@@ -51,11 +51,6 @@
 ./gradlew :app:assembleRelease
 ```
 
-## 💗 捐赠
-
-- [Patreon](https://patreon.com/rikkahub)
-- [爱发电](https://afdian.com/a/reovo)
-
 ##  许可证
 
 本项目基于 [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0）授权。

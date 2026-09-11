@@ -17,7 +17,6 @@ import me.rerere.rikkahub.data.ai.GenerationLoop
 import me.rerere.rikkahub.data.ai.TranslationHandler
 import me.rerere.rikkahub.data.ai.transformers.TemplateTransformer
 import me.rerere.rikkahub.data.api.RikkaHubAPI
-import me.rerere.rikkahub.data.api.SponsorAPI
 import me.rerere.rikkahub.data.datastore.SettingsStore
 import me.rerere.rikkahub.data.db.AppDatabase
 import me.rerere.rikkahub.data.db.AppDatabaseFactory
@@ -228,10 +227,6 @@ val dataSourceModule = module {
             })
             .build()
         client.also { SearchService.init(it, get()) }
-    }
-
-    single {
-        SponsorAPI.create(get())
     }
 
     single {

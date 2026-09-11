@@ -294,11 +294,6 @@
   <string name="deep_thinking">深度思考</string>
   <string name="deep_thinking_seconds">思考了 %1$.1f 秒</string>
   <string name="delete">删除</string>
-  <string name="donate_page_afdian_desc">适用于🇨🇳用户</string>
-  <string name="donate_page_donation_methods">赞助方式</string>
-  <string name="donate_page_kofi_desc">面向全球用户</string>
-  <string name="donate_page_sponsor_list">赞助用户列表</string>
-  <string name="donate_page_title">赞助</string>
   <string name="edit">编辑</string>
   <string name="editing">编辑中</string>
   <string name="emoji_picker_search_placeholder">搜索表情符号...</string>
@@ -460,7 +455,6 @@
   <string name="regenerate">重新生成</string>
   <string name="regenerate_confirm_message">确定要重新生成此消息吗？</string>
   <string name="render_with_webview">网页视图渲染</string>
-  <string name="rikkahub_provider_description">官方免费 AI 服务，使用用户赞助资金为新用户提供部分免费模型作为备用，无需 API 密钥。有严格速率限制，如已购买自有服务商，请尽量使用自有服务商。</string>
   <string name="safe_mode_assistants">助手</string>
   <string name="safe_mode_copy">复制</string>
   <string name="safe_mode_crash_report">崩溃报告</string>
