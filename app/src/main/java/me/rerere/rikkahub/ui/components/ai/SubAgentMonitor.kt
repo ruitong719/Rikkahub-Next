@@ -40,7 +40,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.AiBrain01
+import me.rerere.hugeicons.stroke.UserMultiple
 import me.rerere.hugeicons.stroke.ArrowRight01
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.Settings02
@@ -87,7 +87,7 @@ fun SubAgentMonitorButton(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = HugeIcons.AiBrain01,
+                        imageVector = HugeIcons.UserMultiple,
                         contentDescription = stringResource(R.string.subagent_monitor_button),
                     )
                 }

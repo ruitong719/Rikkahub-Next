@@ -30,7 +30,7 @@ import kotlinx.serialization.json.longOrNull
 import me.rerere.common.http.jsonObjectOrNull
 import me.rerere.common.http.jsonPrimitiveOrNull
 import me.rerere.hugeicons.HugeIcons
-import me.rerere.hugeicons.stroke.AiBrain01
+import me.rerere.hugeicons.stroke.UserMultiple
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.ui.components.richtext.DiffAddedColor
 import me.rerere.rikkahub.ui.components.richtext.DiffRemovedColor
@@ -46,7 +46,7 @@ import me.rerere.rikkahub.ui.modifier.shimmer
 object SubAgentToolUI : ToolUIRenderer {
     override val toolName: String = "subagent_general"
 
-    override fun icon(context: ToolUIContext): ImageVector = HugeIcons.AiBrain01
+    override fun icon(context: ToolUIContext): ImageVector = HugeIcons.UserMultiple
 
     private fun statusOf(context: ToolUIContext): String? =
         context.content.getStringContent("status")

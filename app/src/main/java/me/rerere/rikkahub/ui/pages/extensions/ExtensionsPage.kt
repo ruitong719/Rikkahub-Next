@@ -17,7 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.rikkahub.R
-import me.rerere.hugeicons.stroke.AiBrain01
+import me.rerere.hugeicons.stroke.UserMultiple
 import me.rerere.hugeicons.stroke.File02
 import me.rerere.hugeicons.stroke.Folder01
 import me.rerere.hugeicons.stroke.Puzzle
@@ -70,7 +70,7 @@ fun ExtensionsPage() {
                     )
                     item(
                         onClick = { navController.navigate(Screen.SubAgents) },
-                        leadingContent = { Icon(HugeIcons.AiBrain01, null) },
+                        leadingContent = { Icon(HugeIcons.UserMultiple, null) },
                         headlineContent = { Text(stringResource(R.string.extensions_page_subagents)) },
                         supportingContent = { Text(stringResource(R.string.extensions_page_subagents_desc)) },
                     )
