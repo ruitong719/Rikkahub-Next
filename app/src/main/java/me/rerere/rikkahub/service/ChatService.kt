@@ -66,6 +66,7 @@ import me.rerere.rikkahub.data.ai.SubAgentRunner
 import me.rerere.rikkahub.data.ai.buildGoalEvalTask
 import me.rerere.rikkahub.data.ai.buildGoalEvaluatorSubAgent
 import me.rerere.rikkahub.data.ai.GOAL_EVALUATOR_NAME
+import me.rerere.rikkahub.data.ai.GoalEvaluationUnavailableException
 import me.rerere.rikkahub.data.ai.hasRetryableNetworkCause
 import me.rerere.rikkahub.data.ai.hasUnrecoverableGoalCause
 import me.rerere.rikkahub.data.ai.parseGoalVerdict
@@ -1081,6 +1082,8 @@ class ChatService(
             }) {
             return
         }
+        // 评估器不占 generation 槽位：用会话级互斥锁挡住并发/重复触发同一次评估
+        if (!session.beginGoalEvaluationIfIdle()) return
 
         appScope.launch {
             try {
@@ -1090,6 +1093,26 @@ class ChatService(
                 session.resetGoalEvalRetryCount()
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: GoalEvaluationUnavailableException) {
+                // 评估器未正常交卷（超时/报错/被取消/并发超限）：不是判决，不推进轮次、不拉起主模型
+                if (e.evalStatus == "cancelled") {
+                    Log.i(TAG, "goal evaluation cancelled for $conversationId")
+                } else if (session.goalEvalRetryCount < GOAL_EVAL_MAX_RETRIES) {
+                    session.onGoalEvalRetry()
+                    val delayMs = GOAL_EVAL_RETRY_BASE_MS * session.goalEvalRetryCount
+                    Log.w(
+                        TAG,
+                        "goal evaluation unavailable (${e.evalStatus}) for $conversationId, " +
+                            "retrying in ${delayMs}ms",
+                    )
+                    appScope.launch {
+                        delay(delayMs)
+                        maybeLaunchGoalEvaluation(conversationId)
+                    }
+                } else {
+                    Log.w(TAG, "goal evaluation unavailable for $conversationId: ${e.evalStatus}")
+                    addError(e, conversationId, title = context.getString(R.string.goal_eval_error_title))
+                }
             } catch (e: Exception) {
                 // 先判网络类：抖动/超时/连接中断应退避重试，绝不能误判为不可恢复而直接停目标
                 if (e.hasRetryableNetworkCause() && session.goalEvalRetryCount < GOAL_EVAL_MAX_RETRIES) {
@@ -1120,6 +1143,8 @@ class ChatService(
                     Log.w(TAG, "goal evaluation failed for $conversationId", e)
                     addError(e, conversationId, title = context.getString(R.string.goal_eval_error_title))
                 }
+            } finally {
+                session.endGoalEvaluation()
             }
         }
     }
@@ -1226,10 +1251,15 @@ class ChatService(
             label = GOAL_EVALUATOR_NAME,
             modelOverride = evaluatorModel,
         )
-        val report = runCatching {
-            kotlinx.serialization.json.Json.parseToJsonElement(resultJson)
-                .jsonObject["result"]?.jsonPrimitive?.contentOrNull
-        }.getOrNull().orEmpty()
+        val (evalStatus, report) = runCatching {
+            val obj = kotlinx.serialization.json.Json.parseToJsonElement(resultJson).jsonObject
+            obj["status"]?.jsonPrimitive?.contentOrNull.orEmpty() to
+                obj["result"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        }.getOrElse { "" to "" }
+        // 只有评估器正常交卷（submit_report -> status=success）才构成判决
+        if (evalStatus != "success") {
+            throw GoalEvaluationUnavailableException(evalStatus.ifBlank { "error" }, report)
+        }
         val kind = parseGoalVerdict(report)
 
         // 领取本轮结果：结合「本轮是否有工具调用」计算无进展计数，并推进消息游标

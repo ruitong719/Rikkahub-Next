@@ -71,22 +71,57 @@ fun buildGoalEvalTask(
 /**
  * 解析评估报告首行的结论。识别技巧上偏保守：不确定时返回 [GoalVerdictKind.NOT_MET]，
  * 让主模型继续，而不是误判为已完成而提前结束。
+ *
+ * 先认规范格式：首行（或报告里第一条）带 `OUTCOME: ...` 的行。没有规范格式时才按关键词兜底，
+ * 且兜底会先排除否定句——否则 "the goal has not been achieved" 会被当成 ACHIEVED 提前收尾。
  */
 fun parseGoalVerdict(report: String): GoalVerdictKind {
-    val firstLine = report.lineSequence().firstOrNull().orEmpty().trim().uppercase()
-    val upper = report.uppercase()
-    return when {
-        firstLine.contains("OUTCOME: ACHIEVED") || firstLine == "ACHIEVED" -> GoalVerdictKind.ACHIEVED
-        firstLine.contains("OUTCOME: IMPOSSIBLE") || firstLine == "IMPOSSIBLE" -> GoalVerdictKind.IMPOSSIBLE
-        firstLine.contains("OUTCOME: NOT_MET") || firstLine.contains("OUTCOME: NOT MET") ||
-            firstLine == "NOT_MET" || firstLine == "NOT MET" -> GoalVerdictKind.NOT_MET
+    val lines = report.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
 
+    fun explicit(line: String): GoalVerdictKind? = when {
+        "OUTCOME: ACHIEVED" in line || line == "ACHIEVED" -> GoalVerdictKind.ACHIEVED
+        "OUTCOME: IMPOSSIBLE" in line || line == "IMPOSSIBLE" -> GoalVerdictKind.IMPOSSIBLE
+        "OUTCOME: NOT_MET" in line || "OUTCOME: NOT MET" in line ||
+            line == "NOT_MET" || line == "NOT MET" -> GoalVerdictKind.NOT_MET
+        else -> null
+    }
+
+    explicit(lines.firstOrNull().orEmpty().uppercase())?.let { return it }
+    lines.asSequence()
+        .map { it.uppercase() }
+        .mapNotNull { explicit(it) }
+        .firstOrNull()
+        ?.let { return it }
+
+    val upper = report.uppercase()
+    val negatedAchieved = NEGATED_ACHIEVED_REGEX.containsMatchIn(upper) || "INCOMPLETE" in upper
+    val negatedImpossible = NEGATED_IMPOSSIBLE_REGEX.containsMatchIn(upper)
+    return when {
+        negatedImpossible -> GoalVerdictKind.NOT_MET
         "IMPOSSIBLE" in upper -> GoalVerdictKind.IMPOSSIBLE
-        "NOT MET" in upper || "NOT_MET" in upper -> GoalVerdictKind.NOT_MET
+        "NOT MET" in upper || "NOT_MET" in upper || negatedAchieved -> GoalVerdictKind.NOT_MET
         "ACHIEVED" in upper || "COMPLETED" in upper -> GoalVerdictKind.ACHIEVED
         else -> GoalVerdictKind.NOT_MET
     }
 }
+
+/** 否定达成/完成的表述（"not / not yet / not been / not fully ... achieved|completed|done"） */
+private val NEGATED_ACHIEVED_REGEX =
+    Regex("""\bNOT\b[^.\n;:]{0,30}?\b(ACHIEVED|COMPLETED|DONE|FINISHED)\b""")
+
+/** 否定「不可能」的表述（"not impossible"），避免被 IMPOSSIBLE 关键词误伤 */
+private val NEGATED_IMPOSSIBLE_REGEX = Regex("""\bNOT\b[^.\n;:]{0,30}?\bIMPOSSIBLE\b""")
+
+/**
+ * 评估器未正常交卷时抛出（subagent 返回 status != success：超时/报错/被取消/并发超限）。
+ * 这类结果不构成判决，绝不能降级成 NOT_MET 去拉起主模型。
+ */
+class GoalEvaluationUnavailableException(
+    val evalStatus: String,
+    val detail: String,
+) : IllegalStateException(
+    "Goal evaluation did not complete (status=$evalStatus): ${detail.ifBlank { "(no detail)" }}"
+)
 
 /**
  * 不可恢复错误的特征子串：这类错误重试也不会成功，应直接终止目标循环。

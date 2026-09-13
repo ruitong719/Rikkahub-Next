@@ -25,6 +25,24 @@ class GoalModeTest {
         assertEquals(GoalVerdictKind.NOT_MET, parseGoalVerdict(""))
     }
 
+    @Test
+    fun `parseGoalVerdict does not read negations as achieved`() {
+        assertEquals(GoalVerdictKind.NOT_MET, parseGoalVerdict("The goal has not been achieved yet."))
+        assertEquals(GoalVerdictKind.NOT_MET, parseGoalVerdict("Goal state: not achieved"))
+        assertEquals(GoalVerdictKind.NOT_MET, parseGoalVerdict("The task is incomplete"))
+        assertEquals(GoalVerdictKind.NOT_MET, parseGoalVerdict("This is not impossible, keep going"))
+        assertEquals(GoalVerdictKind.ACHIEVED, parseGoalVerdict("It was achieved"))
+    }
+
+    @Test
+    fun `parseGoalVerdict finds an outcome line below the first line`() {
+        assertEquals(
+            GoalVerdictKind.NOT_MET,
+            parseGoalVerdict("## Assessment\nOUTCOME: NOT_MET\nmissing tests"),
+        )
+        assertEquals(GoalVerdictKind.ACHIEVED, parseGoalVerdict("Summary\nOUTCOME: ACHIEVED"))
+    }
+
     // ---- hasUnrecoverableGoalCause ----
 
     @Test

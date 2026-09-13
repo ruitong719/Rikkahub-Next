@@ -81,6 +81,27 @@ class ConversationSession(
         goalEvalRetryCount = 0
     }
 
+    // 评审互斥：评估器不占用 generation 槽位，若只靠 isGenerating 判定，
+    // 同一会话可能在评估进行中被再次触发，导致并发跑多次评估、重复落判决/重复拉起主模型。
+    private val goalEvalLock = Any()
+
+    @Volatile
+    var isGoalEvaluating: Boolean = false
+        private set
+
+    fun beginGoalEvaluationIfIdle(): Boolean = synchronized(goalEvalLock) {
+        if (isGoalEvaluating) {
+            false
+        } else {
+            isGoalEvaluating = true
+            true
+        }
+    }
+
+    fun endGoalEvaluation() {
+        synchronized(goalEvalLock) { isGoalEvaluating = false }
+    }
+
     fun onAutoResumeAttemptFailed() {
         autoResumeFailures++
     }
