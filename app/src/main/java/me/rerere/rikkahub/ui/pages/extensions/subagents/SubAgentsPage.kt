@@ -43,6 +43,7 @@ import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.ai.SubAgentRunStatus
 import me.rerere.rikkahub.data.model.SubAgent
 import me.rerere.rikkahub.data.model.isGeneralSubagent
+import me.rerere.rikkahub.data.model.isGoalEvaluatorSubagent
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.RikkaConfirmDialog
 import me.rerere.rikkahub.ui.context.LocalNavController
@@ -119,24 +120,33 @@ fun SubAgentsPage() {
                         .filter { it.subAgentId == subAgent.id }
                         .maxByOrNull { it.startedAt }
                     val isGeneral = isGeneralSubagent(subAgent.id)
+                    // GOAL 评估器为系统内置：只读，不可编辑/删除/复制，只能看执行轨迹
+                    val readOnly = isGoalEvaluatorSubagent(subAgent.id)
                     SubAgentCard(
                         subAgent = subAgent,
-                        isGeneral = isGeneral,
+                        isBuiltin = isGeneral || readOnly,
+                        readOnly = readOnly,
                         running = latestRun?.status == SubAgentRunStatus.RUNNING,
                         hasTrace = latestRun != null,
                         onClick = {
-                            // 正在执行的智能体 -> 查看执行轨迹；否则进入编辑页
-                            if (latestRun?.status == SubAgentRunStatus.RUNNING) {
-                                navController.navigate(Screen.SubAgentTrace(latestRun.runId.toString()))
-                            } else {
-                                navController.navigate(Screen.SubAgentEdit(subAgent.id.toString()))
+                            when {
+                                // 只读内置：有轨迹就去看轨迹，没有则无操作（不进编辑页）
+                                readOnly -> latestRun?.let {
+                                    navController.navigate(Screen.SubAgentTrace(it.runId.toString()))
+                                }
+
+                                // 正在执行的智能体 -> 查看执行轨迹；否则进入编辑页
+                                latestRun?.status == SubAgentRunStatus.RUNNING ->
+                                    navController.navigate(Screen.SubAgentTrace(latestRun.runId.toString()))
+
+                                else -> navController.navigate(Screen.SubAgentEdit(subAgent.id.toString()))
                             }
                         },
                         onShowTrace = {
                             navController.navigate(Screen.SubAgentTrace((latestRun?.runId ?: subAgent.id).toString()))
                         },
-                        onDuplicate = { vm.duplicateSubAgent(subAgent.id) },
-                        onDelete = if (isGeneral) null else ({ deleteTarget = subAgent }),
+                        onDuplicate = if (readOnly) null else ({ vm.duplicateSubAgent(subAgent.id) }),
+                        onDelete = if (isGeneral || readOnly) null else ({ deleteTarget = subAgent }),
                     )
                 }
             }
@@ -163,12 +173,13 @@ fun SubAgentsPage() {
 @Composable
 private fun SubAgentCard(
     subAgent: SubAgent,
-    isGeneral: Boolean,
+    isBuiltin: Boolean,
+    readOnly: Boolean,
     running: Boolean,
     hasTrace: Boolean,
     onClick: () -> Unit,
     onShowTrace: () -> Unit,
-    onDuplicate: () -> Unit,
+    onDuplicate: (() -> Unit)?,
     onDelete: (() -> Unit)?,
 ) {
     Card(
@@ -191,11 +202,19 @@ private fun SubAgentCard(
                         text = subAgent.name.ifBlank { stringResource(R.string.subagents_page_unnamed) },
                         style = MaterialTheme.typography.titleMedium,
                     )
-                    if (isGeneral) {
+                    if (isBuiltin) {
                         Text(
                             text = stringResource(R.string.subagents_page_builtin),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                    if (readOnly) {
+                        Text(
+                            text = stringResource(R.string.subagents_page_readonly),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.padding(start = 8.dp),
                         )
                     }
@@ -234,12 +253,14 @@ private fun SubAgentCard(
                     )
                 }
             }
-            IconButton(onClick = onDuplicate) {
-                Icon(
-                    imageVector = HugeIcons.Copy01,
-                    contentDescription = stringResource(R.string.subagents_page_duplicate),
-                    modifier = Modifier.size(18.dp),
-                )
+            if (onDuplicate != null) {
+                IconButton(onClick = onDuplicate) {
+                    Icon(
+                        imageVector = HugeIcons.Copy01,
+                        contentDescription = stringResource(R.string.subagents_page_duplicate),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
             if (onDelete != null) {
                 IconButton(onClick = onDelete) {
@@ -250,13 +271,16 @@ private fun SubAgentCard(
                     )
                 }
             }
-            Icon(
-                imageVector = HugeIcons.PencilEdit01,
-                contentDescription = null,
-                modifier = Modifier
-                    .padding(horizontal = 8.dp)
-                    .size(16.dp),
-            )
+            // 只读内置（GOAL 评估器）不显示"可编辑"铅笔
+            if (!readOnly) {
+                Icon(
+                    imageVector = HugeIcons.PencilEdit01,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .size(16.dp),
+                )
+            }
         }
     }
 }

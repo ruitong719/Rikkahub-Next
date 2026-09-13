@@ -103,6 +103,7 @@ import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.Fullscreen
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
+import me.rerere.rikkahub.data.ai.buildGoalEvaluatorSubAgent
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
 import me.rerere.rikkahub.data.ai.tools.local.TodoItem
 import me.rerere.rikkahub.data.ai.tools.local.TodoStatus
@@ -356,6 +357,7 @@ fun ChatInput(
                                                 assistant = assistant,
                                                 messages = messages,
                                                 conversationId = conversationId,
+                                                permissionMode = permissionMode,
                                             )
 
                                             BottomBarIcon.PERMISSION.key -> ChatBottomBarPermissionButton(
@@ -519,32 +521,47 @@ private fun ChatBottomBarTodoButton(
     )
 }
 
-/** 底栏：子智能体监看（偏好关闭或本对话无 subagent 调用记录时隐藏） */
+/**
+ * 底栏：子智能体监看。
+ *
+ * 显示条件：偏好开启，且满足其一——本对话有 subagent 调用记录、「始终显示」、
+ * 或处于 GOAL 模式（评审子代理会自动运行，需要能随时点开看状态）。
+ */
 @Composable
 private fun ChatBottomBarSubagentButton(
     settings: Settings,
     assistant: Assistant,
     messages: List<UIMessage>,
     conversationId: String?,
+    permissionMode: PermissionMode,
 ) {
     if (!settings.displaySetting.showSubAgentButton) return
+    val goalMode = permissionMode == PermissionMode.GOAL
     val enabledSubAgents = settings.subagents.filter { it.id in assistant.subagentIds }
-    if (enabledSubAgents.isEmpty()) return
+    if (enabledSubAgents.isEmpty() && !goalMode) return
+    // GOAL 模式下并入内置评审子代理，便于查看其运行状态（去重防重复展示）
+    val displaySubAgents = remember(enabledSubAgents, goalMode) {
+        (if (goalMode) enabledSubAgents + buildGoalEvaluatorSubAgent() else enabledSubAgents)
+            .distinctBy { it.id }
+    }
     val subAgentInvoked = remember(enabledSubAgents, messages) {
         hasSubAgentInvocation(enabledSubAgents, messages)
     }
-    if (!subAgentInvoked && !settings.displaySetting.alwaysShowSubAgentButton) return
+    if (!goalMode && !subAgentInvoked && !settings.displaySetting.alwaysShowSubAgentButton) return
     var showSubAgentMonitor by remember { mutableStateOf(false) }
     // 角标 = 正在被调用的 subagent 数量（挂起调用需与内存轨迹对账，崩溃遗留不计）
+    //      + 正在运行的 GOAL 评审子代理（它不产生工具调用消息，直接看内存轨迹）
     val subAgentRunMonitor = koinInject<SubAgentRunMonitor>()
     val liveRuns by subAgentRunMonitor.runs.collectAsStateWithLifecycle()
-    val runningSubAgents = remember(enabledSubAgents, messages, liveRuns) {
-        countRunningSubAgents(enabledSubAgents, messages, liveRuns)
+    val conversationUuid = conversationId?.let { runCatching { Uuid.parse(it) }.getOrNull() }
+    val runningSubAgents = remember(enabledSubAgents, messages, liveRuns, conversationUuid) {
+        countRunningSubAgents(enabledSubAgents, messages, liveRuns) +
+            countRunningGoalEvaluator(liveRuns, conversationUuid)
     }
     if (showSubAgentMonitor) {
         val navController = LocalNavController.current
         SubAgentMonitorSheet(
-            subAgents = enabledSubAgents,
+            subAgents = displaySubAgents,
             messages = messages,
             onDismiss = { showSubAgentMonitor = false },
             onOpenTrace = { id ->
@@ -556,8 +573,7 @@ private fun ChatBottomBarSubagentButton(
                 navController.navigate(Screen.SubAgentEdit(id))
             },
             onStopAll = {
-                val cid = conversationId?.let { runCatching { Uuid.parse(it) }.getOrNull() }
-                subAgentRunMonitor.cancelRunning(cid)
+                subAgentRunMonitor.cancelRunning(conversationUuid)
             },
         )
     }

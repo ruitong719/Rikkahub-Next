@@ -333,6 +333,7 @@
   <string name="extensions_page_subagents_desc">Manage expert sub-agents the AI can delegate to</string>
   <string name="subagents_page_title">Subagents</string>
   <string name="subagents_page_builtin">Built-in</string>
+  <string name="subagents_page_readonly">Read-only</string>
   <string name="subagents_page_empty">No subagents yet</string>
   <string name="subagents_page_empty_desc">Create one to let the AI delegate focused tasks</string>
   <string name="subagents_page_unnamed">Unnamed subagent</string>

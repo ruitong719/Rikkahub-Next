@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.model.GOAL_EVALUATOR_SUBAGENT_ID
 import me.rerere.rikkahub.data.model.SubAgent
 import me.rerere.rikkahub.data.model.SubAgentToolCategory
 import me.rerere.rikkahub.data.model.isGeneralSubagent
@@ -54,6 +56,12 @@ fun SubAgentEditPage(id: String) {
     val vm = koinViewModel<SubAgentEditVM>()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val isNew = id == "new"
+    // 内置 GOAL 评估器为系统只读：任何入口都不应进入可编辑页面，直接退回
+    val isGoalEvaluator = !isNew && id == GOAL_EVALUATOR_SUBAGENT_ID.toString()
+    LaunchedEffect(isGoalEvaluator) {
+        if (isGoalEvaluator) navController.popBackStack()
+    }
+    if (isGoalEvaluator) return
     val initial = if (isNew) SubAgent() else settings.subagents.find { it.id.toString() == id } ?: SubAgent()
     val isGeneral = !isNew && isGeneralSubagent(initial.id)
 

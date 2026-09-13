@@ -47,7 +47,9 @@ import me.rerere.hugeicons.stroke.Settings02
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.ai.computeSubAgentToolNames
+import me.rerere.rikkahub.data.model.GOAL_EVALUATOR_SUBAGENT_ID
 import me.rerere.rikkahub.data.model.SubAgent
+import me.rerere.rikkahub.data.model.isGoalEvaluatorSubagent
 import me.rerere.rikkahub.ui.components.ui.ToggleSurface
 import org.koin.compose.koinInject
 import kotlin.uuid.Uuid
@@ -112,6 +114,21 @@ fun countRunningSubAgents(
 }
 
 /**
+ * 当前对话正在运行的 GOAL 评估器实例数（0/1）。
+ *
+ * 评估器是系统内置子代理，不产生工具调用消息，无法按消息对账，因此直接看内存轨迹；
+ * 用于 GOAL 模式下底栏图标角标（"评审子代理活动时显示 1"）。
+ */
+fun countRunningGoalEvaluator(
+    liveRuns: Map<Uuid, me.rerere.rikkahub.data.ai.SubAgentRunState>,
+    conversationId: Uuid?,
+): Int = liveRuns.values.count { run ->
+    run.subAgentId == GOAL_EVALUATOR_SUBAGENT_ID &&
+        run.status == me.rerere.rikkahub.data.ai.SubAgentRunStatus.RUNNING &&
+        (conversationId == null || run.conversationId == conversationId)
+}
+
+/**
  * 当前对话中是否已有 subagent 调用记录（底栏图标按需显示用）：
  * 消息里出现过任一已启用 subagent 的工具调用（含已完成）即返回 true。
  */
@@ -154,6 +171,8 @@ private data class InvocationView(
 private data class ResolvedInvocation(
     val view: InvocationView,
     val effectiveStatus: InvocationStatus,
+    /** 对账命中的内存轨迹 id：用于把已由消息行展示的活跃轨迹排除，避免重复成行 */
+    val matchedRunId: Uuid? = null,
 )
 
 /**
@@ -224,20 +243,38 @@ fun SubAgentMonitorSheet(
                     val invocations = toolNames[subAgent.id]
                         ?.let { reconcileInvocations(it, subAgent.id, messages, liveRuns) }
                         .orEmpty()
-                    if (invocations.isEmpty()) {
+                    // 没有对应工具调用的活跃轨迹（GOAL 评估器、刚启动尚未落消息的实例）：
+                    // 直接按内存轨迹成行，保证「活动即可见」
+                    val matchedRunIds = invocations.mapNotNull { it.matchedRunId }.toSet()
+                    val liveOnlyRuns = liveRuns.values
+                        .filter {
+                            it.subAgentId == subAgent.id &&
+                                it.status == me.rerere.rikkahub.data.ai.SubAgentRunStatus.RUNNING &&
+                                it.runId !in matchedRunIds
+                        }
+                        .sortedBy { it.startedAt }
+                    // 系统内置（GOAL 评估器）不可编辑：隐藏「管理」入口
+                    val manageable = !isGoalEvaluatorSubagent(subAgent.id)
+                    val manage: (() -> Unit)? = if (manageable) {
+                        { onManage(subAgent.id.toString()) }
+                    } else {
+                        null
+                    }
+
+                    if (invocations.isEmpty() && liveOnlyRuns.isEmpty()) {
                         InvocationRow(
                             title = subAgent.name.ifBlank { subAgent.id.toString() },
                             description = subAgent.description,
                             view = null,
                             status = null,
                             onOpenTrace = { onOpenTrace(subAgent.id.toString()) },
-                            onManage = { onManage(subAgent.id.toString()) },
+                            onManage = manage,
                         )
                     } else {
                         invocations.forEachIndexed { index, resolved ->
                             val view = resolved.view
                             val title = when {
-                                invocations.size == 1 -> subAgent.name.ifBlank { subAgent.id.toString() }
+                                invocations.size + liveOnlyRuns.size == 1 -> subAgent.name.ifBlank { subAgent.id.toString() }
                                 !view.label.isNullOrBlank() -> view.label
                                 else -> "${subAgent.name.ifBlank { "subagent" }}-${index + 1}"
                             }
@@ -247,7 +284,22 @@ fun SubAgentMonitorSheet(
                                 view = view,
                                 status = resolved.effectiveStatus,
                                 onOpenTrace = { onOpenTrace(view.runId ?: subAgent.id.toString()) },
-                                onManage = { onManage(subAgent.id.toString()) },
+                                onManage = manage,
+                            )
+                        }
+                        liveOnlyRuns.forEach { run ->
+                            InvocationRow(
+                                title = run.displayName.ifBlank { subAgent.name.ifBlank { subAgent.id.toString() } },
+                                description = null,
+                                view = InvocationView(
+                                    task = run.task,
+                                    preview = run.task.trim().replace('\n', ' ').take(100),
+                                    label = run.displayName.takeIf { it.isNotBlank() },
+                                    runId = run.runId.toString(),
+                                ),
+                                status = InvocationStatus.RUNNING,
+                                onOpenTrace = { onOpenTrace(run.runId.toString()) },
+                                onManage = manage,
                             )
                         }
                     }
@@ -290,7 +342,7 @@ private fun InvocationRow(
     view: InvocationView?,
     status: InvocationStatus?,
     onOpenTrace: () -> Unit,
-    onManage: () -> Unit,
+    onManage: (() -> Unit)?,
 ) {
     ListItem(
         onClick = onOpenTrace,
@@ -352,11 +404,13 @@ private fun InvocationRow(
         },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onManage) {
-                    Icon(
-                        imageVector = HugeIcons.Settings02,
-                        contentDescription = stringResource(R.string.subagent_monitor_manage),
-                    )
+                if (onManage != null) {
+                    IconButton(onClick = onManage) {
+                        Icon(
+                            imageVector = HugeIcons.Settings02,
+                            contentDescription = stringResource(R.string.subagent_monitor_manage),
+                        )
+                    }
                 }
                 Icon(
                     imageVector = HugeIcons.ArrowRight01,
@@ -416,6 +470,7 @@ private fun UIMessagePart.Tool.toResolved(pendingPool: MutableList<me.rerere.rik
             ResolvedInvocation(
                 InvocationView(task, taskPreview, label, runId),
                 InvocationStatus.RUNNING,
+                matchedRunId = match.runId,
             )
         } else {
             ResolvedInvocation(

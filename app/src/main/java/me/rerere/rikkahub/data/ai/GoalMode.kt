@@ -1,5 +1,6 @@
 package me.rerere.rikkahub.data.ai
 
+import me.rerere.rikkahub.data.model.GOAL_EVALUATOR_SUBAGENT_ID
 import me.rerere.rikkahub.data.model.GoalVerdictKind
 import me.rerere.rikkahub.data.model.SubAgent
 import me.rerere.rikkahub.data.model.SubAgentToolCategory
@@ -17,6 +18,7 @@ internal const val GOAL_EVALUATOR_NAME = "Goal Evaluator"
  * - 交卷用 submit_report，首行必须是 `OUTCOME: ACHIEVED | NOT_MET | IMPOSSIBLE`，其余为原因。
  */
 fun buildGoalEvaluatorSubAgent(): SubAgent = SubAgent(
+    id = GOAL_EVALUATOR_SUBAGENT_ID,
     name = GOAL_EVALUATOR_NAME,
     description = "System subagent that evaluates whether the conversation has achieved the goal condition.",
     systemPrompt = """

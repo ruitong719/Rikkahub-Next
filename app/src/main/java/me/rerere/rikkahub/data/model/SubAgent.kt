@@ -63,6 +63,14 @@ val GENERAL_SUBAGENT_ID: Uuid = Uuid.parse("00000000-0000-0000-0000-0000000000a0
 
 fun isGeneralSubagent(id: Uuid): Boolean = id == GENERAL_SUBAGENT_ID
 
+/**
+ * 内置 GOAL 评估器子代理（系统在目标评估时自动拉起，不写入用户 subagent 列表）。
+ * 固定 id 让子代理页与监看面板能识别它并展示运行状态；编辑只读、不可删除、不可复制。
+ */
+val GOAL_EVALUATOR_SUBAGENT_ID: Uuid = Uuid.parse("00000000-0000-0000-0000-0000000000b0")
+
+fun isGoalEvaluatorSubagent(id: Uuid): Boolean = id == GOAL_EVALUATOR_SUBAGENT_ID
+
 /** General 的出厂定义；设置里缺失时由加载逻辑自动补回 */
 fun defaultGeneralSubagent(): SubAgent = SubAgent(
     id = GENERAL_SUBAGENT_ID,
