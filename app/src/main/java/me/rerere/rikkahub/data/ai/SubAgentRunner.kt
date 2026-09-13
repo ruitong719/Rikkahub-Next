@@ -1,5 +1,10 @@
 package me.rerere.rikkahub.data.ai
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withTimeoutOrNull
 import me.rerere.ai.core.MessageRole
@@ -60,30 +65,54 @@ class SubAgentRunner(
         val displayName = label?.trim()?.takeIf { it.isNotEmpty() } ?: subAgent.name
         try {
             monitor.start(runId, subAgent.id, displayName, task, conversationId)
-            val result = withTimeoutOrNull(subAgent.timeoutMs) {
-                runInternal(
-                    subAgent = subAgent,
-                    assistant = assistant,
-                    settings = settings,
-                    conversationSystemPrompt = conversationSystemPrompt,
-                    conversationHistory = conversationHistory,
-                    task = task,
-                    context = context,
-                    toolCatalog = toolCatalog,
-                    allSkills = allSkills,
-                    allowlist = allowlistOverride ?: subAgent.toolAllowlist,
-                    runId = runId,
-                )
-            } ?: buildSubAgentResultJson(
-                status = "timeout",
-                result = "Subagent timed out after ${subAgent.timeoutMs}ms",
-                steps = 0,
-                usage = null,
-                runId = runId.toString(),
-            )
+            // 用 async 承载本次运行，并登记 Job：外部「停止全部」可取消它，
+            // 取消只终止这一个实例并返回「已停止」结果，不影响主生成循环。
+            val result = coroutineScope {
+                val deferred = async {
+                    withTimeoutOrNull(subAgent.timeoutMs) {
+                        runInternal(
+                            subAgent = subAgent,
+                            assistant = assistant,
+                            settings = settings,
+                            conversationSystemPrompt = conversationSystemPrompt,
+                            conversationHistory = conversationHistory,
+                            task = task,
+                            context = context,
+                            toolCatalog = toolCatalog,
+                            allSkills = allSkills,
+                            allowlist = allowlistOverride ?: subAgent.toolAllowlist,
+                            runId = runId,
+                        )
+                    } ?: buildSubAgentResultJson(
+                        status = "timeout",
+                        result = "Subagent timed out after ${subAgent.timeoutMs}ms",
+                        steps = 0,
+                        usage = null,
+                        runId = runId.toString(),
+                    )
+                }
+                monitor.registerJob(runId, deferred)
+                try {
+                    deferred.await()
+                } catch (e: CancellationException) {
+                    // 父协程被取消（如用户打断整轮生成）：向上传播，保持结构化并发
+                    if (!currentCoroutineContext().isActive) throw e
+                    // 否则是「停止全部」主动取消本实例：交回一个普通结果，主循环继续
+                    buildSubAgentResultJson(
+                        status = "cancelled",
+                        result = "Subagent was stopped by the user.",
+                        steps = 0,
+                        usage = null,
+                        runId = runId.toString(),
+                    )
+                } finally {
+                    monitor.unregisterJob(runId)
+                }
+            }
             val (status, message) = when {
                 "\"status\":\"success\"" in result -> SubAgentRunStatus.SUCCESS to ""
                 "\"status\":\"timeout\"" in result -> SubAgentRunStatus.TIMEOUT to "timed out"
+                "\"status\":\"cancelled\"" in result -> SubAgentRunStatus.CANCELLED to "stopped"
                 "\"status\":\"error\"" in result -> SubAgentRunStatus.ERROR to "failed"
                 else -> SubAgentRunStatus.ERROR to "unknown"
             }

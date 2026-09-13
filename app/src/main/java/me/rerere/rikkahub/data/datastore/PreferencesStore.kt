@@ -792,6 +792,11 @@ data class DisplaySetting(
     val showTodoButton: Boolean = true,
     val showSubAgentButton: Boolean = true,
     val showBackgroundTaskButton: Boolean = true,
+    // 「始终显示」：开启后对应图标不再受「本对话是否调用过该工具」约束。
+    // 默认关闭：图标仅在当前对话确有内容（todo 非空 / 有 subagent 调用 / 本对话有后台任务）时显示。
+    val alwaysShowTodoButton: Boolean = false,
+    val alwaysShowSubAgentButton: Boolean = false,
+    val alwaysShowBackgroundTaskButton: Boolean = false,
     // 底栏可自定义排序的图标顺序（MODEL 恒为第一位，不参与排序）
     val bottomBarIconOrder: List<String> = DEFAULT_BOTTOM_BAR_ICON_ORDER,
     // 实验性功能: workspace shell 命令执行中在聊天内实时显示 stdout/stderr（默认关闭）

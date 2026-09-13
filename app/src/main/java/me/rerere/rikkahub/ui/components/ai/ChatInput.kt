@@ -104,7 +104,6 @@ import me.rerere.hugeicons.stroke.Fullscreen
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
 import me.rerere.rikkahub.data.ai.tools.local.LocalToolOption
-import me.rerere.rikkahub.data.ai.tools.local.TODO_TOOL_NAME
 import me.rerere.rikkahub.data.ai.tools.local.TodoItem
 import me.rerere.rikkahub.data.ai.tools.local.TodoStatus
 import me.rerere.rikkahub.R
@@ -142,6 +141,7 @@ import me.rerere.rikkahub.ui.hooks.ChatInputState
 import me.rerere.rikkahub.utils.SoundEffectPlayer
 import org.koin.compose.koinInject
 import kotlin.time.Duration.Companion.seconds
+import kotlin.uuid.Uuid
 
 @Composable
 fun ChatInput(
@@ -166,6 +166,7 @@ fun ChatInput(
     permissionMode: PermissionMode = PermissionMode.BUILD,
     onUpdatePermissionMode: (PermissionMode) -> Unit = {},
     messages: List<UIMessage> = emptyList(),
+    conversationId: String? = null,
 ) {
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
@@ -344,7 +345,6 @@ fun ChatInput(
                                                 settings = settings,
                                                 assistant = assistant,
                                                 todos = todos,
-                                                messages = messages,
                                                 onClearTodos = onClearTodos,
                                             )
 
@@ -352,6 +352,7 @@ fun ChatInput(
                                                 settings = settings,
                                                 assistant = assistant,
                                                 messages = messages,
+                                                conversationId = conversationId,
                                             )
 
                                             BottomBarIcon.PERMISSION.key -> ChatBottomBarPermissionButton(
@@ -362,6 +363,7 @@ fun ChatInput(
                                             BottomBarIcon.BACKGROUND_TASK.key -> ChatBottomBarBackgroundTaskButton(
                                                 settings = settings,
                                                 assistant = assistant,
+                                                conversationId = conversationId,
                                             )
                                         }
                                     }
@@ -482,23 +484,19 @@ private fun ChatBottomBarReasoningButton(
     )
 }
 
-/** 底栏：待办清单（偏好关闭或本对话未使用 todo 工具且列表为空时隐藏） */
+/** 底栏：待办清单（偏好关闭或当前对话待办列表为空时隐藏；「始终显示」开启则常驻） */
 @Composable
 private fun ChatBottomBarTodoButton(
     settings: Settings,
     assistant: Assistant,
     todos: List<TodoItem>,
-    messages: List<UIMessage>,
     onClearTodos: () -> Unit,
 ) {
     if (!settings.displaySetting.showTodoButton) return
     if (!assistant.localTools.contains(LocalToolOption.Todo)) return
-    val todoInvoked = remember(messages) {
-        messages.any { message ->
-            message.parts.any { it is UIMessagePart.Tool && it.toolName == TODO_TOOL_NAME }
-        }
-    }
-    if (todos.isEmpty() && !todoInvoked) return
+    // 当前对话的待办列表为空即隐藏（清空/删除后不再因「历史调用过」常驻）；
+    // 需常驻时由「始终显示」开关接管。
+    if (todos.isEmpty() && !settings.displaySetting.alwaysShowTodoButton) return
     var showTodoSheet by remember { mutableStateOf(false) }
     if (showTodoSheet) {
         TodoSheet(
@@ -521,6 +519,7 @@ private fun ChatBottomBarSubagentButton(
     settings: Settings,
     assistant: Assistant,
     messages: List<UIMessage>,
+    conversationId: String?,
 ) {
     if (!settings.displaySetting.showSubAgentButton) return
     val enabledSubAgents = settings.subagents.filter { it.id in assistant.subagentIds }
@@ -528,7 +527,7 @@ private fun ChatBottomBarSubagentButton(
     val subAgentInvoked = remember(enabledSubAgents, messages) {
         hasSubAgentInvocation(enabledSubAgents, messages)
     }
-    if (!subAgentInvoked) return
+    if (!subAgentInvoked && !settings.displaySetting.alwaysShowSubAgentButton) return
     var showSubAgentMonitor by remember { mutableStateOf(false) }
     // 角标 = 正在被调用的 subagent 数量（挂起调用需与内存轨迹对账，崩溃遗留不计）
     val subAgentRunMonitor = koinInject<SubAgentRunMonitor>()
@@ -550,6 +549,10 @@ private fun ChatBottomBarSubagentButton(
                 showSubAgentMonitor = false
                 navController.navigate(Screen.SubAgentEdit(id))
             },
+            onStopAll = {
+                val cid = conversationId?.let { runCatching { Uuid.parse(it) }.getOrNull() }
+                subAgentRunMonitor.cancelRunning(cid)
+            },
         )
     }
     SubAgentMonitorButton(
@@ -570,11 +573,13 @@ private fun ChatBottomBarPermissionButton(
     )
 }
 
-/** 底栏：后台任务监看（偏好关闭、无工作区或不存在后台任务时隐藏，4s 轮询） */
+/** 底栏：后台任务监看（偏好关闭、无工作区或当前对话无后台任务时隐藏，4s 轮询；
+ *  「始终显示」开启则无任务也常驻）。仅展示本对话发起的任务，避免串会话。 */
 @Composable
 private fun ChatBottomBarBackgroundTaskButton(
     settings: Settings,
     assistant: Assistant,
+    conversationId: String?,
 ) {
     val workspaceId = assistant.workspaceId?.toString()
     if (workspaceId == null) return
@@ -583,24 +588,26 @@ private fun ChatBottomBarBackgroundTaskButton(
     val workspaceBgManager = koinInject<WorkspaceBgManager>()
     val workspaceRepository = koinInject<WorkspaceRepository>()
     var bgTaskRoot by remember(workspaceId) { mutableStateOf(workspaceId) }
-    var bgTasks by remember(workspaceId) { mutableStateOf<List<WorkspaceBgTaskInfo>>(emptyList()) }
+    var bgTasks by remember(workspaceId, conversationId) { mutableStateOf<List<WorkspaceBgTaskInfo>>(emptyList()) }
     var bgTaskRefreshTick by remember(workspaceId) { mutableStateOf(0) }
     var showBgTaskSheet by remember { mutableStateOf(false) }
     var selectedBgTask by remember { mutableStateOf<WorkspaceBgTaskInfo?>(null) }
     val bgTaskScope = rememberCoroutineScope()
 
-    LaunchedEffect(workspaceId, bgTaskRefreshTick) {
+    LaunchedEffect(workspaceId, conversationId, bgTaskRefreshTick) {
         while (true) {
             runCatching {
                 val root = workspaceRepository.getById(workspaceId)?.root ?: workspaceId
                 bgTaskRoot = root
+                // 按当前对话过滤：其他会话的后台任务即使仍在运行也不在本会话底栏显示
                 bgTasks = workspaceBgManager.listTasks(root)
+                    .filter { it.conversationId == conversationId }
             }
             delay(4_000)
         }
     }
 
-    if (bgTasks.isNotEmpty()) {
+    if (bgTasks.isNotEmpty() || settings.displaySetting.alwaysShowBackgroundTaskButton) {
         if (showBgTaskSheet) {
             BackgroundTaskSheet(
                 tasks = bgTasks,
@@ -619,6 +626,16 @@ private fun ChatBottomBarBackgroundTaskButton(
                 },
                 onRefresh = { bgTaskRefreshTick++ },
                 onDismiss = { showBgTaskSheet = false },
+                onClearAll = {
+                    // 一键清空本对话全部后台任务：deleteTask 对运行中的任务先 kill 再删目录
+                    val ids = bgTasks.map { it.taskId }
+                    bgTasks = emptyList()
+                    bgTaskScope.launch {
+                        ids.forEach { taskId ->
+                            runCatching { workspaceBgManager.deleteTask(bgTaskRoot, taskId) }
+                        }
+                    }
+                },
             )
         }
         BackgroundTaskButton(

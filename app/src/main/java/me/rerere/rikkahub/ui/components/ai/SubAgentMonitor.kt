@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -19,9 +20,12 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,6 +42,7 @@ import me.rerere.ai.ui.UIMessagePart
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.AiBrain01
 import me.rerere.hugeicons.stroke.ArrowRight01
+import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.Settings02
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
@@ -132,6 +137,7 @@ private enum class InvocationStatus {
     SUCCESS,      // 返回 status=success
     ERROR,        // 返回 status=error
     TIMEOUT,      // 返回 status=timeout 或提示超时
+    CANCELLED,    // 被用户主动停止
     DONE,         // 有输出但无法解析状态
 }
 
@@ -164,6 +170,7 @@ fun SubAgentMonitorSheet(
     onDismiss: () -> Unit,
     onOpenTrace: (String) -> Unit,
     onManage: (String) -> Unit,
+    onStopAll: () -> Unit = {},
 ) {
     // 与 SubAgentTools.createSubAgentTools 相同的工具名生成规则，用于在消息里匹配调用
     val toolNames = remember(subAgents) { computeSubAgentToolNames(subAgents) }
@@ -172,6 +179,11 @@ fun SubAgentMonitorSheet(
     val liveRuns by runMonitor.runs.collectAsStateWithLifecycle()
     // 定义数 × 历史调用数都可能超出屏幕：整列可滚动
     val scrollState = rememberScrollState()
+    // 正在运行的实例数：>0 时才提供「停止全部」
+    val runningCount = remember(subAgents, messages, liveRuns) {
+        countRunningSubAgents(subAgents, messages, liveRuns)
+    }
+    var showStopAllConfirm by remember { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -182,11 +194,26 @@ fun SubAgentMonitorSheet(
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                text = stringResource(R.string.subagent_monitor_sheet_title, subAgents.size),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = stringResource(R.string.subagent_monitor_sheet_title, subAgents.size),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                if (runningCount > 0) {
+                    IconButton(onClick = { showStopAllConfirm = true }) {
+                        Icon(
+                            imageVector = HugeIcons.Cancel01,
+                            contentDescription = stringResource(R.string.subagent_monitor_stop_all),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
 
             if (subAgents.isEmpty()) {
                 Text(
@@ -229,6 +256,32 @@ fun SubAgentMonitorSheet(
                 }
             }
         }
+    }
+
+    if (showStopAllConfirm) {
+        AlertDialog(
+            onDismissRequest = { showStopAllConfirm = false },
+            title = { Text(stringResource(R.string.subagent_monitor_stop_all_confirm_title)) },
+            text = { Text(stringResource(R.string.subagent_monitor_stop_all_confirm_text)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showStopAllConfirm = false
+                        onStopAll()
+                    }
+                ) {
+                    Text(
+                        text = stringResource(R.string.subagent_monitor_stop_all_confirm_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStopAllConfirm = false }) {
+                    Text(stringResource(R.string.subagent_monitor_stop_all_confirm_cancel))
+                }
+            },
+        )
     }
 }
 
@@ -388,6 +441,7 @@ private fun UIMessagePart.Tool.toResolved(pendingPool: MutableList<me.rerere.rik
     }
 
     val status = when {
+        "\"status\":\"cancelled\"" in outputText -> InvocationStatus.CANCELLED
         "\"status\":\"error\"" in outputText -> InvocationStatus.ERROR
         "\"status\":\"timeout\"" in outputText || "timed out" in outputText -> InvocationStatus.TIMEOUT
         "\"status\":\"success\"" in outputText -> InvocationStatus.SUCCESS
@@ -404,5 +458,6 @@ private fun statusLabelRes(status: InvocationStatus): Int = when (status) {
     InvocationStatus.SUCCESS -> R.string.subagent_monitor_status_success
     InvocationStatus.ERROR -> R.string.subagent_monitor_status_error
     InvocationStatus.TIMEOUT -> R.string.subagent_monitor_status_timeout
+    InvocationStatus.CANCELLED -> R.string.subagent_monitor_status_cancelled
     InvocationStatus.DONE -> R.string.subagent_monitor_status_done
 }

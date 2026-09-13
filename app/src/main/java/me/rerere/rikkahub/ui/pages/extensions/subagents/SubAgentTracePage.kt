@@ -120,6 +120,7 @@ fun SubAgentTracePage(id: String) {
                         SubAgentRunStatus.SUCCESS -> MaterialTheme.colorScheme.primary
                         SubAgentRunStatus.ERROR, SubAgentRunStatus.TIMEOUT ->
                             MaterialTheme.colorScheme.error
+                        SubAgentRunStatus.CANCELLED -> MaterialTheme.colorScheme.outline
                     },
                 )
             }
@@ -302,4 +303,5 @@ private fun statusLabelRes(status: SubAgentRunStatus): Int = when (status) {
     SubAgentRunStatus.SUCCESS -> R.string.subagents_trace_status_success
     SubAgentRunStatus.ERROR -> R.string.subagents_trace_status_error
     SubAgentRunStatus.TIMEOUT -> R.string.subagents_trace_status_timeout
+    SubAgentRunStatus.CANCELLED -> R.string.subagents_trace_status_cancelled
 }

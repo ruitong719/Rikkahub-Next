@@ -432,6 +432,20 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                             )
                         },
                     )
+                    if (displaySetting.showTodoButton) {
+                        item(
+                            headlineContent = { Text(stringResource(R.string.setting_display_page_always_show_todo_button_title)) },
+                            supportingContent = { Text(stringResource(R.string.setting_display_page_always_show_todo_button_desc)) },
+                            trailingContent = {
+                                Switch(
+                                    checked = displaySetting.alwaysShowTodoButton,
+                                    onCheckedChange = {
+                                        updateDisplaySetting(displaySetting.copy(alwaysShowTodoButton = it))
+                                    }
+                                )
+                            },
+                        )
+                    }
                     item(
                         headlineContent = { Text(stringResource(R.string.setting_display_page_show_subagent_button_title)) },
                         supportingContent = { Text(stringResource(R.string.setting_display_page_show_subagent_button_desc)) },
@@ -444,6 +458,20 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                             )
                         },
                     )
+                    if (displaySetting.showSubAgentButton) {
+                        item(
+                            headlineContent = { Text(stringResource(R.string.setting_display_page_always_show_subagent_button_title)) },
+                            supportingContent = { Text(stringResource(R.string.setting_display_page_always_show_subagent_button_desc)) },
+                            trailingContent = {
+                                Switch(
+                                    checked = displaySetting.alwaysShowSubAgentButton,
+                                    onCheckedChange = {
+                                        updateDisplaySetting(displaySetting.copy(alwaysShowSubAgentButton = it))
+                                    }
+                                )
+                            },
+                        )
+                    }
                     item(
                         headlineContent = { Text(stringResource(R.string.setting_display_page_show_background_task_button_title)) },
                         supportingContent = { Text(stringResource(R.string.setting_display_page_show_background_task_button_desc)) },
@@ -456,6 +484,20 @@ fun SettingPreferencesUIPage(vm: SettingVM = koinViewModel()) {
                             )
                         },
                     )
+                    if (displaySetting.showBackgroundTaskButton) {
+                        item(
+                            headlineContent = { Text(stringResource(R.string.setting_display_page_always_show_background_task_button_title)) },
+                            supportingContent = { Text(stringResource(R.string.setting_display_page_always_show_background_task_button_desc)) },
+                            trailingContent = {
+                                Switch(
+                                    checked = displaySetting.alwaysShowBackgroundTaskButton,
+                                    onCheckedChange = {
+                                        updateDisplaySetting(displaySetting.copy(alwaysShowBackgroundTaskButton = it))
+                                    }
+                                )
+                            },
+                        )
+                    }
                 }
             }
 

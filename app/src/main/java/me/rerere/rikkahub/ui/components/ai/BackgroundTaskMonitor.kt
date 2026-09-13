@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +44,7 @@ import kotlinx.coroutines.isActive
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.Delete01
+import me.rerere.hugeicons.stroke.Delete02
 import me.rerere.hugeicons.stroke.Refresh01
 import me.rerere.hugeicons.stroke.Task01
 import me.rerere.rikkahub.R
@@ -104,7 +107,9 @@ fun BackgroundTaskSheet(
     onDelete: (String) -> Unit,
     onRefresh: () -> Unit,
     onDismiss: () -> Unit,
+    onClearAll: () -> Unit = {},
 ) {
+    var showClearAllConfirm by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
@@ -113,11 +118,26 @@ fun BackgroundTaskSheet(
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                text = stringResource(R.string.bg_task_sheet_title, tasks.size),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = stringResource(R.string.bg_task_sheet_title, tasks.size),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                if (tasks.isNotEmpty()) {
+                    IconButton(onClick = { showClearAllConfirm = true }) {
+                        Icon(
+                            imageVector = HugeIcons.Delete02,
+                            contentDescription = stringResource(R.string.bg_task_clear_all),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
 
             if (tasks.isEmpty()) {
                 Text(
@@ -191,6 +211,32 @@ fun BackgroundTaskSheet(
                 }
             }
         }
+    }
+
+    if (showClearAllConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearAllConfirm = false },
+            title = { Text(stringResource(R.string.bg_task_clear_all_confirm_title)) },
+            text = { Text(stringResource(R.string.bg_task_clear_all_confirm_text)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearAllConfirm = false
+                        onClearAll()
+                    }
+                ) {
+                    Text(
+                        text = stringResource(R.string.bg_task_clear_all_confirm_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearAllConfirm = false }) {
+                    Text(stringResource(R.string.bg_task_clear_all_confirm_cancel))
+                }
+            },
+        )
     }
 }
 
