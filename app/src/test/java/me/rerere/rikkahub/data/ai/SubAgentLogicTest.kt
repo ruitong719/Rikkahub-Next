@@ -12,6 +12,7 @@ import me.rerere.rikkahub.data.model.SubAgent
 import me.rerere.rikkahub.data.model.SubAgentToolCategory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFailsWith
@@ -43,35 +44,39 @@ class SubAgentLogicTest {
 
     @Test
     fun `READ category matches only its exact tools`() {
-        assertTrue(matchesToolAllowlist("workspace_read_file", setOf(SubAgentToolCategory.READ)))
+        assertTrue(matchesToolAllowlist("read", setOf(SubAgentToolCategory.READ)))
         assertTrue(matchesToolAllowlist("get_time_info", setOf(SubAgentToolCategory.READ)))
-        assertFalse(matchesToolAllowlist("workspace_shell", setOf(SubAgentToolCategory.READ)))
+        assertTrue(matchesToolAllowlist("glob", setOf(SubAgentToolCategory.READ)))
+        assertTrue(matchesToolAllowlist("grep", setOf(SubAgentToolCategory.READ)))
+        assertTrue(matchesToolAllowlist("git", setOf(SubAgentToolCategory.READ)))
+        assertFalse(matchesToolAllowlist("bash", setOf(SubAgentToolCategory.READ)))
         assertFalse(matchesToolAllowlist("search_web", setOf(SubAgentToolCategory.READ)))
         assertFalse(matchesToolAllowlist("mcp__server__tool", setOf(SubAgentToolCategory.READ)))
     }
 
     @Test
-    fun `WRITE category matches file writes and todo tools`() {
-        assertTrue(matchesToolAllowlist("workspace_write_file", setOf(SubAgentToolCategory.WRITE)))
-        assertTrue(matchesToolAllowlist("workspace_edit_file", setOf(SubAgentToolCategory.WRITE)))
-        assertTrue(matchesToolAllowlist("todo_create", setOf(SubAgentToolCategory.WRITE)))
-        assertTrue(matchesToolAllowlist("todo_complete", setOf(SubAgentToolCategory.WRITE)))
-        assertFalse(matchesToolAllowlist("workspace_read_file", setOf(SubAgentToolCategory.WRITE)))
+    fun `WRITE category matches file writes and todo tool`() {
+        assertTrue(matchesToolAllowlist("write", setOf(SubAgentToolCategory.WRITE)))
+        assertTrue(matchesToolAllowlist("edit", setOf(SubAgentToolCategory.WRITE)))
+        assertTrue(matchesToolAllowlist("todowrite", setOf(SubAgentToolCategory.WRITE)))
+        assertFalse(matchesToolAllowlist("read", setOf(SubAgentToolCategory.WRITE)))
+        assertFalse(matchesToolAllowlist("bash", setOf(SubAgentToolCategory.WRITE)))
         assertFalse(matchesToolAllowlist("eval_javascript", setOf(SubAgentToolCategory.WRITE)))
     }
 
     @Test
-    fun `SHELL category matches only workspace_shell`() {
-        assertTrue(matchesToolAllowlist("workspace_shell", setOf(SubAgentToolCategory.SHELL)))
+    fun `SHELL category matches only bash`() {
+        assertTrue(matchesToolAllowlist("bash", setOf(SubAgentToolCategory.SHELL)))
         assertFalse(matchesToolAllowlist("bgt_start", setOf(SubAgentToolCategory.SHELL)))
+        assertFalse(matchesToolAllowlist("read", setOf(SubAgentToolCategory.SHELL)))
     }
 
     @Test
     fun `categories combine`() {
         val all = setOf(SubAgentToolCategory.READ, SubAgentToolCategory.WRITE, SubAgentToolCategory.SHELL)
-        assertTrue(matchesToolAllowlist("workspace_read_file", all))
-        assertTrue(matchesToolAllowlist("workspace_edit_file", all))
-        assertTrue(matchesToolAllowlist("workspace_shell", all))
+        assertTrue(matchesToolAllowlist("read", all))
+        assertTrue(matchesToolAllowlist("edit", all))
+        assertTrue(matchesToolAllowlist("bash", all))
         // 白名单之外的工具任何类别都不放行
         assertFalse(matchesToolAllowlist("clipboard_tool", all))
         assertFalse(matchesToolAllowlist("text_to_speech", all))
@@ -84,7 +89,7 @@ class SubAgentLogicTest {
 
     @Test
     fun `empty allowlist allows nothing`() {
-        assertFalse(matchesToolAllowlist("workspace_read_file", emptySet()))
+        assertFalse(matchesToolAllowlist("read", emptySet()))
     }
 
     // ---- 序列化迁移：旧字符串标签 -> 新枚举；删除的 modelId 字段被忽略 ----
@@ -148,6 +153,32 @@ class SubAgentLogicTest {
         assertNull(general.systemPrompt.ifBlank { null })
         assertTrue(general.toolAllowlist.isEmpty())
         assertTrue(general.requiresApproval)
+    }
+
+    // ---- 工具名生成（工具构建与监看面板共用） ----
+
+    @Test
+    fun `computeSubAgentToolNames reserves general and de-duplicates`() {
+        val general = me.rerere.rikkahub.data.model.defaultGeneralSubagent()
+        val a = SubAgent(name = "Code Reviewer")
+        val b = SubAgent(name = "Code Reviewer")
+
+        val names = computeSubAgentToolNames(listOf(general, a, b))
+        assertEquals("subagent_general", names.getValue(general.id))
+        assertEquals("subagent_code_reviewer", names.getValue(a.id))
+        assertTrue(names.getValue(b.id).startsWith("subagent_code_reviewer_"))
+        assertNotEquals(names.getValue(a.id), names.getValue(b.id))
+
+        // 同名冲突按列表顺序分配：先出现者拿无后缀名
+        val reordered = computeSubAgentToolNames(listOf(general, b, a))
+        assertEquals("subagent_code_reviewer", reordered.getValue(b.id))
+        assertTrue(reordered.getValue(a.id).startsWith("subagent_code_reviewer_"))
+    }
+
+    @Test
+    fun `computeSubAgentToolNames falls back to agent for non-ascii names`() {
+        val subAgent = SubAgent(name = "中文名")
+        assertEquals("subagent_agent", computeSubAgentToolNames(listOf(subAgent)).getValue(subAgent.id))
     }
 
     // ---- stripReasoning ----

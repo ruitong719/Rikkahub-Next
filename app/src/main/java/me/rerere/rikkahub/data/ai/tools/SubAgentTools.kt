@@ -14,8 +14,7 @@ import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.ai.SUBAGENT_CONCURRENCY_LIMIT_PER_CONVERSATION
 import me.rerere.rikkahub.data.ai.SubAgentRunner
-import me.rerere.rikkahub.data.ai.slugify
-import me.rerere.rikkahub.data.ai.uniqueToolName
+import me.rerere.rikkahub.data.ai.computeSubAgentToolNames
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.files.SkillMetadata
 import me.rerere.rikkahub.data.model.Assistant
@@ -46,13 +45,9 @@ fun createSubAgentTools(
     conversationId: Uuid? = null,
 ): List<Tool> {
     if (subAgents.isEmpty()) return emptyList()
-    val usedSlugs = mutableSetOf<String>("general")
+    // 工具名生成规则与监看面板共用（见 SubAgentLogic.computeSubAgentToolNames）
+    val toolNames = computeSubAgentToolNames(subAgents)
     return subAgents.map { subAgent ->
-        val slug = if (isGeneralSubagent(subAgent.id)) {
-            "general"
-        } else {
-            uniqueToolName(slugify(subAgent.name), usedSlugs, subAgent.id).also { usedSlugs += it }
-        }
         val baseContext = SubAgentInvokeContext(
             subAgent = subAgent,
             assistant = assistant,
@@ -67,7 +62,7 @@ fun createSubAgentTools(
         if (isGeneralSubagent(subAgent.id)) {
             buildGeneralSubAgentTool(baseContext)
         } else {
-            buildPresetSubAgentTool(slug, baseContext)
+            buildPresetSubAgentTool(toolNames.getValue(subAgent.id), baseContext)
         }
     }
 }
@@ -86,12 +81,12 @@ private data class SubAgentInvokeContext(
 )
 
 private fun buildPresetSubAgentTool(
-    slug: String,
+    toolName: String,
     ctx: SubAgentInvokeContext,
 ): Tool {
     val subAgent = ctx.subAgent
     return Tool(
-        name = "subagent_$slug",
+        name = toolName,
         description = buildString {
             append(subAgent.description.ifBlank { "Run the subagent '${subAgent.name}'." })
             append(" Run it with a clear task. ")
@@ -145,8 +140,8 @@ private fun buildPresetSubAgentTool(
 
 private fun buildGeneralSubAgentTool(ctx: SubAgentInvokeContext): Tool {
     val subAgent = ctx.subAgent
-    val categoriesHint = "Allowed values: read (read, get_time_info)," +
-        " write (write, edit, todo tools)," +
+    val categoriesHint = "Allowed values: read (read, get_time_info, glob, grep, git)," +
+        " write (write, edit, todowrite)," +
         " shell (bash), skill (the subagent's configured skills)."
     return Tool(
         name = "subagent_general",

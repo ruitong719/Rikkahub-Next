@@ -46,10 +46,8 @@ import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.Settings02
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.ai.SubAgentRunMonitor
-import me.rerere.rikkahub.data.ai.slugify
-import me.rerere.rikkahub.data.ai.uniqueToolName
+import me.rerere.rikkahub.data.ai.computeSubAgentToolNames
 import me.rerere.rikkahub.data.model.SubAgent
-import me.rerere.rikkahub.data.model.isGeneralSubagent
 import me.rerere.rikkahub.ui.components.ui.ToggleSurface
 import org.koin.compose.koinInject
 import kotlin.uuid.Uuid
@@ -369,19 +367,6 @@ private fun InvocationRow(
         },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
     )
-}
-
-/** 计算每个 subagent 的工具名（与 SubAgentTools 相同的 slug + 去重规则；General 固定为 general） */
-private fun computeSubAgentToolNames(subAgents: List<SubAgent>): Map<Uuid, String> {
-    val used = mutableSetOf<String>("general")
-    return subAgents.associate { subAgent ->
-        val slug = if (isGeneralSubagent(subAgent.id)) {
-            "general"
-        } else {
-            uniqueToolName(slugify(subAgent.name), used, subAgent.id).also { used += it }
-        }
-        subAgent.id to "subagent_$slug"
-    }
 }
 
 /**

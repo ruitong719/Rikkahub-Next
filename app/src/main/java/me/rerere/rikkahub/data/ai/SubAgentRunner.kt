@@ -1,6 +1,7 @@
 package me.rerere.rikkahub.data.ai
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -70,8 +71,10 @@ class SubAgentRunner(
             monitor.start(runId, subAgent.id, displayName, task, conversationId)
             // 用 async 承载本次运行，并登记 Job：外部「停止全部」可取消它，
             // 取消只终止这一个实例并返回「已停止」结果，不影响主生成循环。
+            // LAZY 启动：必须先登记 Job 再启动协程，否则「停止全部」可能落在
+            // 协程已启动但尚未登记的窗口里，导致漏掉这次运行。
             val result = coroutineScope {
-                val deferred = async {
+                val deferred = async(start = CoroutineStart.LAZY) {
                     withTimeoutOrNull(subAgent.timeoutMs) {
                         runInternal(
                             subAgent = subAgent,
@@ -96,6 +99,7 @@ class SubAgentRunner(
                     )
                 }
                 monitor.registerJob(runId, deferred)
+                deferred.start()
                 try {
                     deferred.await()
                 } catch (e: CancellationException) {
@@ -211,6 +215,9 @@ class SubAgentRunner(
             }
         }
 
+        // 本次运行产生的消息数（finalMessages 含继承的主对话历史，需减去起始下标才是自己的步数）
+        val ownSteps = (finalMessages.size - ownMessageStart).coerceAtLeast(0)
+
         // 报告优先取 submit_report 提交的正文；未调用则回退最后一条助手文本
         val report = extractSubAgentReport(finalMessages, ownMessageStart)
         val lastAssistantText = finalMessages.lastOrNull { it.role == MessageRole.ASSISTANT }
@@ -223,7 +230,7 @@ class SubAgentRunner(
             report != null -> buildSubAgentResultJson(
                 status = if (report.isNotBlank()) "success" else "error",
                 result = report.ifBlank { "submit_report was called without a report" },
-                steps = finalMessages.size,
+                steps = ownSteps,
                 usage = finalMessages.lastOrNull()?.usage,
                 runId = runId.toString(),
             )
@@ -237,7 +244,7 @@ class SubAgentRunner(
             else -> buildSubAgentResultJson(
                 status = "success",
                 result = lastAssistantText,
-                steps = finalMessages.size,
+                steps = ownSteps,
                 usage = finalMessages.lastOrNull()?.usage,
                 runId = runId.toString(),
             )

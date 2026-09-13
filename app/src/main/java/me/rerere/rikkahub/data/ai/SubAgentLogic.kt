@@ -10,7 +10,9 @@ import me.rerere.ai.core.TokenUsage
 import me.rerere.ai.core.Tool
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.rikkahub.data.model.SubAgent
 import me.rerere.rikkahub.data.model.SubAgentToolCategory
+import me.rerere.rikkahub.data.model.isGeneralSubagent
 import kotlin.uuid.Uuid
 
 /**
@@ -147,6 +149,25 @@ fun uniqueToolName(slug: String, used: Set<String>, id: Uuid): String {
         i++
     }
     return candidate
+}
+
+/**
+ * 计算每个 subagent 对外暴露的工具名（General 固定为 `subagent_general`，其余为 `subagent_<slug>`，
+ * 同名冲突时追加短 id 后缀）。
+ *
+ * 工具构建（SubAgentTools）与监看面板（SubAgentMonitor）必须共用本函数：两处若各自实现，
+ * 一旦命名规则出现分叉，面板就会匹配不到消息里的工具调用（角标/轨迹全部失效）。
+ */
+fun computeSubAgentToolNames(subAgents: List<SubAgent>): Map<Uuid, String> {
+    val used = mutableSetOf("general")
+    return subAgents.associate { subAgent ->
+        val slug = if (isGeneralSubagent(subAgent.id)) {
+            "general"
+        } else {
+            uniqueToolName(slugify(subAgent.name), used, subAgent.id).also { used += it }
+        }
+        subAgent.id to "subagent_$slug"
+    }
 }
 
 /**
