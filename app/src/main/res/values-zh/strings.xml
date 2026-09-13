@@ -1085,6 +1085,14 @@ mDNS 地址：使用 .local 主机名，同一网络中的其他设备可通过�
   <string name="setting_page_preferences_notification_desc">更新提醒、消息生成通知</string>
   <string name="setting_page_preferences_general">常规</string>
   <string name="setting_page_preferences_general_desc">交互行为、滚动、输入设置</string>
+  <string name="setting_goal_mode_title">目标模式（GOAL）</string>
+  <string name="setting_goal_evaluator_model_title">目标评估模型</string>
+  <string name="setting_goal_evaluator_model_desc">用于判定目标是否达成的模型；未设置时跟随主模型</string>
+  <string name="setting_goal_evaluator_model_follow_main">跟随主模型</string>
+  <string name="setting_goal_max_resume_title">自动续跑上限</string>
+  <string name="setting_goal_max_resume_desc">评估达到该轮数后暂停目标，等待你介入</string>
+  <string name="setting_goal_fuse_title">无进展熔断</string>
+  <string name="setting_goal_fuse_desc">连续多少轮主模型未调用工具即停止续跑</string>
   <string name="setting_page_agent_md">Agent 指令（AGENTS.md）</string>
   <string name="setting_page_agent_md_title">全局 agent.md</string>
   <string name="setting_page_agent_md_desc">注入到系统提示词中（助手提示词之后）。当工作区 rootfs 内读不到 AGENTS.md（/root/.agents、/workspace 或当前目录）时作为兜底文本。</string>

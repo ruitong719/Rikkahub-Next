@@ -36,6 +36,8 @@ import me.rerere.rikkahub.data.ai.tools.local.TodoStore
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Avatar
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.GoalState
+import me.rerere.rikkahub.data.model.GoalStatus
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.data.model.NodeFavoriteTarget
 import me.rerere.rikkahub.data.model.PermissionMode
@@ -216,14 +218,22 @@ class ChatVM(
      */
     fun handleMessageSend(content: List<UIMessagePart>, answer: Boolean = true): Boolean {
         if (content.isEmptyInputMessage()) return false
-        // /goal 斜杠命令：切换到 GOAL 模式；尾随文本保留继续发送（"/goal" 单独发送仅切模式）
+        // /goal 斜杠命令：进入 GOAL 模式并登记目标（描述即首轮输入；模型随后用 set_goal 规范化）
         val firstText = content.firstNotNullOfOrNull { (it as? UIMessagePart.Text)?.text }?.trim()
         if (firstText != null && firstText.startsWith("/goal")) {
-            if (conversation.value.permissionMode != PermissionMode.GOAL) {
-                updatePermissionMode(PermissionMode.GOAL)
-            }
             val trailing = firstText.removePrefix("/goal").trim()
+            // 必须给出目标描述；仅 "/goal" 不进入模式
             if (trailing.isEmpty()) return false
+            chatService.updateConversationState(_conversationId) { c ->
+                c.copy(
+                    permissionMode = PermissionMode.GOAL,
+                    goal = GoalState(
+                        request = trailing,
+                        condition = "",
+                        status = GoalStatus.ACTIVE,
+                    ),
+                )
+            }
             val rest = buildList {
                 add(UIMessagePart.Text(trailing))
                 addAll(content.drop(1))

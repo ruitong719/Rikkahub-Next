@@ -84,3 +84,17 @@ fun parseGoalVerdict(report: String): GoalVerdictKind {
         else -> GoalVerdictKind.NOT_MET
     }
 }
+
+/**
+ * 判断异常是否属于「不可恢复」错误：这类错误应终止目标（清除循环）而不是继续重试。
+ * 覆盖鉴权失败、额度/余额耗尽、上下文溢出、模型不可用；网络抖动/限流不在其列。
+ */
+fun Throwable.hasUnrecoverableGoalCause(): Boolean {
+    val text = (message.orEmpty() + " " + (cause?.message.orEmpty())).lowercase()
+    return listOf(
+        "401", "403", "unauthorized", "forbidden", "invalid api key", "authentication failed",
+        "insufficient", "quota", "balance", "billing", "credit",
+        "context length", "maximum context", "context_length_exceeded", "too many tokens",
+        "context window", "model not found", "no such model", "model_unavailable", "model unavailable",
+    ).any { it in text }
+}

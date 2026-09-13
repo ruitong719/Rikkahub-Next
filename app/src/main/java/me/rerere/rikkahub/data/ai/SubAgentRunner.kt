@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withTimeoutOrNull
 import me.rerere.ai.core.MessageRole
 import me.rerere.ai.core.Tool
+import me.rerere.ai.provider.Model
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.rikkahub.data.ai.tools.createSkillTools
@@ -51,6 +52,8 @@ class SubAgentRunner(
         label: String? = null,
         /** General 调用时由主模型指定的类别；null = 用定义里的 toolAllowlist */
         allowlistOverride: Set<SubAgentToolCategory>? = null,
+        /** 覆盖运行模型（如 GOAL 评估模型）；null = 走 subagentModelId/助手模型链路 */
+        modelOverride: Model? = null,
     ): String {
         if (!monitor.tryAcquire(conversationId, SUBAGENT_CONCURRENCY_LIMIT_PER_CONVERSATION)) {
             return buildSubAgentResultJson(
@@ -82,6 +85,7 @@ class SubAgentRunner(
                             allSkills = allSkills,
                             allowlist = allowlistOverride ?: subAgent.toolAllowlist,
                             runId = runId,
+                            modelOverride = modelOverride,
                         )
                     } ?: buildSubAgentResultJson(
                         status = "timeout",
@@ -135,9 +139,11 @@ class SubAgentRunner(
         allSkills: List<SkillMetadata>,
         allowlist: Set<SubAgentToolCategory>,
         runId: Uuid,
+        modelOverride: Model?,
     ): String {
-        // 模型解析链：全局子代理模型 -> 助手模型 -> 全局默认模型
-        val model = settings.findModelById(settings.subagentModelId, assistant.chatModelId)
+        // 模型解析链：显式覆盖（GOAL 评估）-> 全局子代理模型 -> 助手模型 -> 全局默认模型
+        val model = modelOverride
+            ?: settings.findModelById(settings.subagentModelId, assistant.chatModelId)
             ?: settings.findModelById(settings.chatModelId)
             ?: return buildSubAgentResultJson(
                 status = "error",

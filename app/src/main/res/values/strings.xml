@@ -839,6 +839,14 @@
   <string name="setting_page_preferences_notification_desc">Update alerts, message generation notifications</string>
   <string name="setting_page_preferences_general">General</string>
   <string name="setting_page_preferences_general_desc">Interaction behavior, scrolling, input settings</string>
+  <string name="setting_goal_mode_title">Goal Mode</string>
+  <string name="setting_goal_evaluator_model_title">Goal evaluator model</string>
+  <string name="setting_goal_evaluator_model_desc">Model used to judge whether the goal is achieved; falls back to the main model if unset</string>
+  <string name="setting_goal_evaluator_model_follow_main">Follow main model</string>
+  <string name="setting_goal_max_resume_title">Auto-resume limit</string>
+  <string name="setting_goal_max_resume_desc">Maximum evaluation rounds before the goal pauses and waits for you</string>
+  <string name="setting_goal_fuse_title">No-progress fuse</string>
+  <string name="setting_goal_fuse_desc">Stop auto-resume after this many consecutive rounds without tool calls</string>
   <string name="setting_page_agent_md">Agent Instructions (AGENTS.md)</string>
   <string name="setting_page_agent_md_title">Global agent.md</string>
   <string name="setting_page_agent_md_desc">Injected into the system prompt after the assistant prompt. Used as a fallback when the workspace rootfs contains no readable AGENTS.md (/root/.agents, /workspace, or the current directory).</string>

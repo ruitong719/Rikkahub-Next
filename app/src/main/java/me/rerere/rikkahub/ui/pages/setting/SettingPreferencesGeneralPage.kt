@@ -44,11 +44,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import me.rerere.ai.provider.ModelType
 import me.rerere.hugeicons.HugeIcons
 import me.rerere.hugeicons.stroke.ArrowRight01
+import me.rerere.hugeicons.stroke.Cancel01
 import me.rerere.hugeicons.stroke.Edit03
 import me.rerere.hugeicons.stroke.Eraser
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -58,6 +61,8 @@ import kotlin.math.roundToInt
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.DisplaySetting
 import me.rerere.rikkahub.service.FloatingBubbleService
+import me.rerere.rikkahub.ui.components.ai.ModelListSheet
+import me.rerere.rikkahub.ui.components.ai.rememberModelListState
 import me.rerere.rikkahub.ui.components.nav.BackButton
 import me.rerere.rikkahub.ui.components.ui.CardGroup
 import me.rerere.rikkahub.ui.components.ui.ColorPickerRow
@@ -130,6 +135,9 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
             contentPadding = contentPadding + PaddingValues(8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item {
+                GoalModeSettingCardGroup(vm)
+            }
             item {
                 CardGroup(
                     modifier = Modifier.padding(horizontal = 8.dp),
@@ -781,6 +789,110 @@ fun SettingPreferencesGeneralPage(vm: SettingVM = koinViewModel()) {
             },
         )
     }
+}
+
+/** 通用设置里的「目标模式（GOAL）」组：评估模型、自动续跑上限、无进展熔断 */
+@Composable
+private fun GoalModeSettingCardGroup(vm: SettingVM) {
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    val modelState = rememberModelListState(
+        modelId = settings.goalEvaluatorModelId,
+        providers = settings.providers,
+        type = ModelType.CHAT,
+    )
+    CardGroup(
+        modifier = Modifier.padding(horizontal = 8.dp),
+        title = { Text(stringResource(R.string.setting_goal_mode_title)) },
+    ) {
+        item(
+            onClick = { modelState.open() },
+            headlineContent = { Text(stringResource(R.string.setting_goal_evaluator_model_title)) },
+            supportingContent = { Text(stringResource(R.string.setting_goal_evaluator_model_desc)) },
+            trailingContent = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = modelState.currentModel?.displayName
+                            ?: stringResource(R.string.setting_goal_evaluator_model_follow_main),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (modelState.currentModel != null) {
+                        IconButton(
+                            onClick = { vm.updateSettings(settings.copy(goalEvaluatorModelId = null)) },
+                            modifier = Modifier.size(20.dp),
+                        ) {
+                            Icon(
+                                HugeIcons.Cancel01,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    } else {
+                        Icon(
+                            HugeIcons.ArrowRight01,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+            },
+        )
+        item(
+            headlineContent = { Text(stringResource(R.string.setting_goal_max_resume_title)) },
+            supportingContent = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Slider(
+                        value = settings.goalMaxAutoResume.toFloat(),
+                        onValueChange = {
+                            vm.updateSettings(
+                                settings.copy(goalMaxAutoResume = it.roundToInt().coerceIn(1, 10))
+                            )
+                        },
+                        valueRange = 1f..10f,
+                        steps = 8,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(text = "${settings.goalMaxAutoResume}")
+                }
+            },
+        )
+        item(
+            headlineContent = { Text(stringResource(R.string.setting_goal_fuse_title)) },
+            supportingContent = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Slider(
+                        value = settings.goalNoProgressFuse.toFloat(),
+                        onValueChange = {
+                            vm.updateSettings(
+                                settings.copy(goalNoProgressFuse = it.roundToInt().coerceIn(1, 5))
+                            )
+                        },
+                        valueRange = 1f..5f,
+                        steps = 3,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(text = "${settings.goalNoProgressFuse}")
+                }
+            },
+        )
+    }
+    ModelListSheet(
+        state = modelState,
+        onSelect = { vm.updateSettings(settings.copy(goalEvaluatorModelId = it.id)) },
+    )
 }
 
 

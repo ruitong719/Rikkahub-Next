@@ -130,6 +130,11 @@ class SettingsStore(
         // 视觉模型（主模型不支持图片时的降级路由）
         val VISION_MODEL = stringPreferencesKey("vision_model")
 
+        // GOAL 模式
+        val GOAL_EVALUATOR_MODEL = stringPreferencesKey("goal_evaluator_model")
+        val GOAL_MAX_AUTO_RESUME = intPreferencesKey("goal_max_auto_resume")
+        val GOAL_NO_PROGRESS_FUSE = intPreferencesKey("goal_no_progress_fuse")
+
         // 权限模式提示词（plan/build/yolo）
         val PLAN_MODE_PROMPT = stringPreferencesKey("plan_mode_prompt")
         val BUILD_MODE_PROMPT = stringPreferencesKey("build_mode_prompt")
@@ -223,6 +228,11 @@ class SettingsStore(
                 settings.subagentModelId?.let {
                     preferences[SUBAGENT_MODEL] = it.toString()
                 } ?: preferences.remove(SUBAGENT_MODEL)
+                settings.goalEvaluatorModelId?.let {
+                    preferences[GOAL_EVALUATOR_MODEL] = it.toString()
+                } ?: preferences.remove(GOAL_EVALUATOR_MODEL)
+                preferences[GOAL_MAX_AUTO_RESUME] = settings.goalMaxAutoResume
+                preferences[GOAL_NO_PROGRESS_FUSE] = settings.goalNoProgressFuse
                 settings.visionModelId?.let {
                     preferences[VISION_MODEL] = it.toString()
                 } ?: preferences.remove(VISION_MODEL)
@@ -395,6 +405,9 @@ class SettingsStore(
                 buildModePrompt = preferences[BUILD_MODE_PROMPT] ?: DEFAULT_BUILD_MODE_PROMPT,
                 yoloModePrompt = preferences[YOLO_MODE_PROMPT] ?: DEFAULT_YOLO_MODE_PROMPT,
                 goalModePrompt = preferences[GOAL_MODE_PROMPT] ?: DEFAULT_GOAL_MODE_PROMPT,
+                goalEvaluatorModelId = preferences[GOAL_EVALUATOR_MODEL]?.let { Uuid.parse(it) },
+                goalMaxAutoResume = preferences[GOAL_MAX_AUTO_RESUME] ?: 3,
+                goalNoProgressFuse = preferences[GOAL_NO_PROGRESS_FUSE] ?: 2,
                 launchCount = preferences[LAUNCH_COUNT] ?: 0,
                 floatingBubbleEnabled = preferences[FLOATING_BUBBLE_ENABLED] ?: false,
                 floatingBubbleColor = preferences[FLOATING_BUBBLE_COLOR]?.toLongOrNull() ?: 0xFF4F8EF7,
@@ -684,6 +697,12 @@ data class Settings(
     val yoloModePrompt: String = DEFAULT_YOLO_MODE_PROMPT,
     /** GOAL 模式提示词（/goal 进入时注入；空串 = 关闭该模式提示） */
     val goalModePrompt: String = DEFAULT_GOAL_MODE_PROMPT,
+    /** 目标评估模型：null 时回退主模型 */
+    val goalEvaluatorModelId: Uuid? = null,
+    /** 目标自动续跑上限（评估轮数）；达到后暂停并等用户介入 */
+    val goalMaxAutoResume: Int = 3,
+    /** 无进展熔断：连续多少轮主模型未调用工具则停止续跑 */
+    val goalNoProgressFuse: Int = 2,
     val launchCount: Int = 0,
 ) {
     companion object {

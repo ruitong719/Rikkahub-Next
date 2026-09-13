@@ -61,6 +61,7 @@ import me.rerere.rikkahub.data.ai.buildGoalEvalTask
 import me.rerere.rikkahub.data.ai.buildGoalEvaluatorSubAgent
 import me.rerere.rikkahub.data.ai.GOAL_EVALUATOR_NAME
 import me.rerere.rikkahub.data.ai.hasRetryableNetworkCause
+import me.rerere.rikkahub.data.ai.hasUnrecoverableGoalCause
 import me.rerere.rikkahub.data.ai.parseGoalVerdict
 import me.rerere.rikkahub.data.ai.TranslationHandler
 import me.rerere.rikkahub.data.ai.mcp.McpManager
@@ -135,7 +136,6 @@ private const val BG_AUTO_RESUME_MAX_STREAK = 3
 
 /** 自动拉起连续失败上限：任务始终未被消费说明生成在注入提醒前就失败了，停止重试等用户介入 */
 private const val BG_AUTO_RESUME_MAX_FAILURES = 3
-private const val GOAL_MAX_AUTO_RESUME = 3
 private const val GOAL_EVAL_MAX_RETRIES = 3
 private const val GOAL_EVAL_RETRY_BASE_MS = 30_000L
 
@@ -1024,9 +1024,9 @@ class ChatService(
     }
 
     /**
-     * Goal 模式下主模型停止后的评审入口（快速失败路径，不挂起）：
-     * 模式为 GOAL、会话空闲、无挂起审批、未标完成、未超续跑上限时启动评审子代理。
-     * 后台任务执行中不评审：任务完成会自动唤醒主模型，主模型再次停止时才评。
+     * Goal 模式下主模型停止后的评估入口（快速失败路径，不挂起）：
+     * 模式为 GOAL、目标 ACTIVE、会话空闲、无挂起审批、未超续跑上限时评估。
+     * 后台任务执行中不评估：任务完成会自动唤醒主模型，主模型再次停止时才评。
      */
     private fun maybeLaunchGoalEvaluation(conversationId: Uuid) {
         val session = sessions[conversationId] ?: return
@@ -1035,9 +1035,7 @@ class ChatService(
         if (conversation.permissionMode != PermissionMode.GOAL) return
         val goal = conversation.goal ?: return
         if (goal.status != GoalStatus.ACTIVE) return
-        // 模型尚未 set_goal：不评估（提示词与工具拦截会先逼它把目标定下来）
-        if (!goal.hasCondition) return
-        if (goal.turnCount >= GOAL_MAX_AUTO_RESUME) return
+        if (goal.turnCount >= settingsStore.settingsFlow.value.goalMaxAutoResume) return
         if (conversation.messageNodes.any { node ->
                 node.currentMessage.getTools().any { !it.isExecuted && !it.approvalState.canResumeToolExecution() }
             }) {
@@ -1046,13 +1044,25 @@ class ChatService(
 
         appScope.launch {
             try {
+                // 未 set_goal 时先催办 / 无进展时熔断；返回 false 表示本轮不再评估
+                if (!ensureGoalConditionOrStop(conversationId)) return@launch
                 launchGoalEvaluation(conversationId)
                 session.resetGoalEvalRetryCount()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // 网络类失败：退避重试（网络恢复后自动补评，无需人工），每次重试重新走全部条件复查
-                if (e.hasRetryableNetworkCause() && session.goalEvalRetryCount < GOAL_EVAL_MAX_RETRIES) {
+                if (e.hasUnrecoverableGoalCause()) {
+                    // 不可恢复错误：终止目标而不是无限重试
+                    val current = getConversationFlow(conversationId).value.goal
+                    if (current != null && current.status == GoalStatus.ACTIVE) {
+                        finishGoal(
+                            conversationId = conversationId,
+                            goal = current.copy(status = GoalStatus.STOPPED),
+                            message = "生成/评估遇到不可恢复错误，已停止目标：${e.message}",
+                        )
+                    }
+                    addError(e, conversationId, title = context.getString(R.string.goal_eval_error_title))
+                } else if (e.hasRetryableNetworkCause() && session.goalEvalRetryCount < GOAL_EVAL_MAX_RETRIES) {
                     session.onGoalEvalRetry()
                     val delayMs = GOAL_EVAL_RETRY_BASE_MS * session.goalEvalRetryCount
                     Log.w(
@@ -1067,6 +1077,82 @@ class ChatService(
                     }
                 } else {
                     Log.w(TAG, "goal evaluation failed for $conversationId", e)
+                    addError(e, conversationId, title = context.getString(R.string.goal_eval_error_title))
+                }
+            }
+        }
+    }
+
+    /**
+     * 评估前的目标就绪检查：
+     * - 尚未 set_goal：注入提醒并自动续跑一轮（逼模型先定义目标），连续无果则熔断；
+     * - 已 set_goal 但最近一轮主模型没有任何工具调用：累计无进展次数，达阈值熔断。
+     * 返回 true 表示可以继续评估。
+     */
+    private suspend fun ensureGoalConditionOrStop(conversationId: Uuid): Boolean {
+        val conversation = getConversationFlow(conversationId).value
+        val goal = conversation.goal ?: return false
+        if (goal.status != GoalStatus.ACTIVE) return false
+        val fuse = settingsStore.settingsFlow.value.goalNoProgressFuse.coerceAtLeast(1)
+
+        if (!goal.hasCondition) {
+            val streak = goal.noProgressStreak + 1
+            if (streak >= fuse) {
+                finishGoal(
+                    conversationId = conversationId,
+                    goal = goal.copy(status = GoalStatus.STOPPED, noProgressStreak = streak),
+                    message = "模型连续 $streak 轮未设定目标（set_goal），已暂停，等待你重新 /goal 或补充说明。",
+                )
+                return false
+            }
+            saveConversation(
+                conversationId,
+                conversation.copy(goal = goal.copy(noProgressStreak = streak)),
+            )
+            appendSystemMessage(
+                conversationId,
+                "<system-reminder>你还没有定义目标。请立即调用 set_goal 把目标写清楚，然后再开始工作。</system-reminder>",
+            )
+            resumeGoalTurn(conversationId)
+            return false
+        }
+
+        val lastAssistant = conversation.currentMessages.lastOrNull { it.role == MessageRole.ASSISTANT }
+        val usedTools = lastAssistant?.getTools()?.any { it.isExecuted } == true
+        if (!usedTools) {
+            val streak = goal.noProgressStreak + 1
+            if (streak >= fuse) {
+                finishGoal(
+                    conversationId = conversationId,
+                    goal = goal.copy(status = GoalStatus.STOPPED, noProgressStreak = streak),
+                    message = "连续 $streak 轮无工具调用，判定无进展，已暂停目标。",
+                )
+                return false
+            }
+            saveConversation(
+                conversationId,
+                conversation.copy(goal = goal.copy(noProgressStreak = streak)),
+            )
+            return true
+        }
+        if (goal.noProgressStreak != 0) {
+            saveConversation(
+                conversationId,
+                conversation.copy(goal = goal.copy(noProgressStreak = 0)),
+            )
+        }
+        return true
+    }
+
+    /** 预留式登记后自动续跑一轮（与用户发送互斥，用户优先） */
+    private fun resumeGoalTurn(conversationId: Uuid) {
+        val session = sessions[conversationId] ?: return
+        session.beginGenerationIfIdle {
+            appScope.launch {
+                try {
+                    handleMessageComplete(conversationId)
+                    emitGenerationDone(conversationId)
+                } catch (e: Exception) {
                     addError(e, conversationId, title = context.getString(R.string.goal_eval_error_title))
                 }
             }
@@ -1097,6 +1183,10 @@ class ChatService(
             "[${it.status.name.lowercase()}] ${it.content}"
         }
         val toolCatalog = chatToolFactory.createWorkspaceToolsIfReady(workspaceId, conversation.workspaceCwd, conversationId)
+        // 评估模型：未配置时回退主模型（助手模型 -> 全局默认模型）
+        val evaluatorModel = settings.findModelById(settings.goalEvaluatorModelId)
+            ?: settings.findModelById(assistant.chatModelId)
+            ?: settings.findModelById(settings.chatModelId)
         val resultJson = subAgentRunner.run(
             subAgent = buildGoalEvaluatorSubAgent(),
             assistant = assistant,
@@ -1109,6 +1199,7 @@ class ChatService(
             allSkills = emptyList(),
             conversationId = conversationId,
             label = GOAL_EVALUATOR_NAME,
+            modelOverride = evaluatorModel,
         )
         val report = runCatching {
             kotlinx.serialization.json.Json.parseToJsonElement(resultJson)
@@ -1144,12 +1235,13 @@ class ChatService(
             }
 
             GoalVerdictKind.NOT_MET -> {
-                if (turn >= GOAL_MAX_AUTO_RESUME) {
+                val maxResume = settings.goalMaxAutoResume
+                if (turn >= maxResume) {
                     Log.w(TAG, "goal eval: resume limit reached for $conversationId")
                     finishGoal(
                         conversationId = conversationId,
                         goal = updatedGoal.copy(status = GoalStatus.STOPPED),
-                        message = "已达自动续跑上限（$GOAL_MAX_AUTO_RESUME 轮），目标暂停，等待你介入。\n\n$report",
+                        message = "已达自动续跑上限（$maxResume 轮），目标暂停，等待你介入。\n\n$report",
                     )
                     return
                 }
@@ -1163,17 +1255,7 @@ class ChatService(
                     conversationId,
                     "<system-reminder>目标评估已完成（第 $turn 轮）。请调用 get_goal 查看本轮评审结论，并据此继续推进目标。</system-reminder>",
                 )
-                // 预留式登记：与用户发送互斥（用户优先）；提醒注入后自动续跑一轮
-                session.beginGenerationIfIdle {
-                    appScope.launch {
-                        try {
-                            handleMessageComplete(conversationId)
-                            emitGenerationDone(conversationId)
-                        } catch (e: Exception) {
-                            addError(e, conversationId, title = context.getString(R.string.goal_eval_error_title))
-                        }
-                    }
-                }
+                resumeGoalTurn(conversationId)
             }
         }
     }
