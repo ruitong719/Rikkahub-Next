@@ -3,6 +3,7 @@ package me.rerere.rikkahub.data.ai
 import me.rerere.rikkahub.data.model.GoalVerdictKind
 import me.rerere.rikkahub.data.model.SubAgent
 import me.rerere.rikkahub.data.model.SubAgentToolCategory
+import java.io.IOException
 
 /** 内置目标评估器名称（系统自动拉起，不进用户 subagent 列表） */
 internal const val GOAL_EVALUATOR_NAME = "Goal Evaluator"
@@ -86,15 +87,51 @@ fun parseGoalVerdict(report: String): GoalVerdictKind {
 }
 
 /**
+ * 不可恢复错误的特征子串：这类错误重试也不会成功，应直接终止目标循环。
+ * 覆盖鉴权/权限、额度/计费、上下文超限、模型不存在；限流（429）、超时、连接中断等
+ * 临时性故障不在此列，交由 [hasRetryableNetworkCause] 走退避重试。
+ *
+ * 用整词/短语而非过短的子串，避免误伤（如 "credit" 曾会命中正常文本里的 "credits"）。
+ */
+private val UNRECOVERABLE_PATTERNS = listOf(
+    // 鉴权 / 权限
+    "unauthorized", "forbidden", "invalid api key", "invalid_api_key", "authentication failed",
+    "authentication error", "invalid token", "api key not valid", "permission denied",
+    // 额度 / 计费
+    "insufficient_quota", "insufficient quota", "exceeded your current quota", "quota exceeded",
+    "insufficient balance", "insufficient funds", "out of credit", "no credit", "billing",
+    // 上下文超限
+    "context_length_exceeded", "context length", "maximum context", "context window",
+    "too many tokens", "token limit exceeded",
+    // 模型不存在 / 无访问权限
+    "model not found", "no such model", "model_unavailable", "model unavailable",
+    "does not exist or you do not have access",
+)
+
+/** HTTP 鉴权状态码用词边界匹配，避免把 "1401" / "5403" 之类的数字误判为鉴权失败 */
+private val HTTP_STATUS_CODE_REGEX = Regex("""\b(401|403)\b""")
+
+/**
  * 判断异常是否属于「不可恢复」错误：这类错误应终止目标（清除循环）而不是继续重试。
- * 覆盖鉴权失败、额度/余额耗尽、上下文溢出、模型不可用；网络抖动/限流不在其列。
+ *
+ * 判定顺序有讲究：沿 cause 链遇到 [IOException]（网络抖动/超时/连接中断）一律返回 false，
+ * 交给 [hasRetryableNetworkCause] 退避重试；其余再按特征子串/状态码匹配。
  */
 fun Throwable.hasUnrecoverableGoalCause(): Boolean {
-    val text = (message.orEmpty() + " " + (cause?.message.orEmpty())).lowercase()
-    return listOf(
-        "401", "403", "unauthorized", "forbidden", "invalid api key", "authentication failed",
-        "insufficient", "quota", "balance", "billing", "credit",
-        "context length", "maximum context", "context_length_exceeded", "too many tokens",
-        "context window", "model not found", "no such model", "model_unavailable", "model unavailable",
-    ).any { it in text }
+    // 网络层错误按可恢复处理，即使报错文本里恰好含有关键词
+    var node: Throwable? = this
+    while (node != null) {
+        if (node is IOException) return false
+        node = node.cause
+    }
+    // 扫描整条 cause 链（不再只看直接 cause），拼成小写文本统一匹配
+    val text = buildString {
+        var cur: Throwable? = this@hasUnrecoverableGoalCause
+        while (cur != null) {
+            cur.message?.let { append(it.lowercase()).append(' ') }
+            cur = cur.cause
+        }
+    }
+    if (text.isBlank()) return false
+    return UNRECOVERABLE_PATTERNS.any { it in text } || HTTP_STATUS_CODE_REGEX.containsMatchIn(text)
 }

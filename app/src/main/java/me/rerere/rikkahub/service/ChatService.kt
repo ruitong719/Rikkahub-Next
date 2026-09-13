@@ -1,8 +1,11 @@
 package me.rerere.rikkahub.service
 
 import android.app.Application
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.core.net.toUri
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -48,8 +51,10 @@ import me.rerere.ai.ui.finishPendingTools
 import me.rerere.ai.ui.finishReasoning
 import me.rerere.ai.ui.isEmptyInputMessage
 import me.rerere.common.android.Logging
+import me.rerere.rikkahub.AI_NOTIFY_NOTIFICATION_CHANNEL_ID
 import me.rerere.rikkahub.AppScope
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.RouteActivity
 import me.rerere.rikkahub.data.ai.GenerationChunk
 import me.rerere.rikkahub.data.ai.PermissionModePolicy
 import me.rerere.rikkahub.data.ai.GenerationLoop
@@ -117,6 +122,7 @@ import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.web.BadRequestException
 import me.rerere.rikkahub.web.NotFoundException
 import me.rerere.rikkahub.utils.applyPlaceholders
+import me.rerere.rikkahub.utils.sendNotification
 import me.rerere.workspace.WorkspaceShellStatus
 import java.io.IOException
 import java.net.ConnectException
@@ -1085,18 +1091,8 @@ class ChatService(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                if (e.hasUnrecoverableGoalCause()) {
-                    // 不可恢复错误：终止目标而不是无限重试
-                    val current = getConversationFlow(conversationId).value.goal
-                    if (current != null && current.status == GoalStatus.ACTIVE) {
-                        finishGoal(
-                            conversationId = conversationId,
-                            goal = current.copy(status = GoalStatus.STOPPED),
-                            message = "生成/评估遇到不可恢复错误，已停止目标：${e.message}",
-                        )
-                    }
-                    addError(e, conversationId, title = context.getString(R.string.goal_eval_error_title))
-                } else if (e.hasRetryableNetworkCause() && session.goalEvalRetryCount < GOAL_EVAL_MAX_RETRIES) {
+                // 先判网络类：抖动/超时/连接中断应退避重试，绝不能误判为不可恢复而直接停目标
+                if (e.hasRetryableNetworkCause() && session.goalEvalRetryCount < GOAL_EVAL_MAX_RETRIES) {
                     session.onGoalEvalRetry()
                     val delayMs = GOAL_EVAL_RETRY_BASE_MS * session.goalEvalRetryCount
                     Log.w(
@@ -1109,6 +1105,17 @@ class ChatService(
                         delay(delayMs)
                         maybeLaunchGoalEvaluation(conversationId)
                     }
+                } else if (e.hasUnrecoverableGoalCause()) {
+                    // 不可恢复错误：终止目标而不是无限重试
+                    val current = getConversationFlow(conversationId).value.goal
+                    if (current != null && current.status == GoalStatus.ACTIVE) {
+                        finishGoal(
+                            conversationId = conversationId,
+                            goal = current.copy(status = GoalStatus.STOPPED),
+                            message = "生成/评估遇到不可恢复错误，已停止目标：${e.message}",
+                        )
+                    }
+                    addError(e, conversationId, title = context.getString(R.string.goal_eval_error_title))
                 } else {
                     Log.w(TAG, "goal evaluation failed for $conversationId", e)
                     addError(e, conversationId, title = context.getString(R.string.goal_eval_error_title))
@@ -1314,6 +1321,40 @@ class ChatService(
             permissionMode = PermissionMode.BUILD,
         )
         saveConversation(conversationId, updated)
+        notifyGoalFinished(conversationId, goal, message)
+    }
+
+    /**
+     * 目标进入终态时给用户发系统通知：GoalPanel 仅在打开时可见，通知保证离开应用也能收到结果。
+     * 点击通知深链回对应会话（与 notify 工具同款）；无通知权限时 [sendNotification] 静默返回 false。
+     */
+    private fun notifyGoalFinished(conversationId: Uuid, goal: GoalState, message: String) {
+        val statusLabel = when (goal.status) {
+            GoalStatus.ACHIEVED -> R.string.goal_status_achieved
+            GoalStatus.IMPOSSIBLE -> R.string.goal_status_impossible
+            GoalStatus.STOPPED -> R.string.goal_status_stopped
+            GoalStatus.ACTIVE -> return
+        }
+        context.sendNotification(
+            channelId = AI_NOTIFY_NOTIFICATION_CHANNEL_ID,
+            notificationId = "goal-${conversationId}".hashCode(),
+        ) {
+            title = "${context.getString(R.string.goal_panel_title)} · ${context.getString(statusLabel)}"
+            content = message.ifBlank { context.getString(statusLabel) }
+            autoCancel = true
+            useDefaults = true
+            category = NotificationCompat.CATEGORY_MESSAGE
+            useBigTextStyle = true
+            contentIntent = PendingIntent.getActivity(
+                context,
+                conversationId.hashCode(),
+                Intent(context, RouteActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    putExtra("conversationId", conversationId.toString())
+                },
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+        }
     }
 
     private fun startBgTaskAutoResumeWatcher() {
