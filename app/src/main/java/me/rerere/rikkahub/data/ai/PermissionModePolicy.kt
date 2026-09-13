@@ -16,8 +16,8 @@ import me.rerere.rikkahub.data.model.PermissionMode
  *   引导模型进入「只调研、出计划」的工作方式；配合 PermissionModePromptTransformer 注入的提示词
  */
 object PermissionModePolicy {
-    /** PLAN 模式下禁用（拒绝执行）的工具名。工具改名后需同步维护 */
-    private val PLAN_DENIED_TOOLS = setOf(
+    /** 变更类工具名：PLAN 下禁用、GOAL 未设定目标前拦截。工具改名后需同步维护 */
+    private val MUTATING_TOOLS = setOf(
         "write",
         "edit",
         "bash",
@@ -26,8 +26,28 @@ object PermissionModePolicy {
         "create_backup",
     )
 
-    fun apply(tools: List<Tool>, mode: PermissionMode): List<Tool> = when (mode) {
-        PermissionMode.BUILD, PermissionMode.GOAL -> tools
+    fun apply(
+        tools: List<Tool>,
+        mode: PermissionMode,
+        /** GOAL 模式下目标是否已由 set_goal 设定；未设定时变更类工具被拦截 */
+        isGoalConditionSet: () -> Boolean = { true },
+    ): List<Tool> = when (mode) {
+        PermissionMode.BUILD -> tools
+
+        // GOAL：跳过所有审批（比 YOLO 更自由：保留 ask_user 交互），
+        // 但在 set_goal 之前拦截变更类工具，逼模型先把目标定下来。
+        PermissionMode.GOAL -> tools.map { tool ->
+            when {
+                tool.name == ASK_USER_TOOL_NAME -> tool
+
+                tool.name in MUTATING_TOOLS && !isGoalConditionSet() -> tool.copy(
+                    needsApproval = { false },
+                    execute = { goalNotSetDenied(tool.name) },
+                )
+
+                else -> tool.copy(needsApproval = { false })
+            }
+        }
 
         PermissionMode.YOLO -> tools.map { tool ->
             when {
@@ -46,7 +66,7 @@ object PermissionModePolicy {
         PermissionMode.PLAN -> tools
             .filterNot { it.name.startsWith("subagent_") }
             .map { tool ->
-                if (tool.name in PLAN_DENIED_TOOLS) {
+                if (tool.name in MUTATING_TOOLS) {
                     tool.copy(
                         needsApproval = { false },
                         execute = { deniedExecution(tool.name) },
@@ -77,6 +97,19 @@ object PermissionModePolicy {
                     "error",
                     "ask_user is unavailable in YOLO mode (tools run without user interaction). " +
                         "Switch the permission mode if you need to ask the user questions."
+                )
+            }.toString()
+        )
+    )
+
+    /** GOAL 模式下 set_goal 之前的变更类工具拦截结果 */
+    private fun goalNotSetDenied(toolName: String): List<UIMessagePart> = listOf(
+        UIMessagePart.Text(
+            buildJsonObject {
+                put(
+                    "error",
+                    "调用错误：当前处于 GOAL 模式且目标尚未设定，必须先调用 set_goal 定义目标，" +
+                        "之后才能使用变更类工具 '$toolName'。"
                 )
             }.toString()
         )

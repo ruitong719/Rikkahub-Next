@@ -70,6 +70,7 @@ import me.rerere.rikkahub.data.ai.tools.InvalidMcpServerNamesException
 import me.rerere.rikkahub.data.ai.tools.WorkspaceWritePolicy
 import me.rerere.rikkahub.data.ai.tools.local.TodoStore
 import me.rerere.rikkahub.data.ai.tools.local.TodoItem
+import me.rerere.rikkahub.data.ai.tools.local.createGoalTools
 import me.rerere.rikkahub.data.ai.tools.createSubAgentTools
 import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
@@ -98,6 +99,8 @@ import me.rerere.rikkahub.data.files.BgTaskStatus
 import me.rerere.rikkahub.data.files.WorkspaceBgManager
 import me.rerere.rikkahub.data.files.WorkspaceMountManager
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.GoalState
+import me.rerere.rikkahub.data.model.GoalStatus
 import me.rerere.rikkahub.data.model.PermissionMode
 import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.AssistantAffectScope
@@ -814,6 +817,28 @@ class ChatService(
                                 conversationId = conversationId,
                             )
                             addAll(mainTools)
+                            // GOAL 模式：注入 set_goal / get_goal；未 set_goal 前变更类工具会被拦截
+                            if (conversation.permissionMode == PermissionMode.GOAL) {
+                                addAll(
+                                    createGoalTools(
+                                        goalProvider = {
+                                            getConversationFlow(conversationId).value.goal
+                                        },
+                                        onSetGoal = { condition ->
+                                            val updated = getConversationFlow(conversationId).value.let { c ->
+                                                val base = c.goal ?: GoalState()
+                                                c.copy(
+                                                    goal = base.copy(
+                                                        condition = condition,
+                                                        status = GoalStatus.ACTIVE,
+                                                    )
+                                                )
+                                            }
+                                            saveConversation(conversationId, updated)
+                                        },
+                                    )
+                                )
+                            }
                             // subagent 工具：catalog = 主工具池（不含 subagent 工具，v1 禁止嵌套）
                             if (assistant.subagentIds.isNotEmpty()) {
                                 addAll(
@@ -832,6 +857,9 @@ class ChatService(
                             }
                         },
                         mode = conversation.permissionMode,
+                        isGoalConditionSet = {
+                            getConversationFlow(conversationId).value.goal?.hasCondition == true
+                        },
                     ),
                     grants = session.toolGrants,
                 )

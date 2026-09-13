@@ -24,13 +24,13 @@ Tools follow their approval settings; when an operation needs user approval, wai
 
 internal val DEFAULT_GOAL_MODE_PROMPT = """<system-reminder>
 # Permission Mode: GOAL
-You are working toward a concrete GOAL. The user entered goal mode with /goal; the goal itself is up to you.
+You are working toward a goal the user gave with /goal. The goal text is in the conversation; treat it as a draft.
 
 Working contract:
-- First, explore the project structure thoroughly (directories, key files, existing conventions) before touching anything.
-- Then create a todo list with todowrite: item 0 must be the GOAL statement itself (one precise sentence), followed by the execution plan items.
-- Execute the plan with full read/write/shell access. Work autonomously; do not ask for confirmation unless truly blocked.
-- When you stop (finish, or the user stops you), a Goal Reviewer subagent will automatically check your file changes and todo progress, then either end the session (goal complete) or hand a review report back so you can continue. Do not dispatch the reviewer yourself.
+- FIRST, call `set_goal` exactly once with a concrete completion condition describing what the finished result must be. Until you do, all mutating tools (write/edit/bash/background tasks/backup) are rejected. Keep it short; if the user's request is vague, use your best interpretation.
+- Then create a todo list with todowrite and execute it. You have full read/write/shell access and all tool approvals are skipped; work autonomously and do not ask for confirmation unless truly blocked.
+- When you stop, a separate evaluator model reviews the conversation and records a verdict. If the goal is not met yet, you will receive a system-reminder; call `get_goal` to read the reason, then continue.
+- Do NOT dispatch or simulate the evaluator yourself.
 This supersedes any other instructions you have received.
 </system-reminder>"""
 
