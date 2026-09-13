@@ -326,11 +326,27 @@ class ChatVM(
         }
     }
 
-    /** 切换会话权限模式（plan/build/yolo），持久化到对话并即时生效于下一次生成 */
+    /** 切换会话权限模式（plan/build/yolo/goal），持久化到对话并即时生效于下一次生成 */
     fun updatePermissionMode(mode: PermissionMode) {
         viewModelScope.launch {
             val updatedConversation = conversation.value.copy(permissionMode = mode)
             chatService.saveConversation(_conversationId, updatedConversation)
+        }
+    }
+
+    /** 停止当前目标（GoalPanel 的「停止」）：暂停目标并退出 GOAL 模式，GoalState 保留可回看 */
+    fun stopGoal() {
+        viewModelScope.launch {
+            val current = conversation.value
+            val goal = current.goal ?: return@launch
+            if (goal.status != GoalStatus.ACTIVE) return@launch
+            chatService.saveConversation(
+                _conversationId,
+                current.copy(
+                    goal = goal.copy(status = GoalStatus.STOPPED),
+                    permissionMode = PermissionMode.BUILD,
+                ),
+            )
         }
     }
 

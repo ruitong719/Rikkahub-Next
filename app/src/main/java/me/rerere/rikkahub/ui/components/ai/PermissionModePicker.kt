@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -40,6 +42,9 @@ import me.rerere.hugeicons.stroke.Eye
 import me.rerere.hugeicons.stroke.Wrench01
 import me.rerere.hugeicons.stroke.Zap
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.tools.local.TodoItem
+import me.rerere.rikkahub.data.model.GoalState
+import me.rerere.rikkahub.data.model.GoalStatus
 import me.rerere.rikkahub.data.model.PermissionMode
 
 /**
@@ -50,17 +55,37 @@ import me.rerere.rikkahub.data.model.PermissionMode
 fun PermissionModeButton(
     mode: PermissionMode,
     onUpdate: (PermissionMode) -> Unit,
+    goal: GoalState? = null,
+    todos: List<TodoItem> = emptyList(),
+    onStopGoal: () -> Unit = {},
 ) {
     var showPicker by remember { mutableStateOf(false) }
+    var showGoalPanel by remember { mutableStateOf(false) }
 
     if (showPicker) {
         PermissionModePicker(
             current = mode,
             onDismissRequest = { showPicker = false },
+            onOpenGoal = {
+                showPicker = false
+                showGoalPanel = true
+            },
             onSelect = { option ->
                 onUpdate(option)
                 showPicker = false
             },
+        )
+    }
+
+    if (showGoalPanel) {
+        GoalPanel(
+            goal = goal,
+            todos = todos,
+            onStop = {
+                showGoalPanel = false
+                onStopGoal()
+            },
+            onDismiss = { showGoalPanel = false },
         )
     }
 
@@ -87,12 +112,23 @@ fun PermissionModeButton(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = mode.icon(),
-                contentDescription = stringResource(mode.labelRes()),
-                tint = contentColor,
-                modifier = Modifier.size(20.dp),
-            )
+            // GOAL 活跃时在图标上叠加已评估轮数角标，提示「目标循环进行中」
+            BadgedBox(
+                badge = {
+                    if (mode == PermissionMode.GOAL && goal != null &&
+                        goal.status == GoalStatus.ACTIVE && goal.turnCount > 0
+                    ) {
+                        Badge { Text(goal.turnCount.coerceAtMost(99).toString()) }
+                    }
+                },
+            ) {
+                Icon(
+                    imageVector = mode.icon(),
+                    contentDescription = stringResource(mode.labelRes()),
+                    tint = contentColor,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }
@@ -105,6 +141,7 @@ fun PermissionModeButton(
 private fun PermissionModePicker(
     current: PermissionMode,
     onDismissRequest: () -> Unit,
+    onOpenGoal: () -> Unit,
     onSelect: (PermissionMode) -> Unit,
 ) {
     ModalBottomSheet(
@@ -137,14 +174,11 @@ private fun PermissionModePicker(
                 PermissionModeCard(
                     mode = option,
                     selected = option == current,
-                    // GOAL 只能通过输入框 /goal 进入：未处于 GOAL 时点击无效；
-                    // 已是 GOAL 时可以点其他模式退出
+                    // 点 GOAL 不再直接切模式：打开目标面板（查看/停止目标；进入 GOAL 走输入框 /goal）
                     onClick = {
-                        if (option != PermissionMode.GOAL || current == PermissionMode.GOAL) {
-                            onSelect(option)
-                        }
+                        if (option == PermissionMode.GOAL) onOpenGoal() else onSelect(option)
                     },
-                    enabled = option != PermissionMode.GOAL || current == PermissionMode.GOAL,
+                    enabled = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

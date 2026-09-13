@@ -474,6 +474,8 @@ private fun ChatPageContent(
                     onUpdatePermissionMode = vm::updatePermissionMode,
                     messages = conversation.messageNodes.flatMap { it.messages },
                     conversationId = conversation.id.toString(),
+                    goal = conversation.goal,
+                    onStopGoal = vm::stopGoal,
                 )
                 }
             },

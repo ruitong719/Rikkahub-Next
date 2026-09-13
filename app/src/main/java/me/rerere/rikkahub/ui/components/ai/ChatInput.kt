@@ -120,6 +120,7 @@ import me.rerere.rikkahub.data.files.WorkspaceBgManager
 import me.rerere.rikkahub.data.files.WorkspaceBgTaskInfo
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.data.model.Assistant
+import me.rerere.rikkahub.data.model.GoalState
 import me.rerere.rikkahub.data.model.PermissionMode
 import me.rerere.rikkahub.data.model.QuickMessage
 import me.rerere.ai.ui.UIMessage
@@ -167,6 +168,8 @@ fun ChatInput(
     onUpdatePermissionMode: (PermissionMode) -> Unit = {},
     messages: List<UIMessage> = emptyList(),
     conversationId: String? = null,
+    goal: GoalState? = null,
+    onStopGoal: () -> Unit = {},
 ) {
     val toaster = LocalToaster.current
     val assistant = settings.getCurrentAssistant()
@@ -357,7 +360,10 @@ fun ChatInput(
 
                                             BottomBarIcon.PERMISSION.key -> ChatBottomBarPermissionButton(
                                                 permissionMode = permissionMode,
+                                                goal = goal,
+                                                todos = todos,
                                                 onUpdatePermissionMode = onUpdatePermissionMode,
+                                                onStopGoal = onStopGoal,
                                             )
 
                                             BottomBarIcon.BACKGROUND_TASK.key -> ChatBottomBarBackgroundTaskButton(
@@ -561,15 +567,21 @@ private fun ChatBottomBarSubagentButton(
     )
 }
 
-/** 底栏：权限模式切换（恒显示；图标色提示当前模式） */
+/** 底栏：权限模式切换（恒显示；图标色提示当前模式；GOAL 时叠加轮数角标） */
 @Composable
 private fun ChatBottomBarPermissionButton(
     permissionMode: PermissionMode,
+    goal: GoalState?,
+    todos: List<TodoItem>,
     onUpdatePermissionMode: (PermissionMode) -> Unit,
+    onStopGoal: () -> Unit,
 ) {
     PermissionModeButton(
         mode = permissionMode,
         onUpdate = onUpdatePermissionMode,
+        goal = goal,
+        todos = todos,
+        onStopGoal = onStopGoal,
     )
 }
 
