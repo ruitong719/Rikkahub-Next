@@ -11,16 +11,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastForEach
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import me.rerere.ai.ui.UIMessagePart
 import me.rerere.common.http.jsonObjectOrNull
@@ -110,12 +114,15 @@ object ToolUIRegistry {
         BackupToolUI,
         JavascriptToolUI,
         NotifyToolUI,
+        SetGoalToolUI,
+        GetGoalToolUI,
         AskUserToolUI,
     ).associateBy { it.toolName }
 
-    /** 动态名工具按前缀匹配（如预设子代理的 subagent_<slug>），精确名优先 */
+    /** 动态名工具按前缀匹配（如预设子代理的 subagent_<slug>、MCP 的 mcp__），精确名优先 */
     private val prefixes: List<Pair<String, ToolUIRenderer>> = listOf(
         "subagent_" to SubAgentToolUI,
+        "mcp__" to McpToolUI,
     )
 
     /** 查找工具对应的渲染器: 精确名 → 前缀 → 未注册时返回默认渲染器（历史遗留旧工具名也走兜底） */
@@ -157,16 +164,20 @@ fun DefaultToolPreview(
             )
             headerActions?.invoke()
         }
-        FormItem(
-            label = {
-                Text(stringResource(R.string.chat_message_tool_call_label, context.tool.toolName))
+        // 入参为空对象时省略「Called tool」段，避免只看到一对空 JSON 括号
+        val argumentsEmpty = (context.arguments as? JsonObject)?.isEmpty() ?: false
+        if (!argumentsEmpty) {
+            FormItem(
+                label = {
+                    Text(stringResource(R.string.chat_message_tool_call_label, context.tool.toolName))
+                }
+            ) {
+                HighlightCodeBlock(
+                    code = JsonInstantPretty.encodeToString(context.arguments),
+                    language = "json",
+                    style = TextStyle(fontSize = 10.sp, lineHeight = 12.sp)
+                )
             }
-        ) {
-            HighlightCodeBlock(
-                code = JsonInstantPretty.encodeToString(context.arguments),
-                language = "json",
-                style = TextStyle(fontSize = 10.sp, lineHeight = 12.sp)
-            )
         }
         if (context.tool.output.isNotEmpty()) {
             FormItem(
@@ -177,15 +188,7 @@ fun DefaultToolPreview(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     context.tool.output.fastForEach { part ->
                         when (part) {
-                            is UIMessagePart.Text -> HighlightCodeBlock(
-                                code = runCatching {
-                                    JsonInstantPretty.encodeToString(
-                                        JsonInstant.parseToJsonElement(part.text)
-                                    )
-                                }.getOrElse { part.text },
-                                language = "json",
-                                style = TextStyle(fontSize = 10.sp, lineHeight = 12.sp)
-                            )
+                            is UIMessagePart.Text -> ToolOutputText(part.text)
 
                             is UIMessagePart.Image -> ZoomableAsyncImage(
                                 model = part.url,
@@ -199,5 +202,27 @@ fun DefaultToolPreview(
                 }
             }
         }
+    }
+}
+
+/**
+ * 通用输出文本：能解析成 JSON 对象/数组的按 JSON 高亮展示，否则当纯文本原样显示——
+ * 避免把日志、报错、命令输出这类自由文本硬套成 JSON 高亮（工具是给人看的）。
+ */
+@Composable
+private fun ToolOutputText(text: String) {
+    val parsed = remember(text) { runCatching { JsonInstant.parseToJsonElement(text) }.getOrNull() }
+    if (parsed is JsonObject || parsed is JsonArray) {
+        HighlightCodeBlock(
+            code = JsonInstantPretty.encodeToString(parsed),
+            language = "json",
+            style = TextStyle(fontSize = 10.sp, lineHeight = 12.sp),
+        )
+    } else {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }

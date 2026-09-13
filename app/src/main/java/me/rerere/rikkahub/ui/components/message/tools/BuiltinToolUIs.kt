@@ -388,6 +388,50 @@ object TextToSpeechToolUI : ToolUIRenderer {
             }
         }
     }
+
+    @Composable
+    override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
+        val eventBus: AppEventBus = koinInject()
+        val scope = rememberCoroutineScope()
+        val text = context.arguments.getStringContent("text").orEmpty()
+        if (context.loading) {
+            PendingPreview(stringResource(R.string.tool_ui_tts_pending))
+            return
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxHeight(0.6f)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilledTonalIconButton(
+                    onClick = { scope.launch { eventBus.emit(AppEvent.Speak(text)) } },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = HugeIcons.VolumeHigh,
+                        contentDescription = stringResource(R.string.tool_ui_replay),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.tool_ui_replay),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+    }
 }
 
 /**

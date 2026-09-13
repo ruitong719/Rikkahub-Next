@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +37,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 import me.rerere.ai.ui.DiffMetadata
+import me.rerere.ai.ui.UIMessagePart
 import me.rerere.ai.ui.metadataAs
 import me.rerere.common.http.jsonArrayOrNull
 import me.rerere.common.http.jsonObjectOrNull
@@ -55,6 +57,7 @@ import me.rerere.rikkahub.ui.components.richtext.DiffAddedColor
 import me.rerere.rikkahub.ui.components.richtext.DiffRemovedColor
 import me.rerere.rikkahub.ui.components.richtext.DiffView
 import me.rerere.rikkahub.ui.components.richtext.HighlightCodeBlock
+import me.rerere.rikkahub.ui.components.richtext.ZoomableAsyncImage
 import me.rerere.rikkahub.ui.components.richtext.parseDiffStats
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rerere.rikkahub.data.ai.ShellRunMonitor
@@ -82,18 +85,33 @@ object EditFileToolUI : ToolUIRenderer {
     }
 
     /**
-     * 执行后读取输出部件 metadata 中的全文件 diff;
-     * 未执行 (如等待审批) 时基于入参的 old_text/new_text 片段生成预览 diff
+     * 优先读取输出部件 metadata 中的全文件 diff（执行后由工具写入）；
+     * metadata 缺失（历史消息、无实际改动、输出被截断）或尚未执行（等待审批）时，
+     * 退回用入参 old_text/new_text 合成预览 diff，避免详情页退化成原始 JSON。
      */
     private fun diffOf(context: ToolUIContext): String? {
+        // 执行失败时不合成「将要发生」的 diff（否则会把失败的编辑画成已生效），交给 Preview 展示错误
+        if (context.content.getStringContent("error") != null) return null
         if (context.tool.isExecuted) {
-            return context.tool.output.firstOrNull()?.metadataAs<DiffMetadata>()?.diff
+            context.tool.output.firstOrNull()?.metadataAs<DiffMetadata>()?.diff?.let { return it }
         }
         val path = context.arguments.getStringContent("path") ?: return null
         val oldText = context.arguments.getStringContent("old_text") ?: return null
         val newText = context.arguments.getStringContent("new_text") ?: return null
         return generateUnifiedDiff(oldText, newText, path)
     }
+
+    /** 实际替换处数（工具输出 JSON 的 replacements 字段） */
+    private fun replacementsOf(context: ToolUIContext): Int? =
+        context.content?.jsonObjectOrNull?.get("replacements")?.jsonPrimitiveOrNull?.intOrNull
+
+    /** 是否 replace_all=true */
+    private fun replaceAllOf(context: ToolUIContext): Boolean =
+        context.arguments.getStringContent("replace_all")?.toBooleanStrictOrNull() == true
+
+    /** 非精确匹配时的降级策略名（exact 时工具不写该字段） */
+    private fun matchStrategyOf(context: ToolUIContext): String? =
+        context.content.getStringContent("matchStrategy")
 
     // 内联摘要只在「等待审批」或「已执行」时展示：
     // 自动执行时参数补全的瞬间会先用 old_text/new_text 合成预览（≤10 行）撑大卡片，
@@ -120,6 +138,21 @@ object EditFileToolUI : ToolUIRenderer {
                 style = MaterialTheme.typography.labelSmall,
                 color = DiffRemovedColor,
             )
+            // 替换处数 / 全量替换提示（此前该信息只存在于工具输出 JSON 里）
+            val replacements = replacementsOf(context)
+            when {
+                replacements != null && replacements > 1 -> Text(
+                    text = stringResource(R.string.tool_ui_edit_replacements, replacements),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+
+                replaceAllOf(context) -> Text(
+                    text = stringResource(R.string.tool_ui_edit_replace_all),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+            }
         }
         DiffView(
             diff = diff,
@@ -131,12 +164,33 @@ object EditFileToolUI : ToolUIRenderer {
 
     @Composable
     override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
+        // 执行失败：直接展示错误，不合成 diff、不回退 JSON
+        val error = context.content.getStringContent("error")
+        if (error != null) {
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(16.dp),
+            )
+            return
+        }
+        // 等待审批 / 历史消息也能用入参合成 diff，因此先算 diff，再决定是否兜底
         val diff = remember(context) { diffOf(context) }
-        if (diff == null) {
+        val contentAvailable = context.content != null
+        // 加载中且尚无任何信息 → 占位，避免闪 JSON
+        if (!contentAvailable && diff == null && context.loading) {
+            PendingPreview(stringResource(R.string.tool_ui_edit_pending))
+            return
+        }
+        // 真正无信息（执行异常且入参缺失）→ 通用 JSON 兜底
+        if (!contentAvailable && diff == null) {
             DefaultToolPreview(context = context)
             return
         }
-        val stats = remember(diff) { parseDiffStats(diff) }
+        val stats = remember(diff) { diff?.let { parseDiffStats(it) } }
+        val replacements = replacementsOf(context)
+        val strategy = matchStrategyOf(context)
         Column(
             modifier = Modifier
                 .fillMaxHeight(0.8f)
@@ -156,22 +210,64 @@ object EditFileToolUI : ToolUIRenderer {
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                Text(
-                    text = "+${stats.additions}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = DiffAddedColor,
+                if (stats != null) {
+                    Text(
+                        text = "+${stats.additions}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = DiffAddedColor,
+                    )
+                    Text(
+                        text = "-${stats.deletions}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = DiffRemovedColor,
+                    )
+                }
+            }
+            if (replacements != null || replaceAllOf(context) || strategy != null) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (replacements != null && replacements > 1) {
+                        EditMetaChip(stringResource(R.string.tool_ui_edit_replacements, replacements))
+                    }
+                    if (replaceAllOf(context)) {
+                        EditMetaChip(stringResource(R.string.tool_ui_edit_replace_all))
+                    }
+                    if (strategy != null) {
+                        EditMetaChip(stringResource(R.string.tool_ui_edit_strategy, strategy))
+                    }
+                }
+            }
+            if (diff != null) {
+                DiffView(
+                    diff = diff,
+                    modifier = Modifier.fillMaxWidth(),
                 )
+            } else {
                 Text(
-                    text = "-${stats.deletions}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = DiffRemovedColor,
+                    text = stringResource(R.string.tool_ui_edit_no_changes),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            DiffView(
-                diff = diff,
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
+    }
+}
+
+/** edit 详情里的小标签（替换处数 / replace_all / 匹配策略） */
+@Composable
+private fun EditMetaChip(text: String) {
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+        )
     }
 }
 
@@ -214,6 +310,10 @@ object ReadFileToolUI : ToolUIRenderer {
         return DirectoryInfo(entries = entries, totalEntries = totalEntries, truncated = truncated)
     }
 
+    /** 读取的路径是图片时，工具输出为图片部件（无文本 content） */
+    private fun imagesOf(context: ToolUIContext): List<UIMessagePart.Image> =
+        context.tool.output.filterIsInstance<UIMessagePart.Image>()
+
     override fun hasSummary(context: ToolUIContext): Boolean =
         displayTextOf(context) != null || directoryOf(context) != null
 
@@ -245,12 +345,49 @@ object ReadFileToolUI : ToolUIRenderer {
             )
             return
         }
+        // 图片文件：直接展示图片，而不是回退到 JSON
+        val images = remember(context) { imagesOf(context) }
+        if (images.isNotEmpty()) {
+            ReadImagePreview(
+                path = context.arguments.getStringContent("path"),
+                images = images,
+            )
+            return
+        }
         val text = remember(context) { displayTextOf(context) }
         if (text == null) {
             DefaultToolPreview(context = context)
             return
         }
         FileContentPreview(path = context.arguments.getStringContent("path"), code = text)
+    }
+}
+
+/** read 图片文件时的详情：路径 + 可缩放图片 */
+@Composable
+private fun ReadImagePreview(path: String?, images: List<UIMessagePart.Image>) {
+    Column(
+        modifier = Modifier
+            .fillMaxHeight(0.8f)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (!path.isNullOrBlank()) {
+            Text(
+                text = path,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        images.forEach { image ->
+            ZoomableAsyncImage(
+                model = image.url,
+                contentDescription = null,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
@@ -886,16 +1023,26 @@ object GlobToolUI : ToolUIRenderer {
     @Composable
     override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
         val rows = remember(context) { context.content.searchRows() }
-        if (rows.isEmpty()) {
-            DefaultToolPreview(context = context)
+        if (rows.isNotEmpty()) {
+            SearchPreview(
+                header = stringResource(R.string.tool_ui_glob_default),
+                pattern = context.arguments.getStringContent("pattern"),
+                total = context.content.searchCount(rows.size),
+                rows = rows,
+            )
             return
         }
-        SearchPreview(
-            header = stringResource(R.string.tool_ui_glob_default),
-            pattern = context.arguments.getStringContent("pattern"),
-            total = context.content.searchCount(rows.size),
-            rows = rows,
-        )
+        // 有结果 JSON 但零命中：给友好空态，而不是把原始 JSON 丢给用户
+        if (context.content != null) {
+            Text(
+                text = stringResource(R.string.tool_ui_search_no_matches),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(16.dp),
+            )
+            return
+        }
+        DefaultToolPreview(context = context)
     }
 }
 
@@ -930,16 +1077,26 @@ object GrepToolUI : ToolUIRenderer {
     @Composable
     override fun Preview(context: ToolUIContext, onDismissRequest: () -> Unit) {
         val rows = remember(context) { context.content.searchRows() }
-        if (rows.isEmpty()) {
-            DefaultToolPreview(context = context)
+        if (rows.isNotEmpty()) {
+            SearchPreview(
+                header = stringResource(R.string.tool_ui_grep_default),
+                pattern = context.arguments.getStringContent("pattern"),
+                total = context.content.searchCount(rows.size),
+                rows = rows,
+            )
             return
         }
-        SearchPreview(
-            header = stringResource(R.string.tool_ui_grep_default),
-            pattern = context.arguments.getStringContent("pattern"),
-            total = context.content.searchCount(rows.size),
-            rows = rows,
-        )
+        // 有结果 JSON 但零命中：给友好空态，而不是把原始 JSON 丢给用户
+        if (context.content != null) {
+            Text(
+                text = stringResource(R.string.tool_ui_search_no_matches),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(16.dp),
+            )
+            return
+        }
+        DefaultToolPreview(context = context)
     }
 }
 

@@ -185,7 +185,8 @@ interface ChainOfThoughtScope {
      * @param icon 步骤图标
      * @param label 步骤标题区域
      * @param extra 标题右侧的附加信息
-     * @param onClick 自定义点击行为；设置后优先于展开/折叠逻辑
+     * @param onClick 自定义点击行为；与 [content] 同时存在时，右侧箭头专职收起/展开，
+     *   整行其余区域触发 [onClick]（可用于「点行看详情、点箭头收摘要」）
      * @param collapsedAdaptiveWidth 是否在折叠且内容隐藏时使用自适应宽度
      * @param content 步骤展开后显示的内容；为 `null` 时步骤不可展开
      */
@@ -209,7 +210,8 @@ interface ChainOfThoughtScope {
      * @param icon 步骤图标
      * @param label 步骤标题区域
      * @param extra 标题右侧的附加信息
-     * @param onClick 自定义点击行为；设置后优先于展开/折叠逻辑
+     * @param onClick 自定义点击行为；与 [content] 同时存在时，右侧箭头专职收起/展开，
+     *   整行其余区域触发 [onClick]（可用于「点行看详情、点箭头收摘要」）
      * @param collapsedAdaptiveWidth 是否在折叠且内容隐藏时使用自适应宽度
      * @param contentVisible 是否展示内容区域，可与 [expanded] 解耦
      * @param content 步骤内容；为 `null` 时步骤不可展开
@@ -375,16 +377,37 @@ private class ChainOfThoughtScopeImpl : ChainOfThoughtScope {
                     extra()
                 }
 
-                // 指示器：onClick 显示向右箭头，content 显示展开/折叠箭头
-                if (onClick != null) {
-                    Icon(
+                // 指示器：
+                // - 只有 onClick：向右箭头（整行点击 = 打开详情）
+                // - 只有 content：上/下箭头（整行点击 = 收起/展开）
+                // - 两者都有：箭头专职收起/展开（点击独立处理，不冒泡到 onClick），
+                //   整行其余区域点击 = 打开详情
+                when {
+                    onClick != null && hasContent -> {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable { onExpandedChange(!expanded) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = if (expanded) HugeIcons.ArrowUp01 else HugeIcons.ArrowDown01,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    onClick != null -> Icon(
                         imageVector = HugeIcons.ArrowRight01,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                } else if (hasContent) {
-                    Icon(
+
+                    hasContent -> Icon(
                         imageVector = if (expanded) HugeIcons.ArrowUp01 else HugeIcons.ArrowDown01,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),

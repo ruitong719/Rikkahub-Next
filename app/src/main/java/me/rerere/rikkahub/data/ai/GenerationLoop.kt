@@ -589,14 +589,17 @@ class GenerationLoop(
 
         return listOf(
             UIMessagePart.Text(
-                buildString {
+                text = buildString {
                     appendLine("[Tool output truncated: $totalChars characters total]")
                     appendLine("Full output saved to: /tool_outputs/$fileName")
                     appendLine("Use shell to read: `cat /tool_outputs/$fileName`")
                     appendLine("Use shell to search: `grep \"pattern\" /tool_outputs/$fileName`")
                     appendLine()
                     append(preview)
-                }
+                },
+                // 保留首个文本部件的 metadata（如 edit 的 DiffMetadata），
+                // 否则大输出被截断后 UI 会丢失 diff、退化成原始 JSON
+                metadata = textParts.firstOrNull()?.metadata,
             )
         ) + nonTextParts
     }
