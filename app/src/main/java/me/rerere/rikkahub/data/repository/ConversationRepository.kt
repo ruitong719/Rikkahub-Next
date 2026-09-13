@@ -22,6 +22,7 @@ import me.rerere.rikkahub.data.db.entity.ConversationEntity
 import me.rerere.rikkahub.data.db.entity.MessageNodeEntity
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.data.model.Conversation
+import me.rerere.rikkahub.data.model.GoalState
 import me.rerere.rikkahub.data.model.MessageNode
 import me.rerere.rikkahub.data.model.PermissionMode
 import me.rerere.rikkahub.utils.JsonInstant
@@ -365,6 +366,7 @@ class ConversationRepository(
             folderId = conversation.folderId?.toString() ?: "",
             rollingContextSummary = conversation.rollingContextSummary?.let(JsonInstant::encodeToString) ?: "",
             permissionMode = conversation.permissionMode.name,
+            goal = conversation.goal?.let(JsonInstant::encodeToString) ?: "",
         )
     }
 
@@ -390,6 +392,9 @@ class ConversationRepository(
             permissionMode = runCatching {
                 PermissionMode.valueOf(conversationEntity.permissionMode)
             }.getOrDefault(PermissionMode.BUILD),
+            goal = conversationEntity.goal.ifEmpty { null }?.let {
+                runCatching { JsonInstant.decodeFromString<GoalState>(it) }.getOrNull()
+            },
         )
     }
 

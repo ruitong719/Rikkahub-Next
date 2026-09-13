@@ -62,6 +62,8 @@ data class Conversation(
     val rollingContextSummary: RollingContextSummary? = null,
     // 权限模式（plan/build/yolo），持久化在 ConversationEntity 中，会话级生效
     val permissionMode: PermissionMode = PermissionMode.BUILD,
+    // GOAL 模式状态（目标条件、判决历史等），持久化在 ConversationEntity 中
+    val goal: GoalState? = null,
     @Transient
     val newConversation: Boolean = false
 ) {

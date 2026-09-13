@@ -32,4 +32,6 @@ data class ConversationEntity(
     val rollingContextSummary: String = "",
     @ColumnInfo("permission_mode", defaultValue = "BUILD")
     val permissionMode: String = "BUILD",
+    @ColumnInfo("goal", defaultValue = "")
+    val goal: String = "",
 )
