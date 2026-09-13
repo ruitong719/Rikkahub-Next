@@ -1021,9 +1021,16 @@ class ChatService(
     /** 生成结束统一出口：广播完成事件 + Goal 模式评审 */
     private suspend fun emitGenerationDone(conversationId: Uuid) {
         _generationDoneFlow.emit(conversationId)
-        // emitGenerationDone 运行在当前生成 job 内部，此刻 session.isGenerating 仍为 true。
-        // 用当前协程的 Job 作为「本次生成」的可靠引用（session.getJob() 在此刻可能尚未登记），
-        // 等它结束后再评估，否则会被 maybeLaunchGoalEvaluation 的 isGenerating 判定挡掉。
+        scheduleGoalEvaluation(conversationId)
+    }
+
+    /**
+     * 安排一次目标评估。emitGenerationDone / 自动拉起等入口都运行在生成 job 内部，
+     * 此刻 session.isGenerating 仍为 true；必须等该 job 结束后再评估，
+     * 否则会被 maybeLaunchGoalEvaluation 的 isGenerating 判定挡掉，且 beginGenerationIfIdle 无法登记续跑。
+     * 用当前协程自身的 Job 作为「本次生成」的可靠引用（session.getJob() 在此刻可能尚未登记）。
+     */
+    private suspend fun scheduleGoalEvaluation(conversationId: Uuid) {
         val currentJob = currentCoroutineContext()[Job]
         appScope.launch {
             runCatching { currentJob?.join() }
@@ -1125,8 +1132,18 @@ class ChatService(
             return false
         }
 
-        val lastAssistant = conversation.currentMessages.lastOrNull { it.role == MessageRole.ASSISTANT }
-        val usedTools = lastAssistant?.getTools()?.any { it.isExecuted } == true
+        // 按「本轮」判断是否有工具调用：以最后一条 USER / SYSTEM（评估提醒）为界。
+        // 注意 GenerationLoop 会把工具结果写回同一条 assistant 消息，循环结束时最后一条
+        // assistant 通常是纯文本收尾、不含工具，因此不能只看最后一条。
+        val messages = conversation.currentMessages
+        val boundary = messages.indexOfLast {
+            it.role == MessageRole.USER || it.role == MessageRole.SYSTEM
+        }
+        val turnMessages = if (boundary >= 0) messages.drop(boundary + 1) else messages
+        val usedTools = turnMessages.any { message ->
+            message.role == MessageRole.ASSISTANT &&
+                message.getTools().any { tool -> tool.isExecuted }
+        }
         if (!usedTools) {
             val streak = goal.noProgressStreak + 1
             if (streak >= fuse) {
@@ -1344,10 +1361,11 @@ class ChatService(
                         emitGenerationDone(conversationId)
                     } catch (e: Exception) {
                         addError(e, conversationId, title = context.getString(R.string.bg_auto_resume_error_title))
-                        // 主模型唤醒失败（如网络波动）：GOAL 模式下让评审子代理接管检查，
+                        // 主模型唤醒失败（如网络波动）：GOAL 模式下让评估接管检查；
+                        // 等本 job 结束后再评估（当前 job 仍在运行，直接调用会被 isGenerating 挡掉）；
                         // 网络类失败由 maybeLaunchGoalEvaluation 的退避重试兜底，恢复后自动补评；
                         // 不动 autoResumeFailures，普通模式的失败上限语义保持不变
-                        maybeLaunchGoalEvaluation(conversationId)
+                        scheduleGoalEvaluation(conversationId)
                     } finally {
                         // 按结果判断：任务仍未被消费说明生成在提醒注入前就失败了，计入连续失败，
                         // 达到上限后停止重试并报错提示用户手动查看

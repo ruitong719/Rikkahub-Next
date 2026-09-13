@@ -40,10 +40,17 @@ object PermissionModePolicy {
             when {
                 tool.name == ASK_USER_TOOL_NAME -> tool
 
-                tool.name in MUTATING_TOOLS && !isGoalConditionSet() -> tool.copy(
-                    needsApproval = { false },
-                    execute = { goalNotSetDenied(tool.name) },
-                )
+                // 变更类工具：执行时再判定目标是否已设定（动态判定），
+                // 这样同一轮里先调用 set_goal、再调用 write 也能正常放行。
+                tool.name in MUTATING_TOOLS -> {
+                    val originalExecute = tool.execute
+                    tool.copy(
+                        needsApproval = { false },
+                        execute = { args ->
+                            if (isGoalConditionSet()) originalExecute(args) else goalNotSetDenied(tool.name)
+                        },
+                    )
+                }
 
                 else -> tool.copy(needsApproval = { false })
             }
