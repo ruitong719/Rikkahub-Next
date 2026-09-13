@@ -28,6 +28,14 @@ data class GoalState(
     val tokenBaseline: Long? = null,
     /** 连续「主模型无工具调用」的轮数，用于无进展熔断 */
     val noProgressStreak: Int = 0,
+    /** 上次评估/催办时已消费到的消息条数，用于圈定「本轮」范围（不落对话，仅状态） */
+    val evaluatedMessageCount: Int = 0,
+    /**
+     * 待注入给主模型的一次性提醒（含 <system-reminder> 标签）。
+     * 由 GoalContextTransformer 在组装请求时追加到最后一条用户消息后并清空，
+     * 不落进对话消息，避免内部标记出现在聊天界面。
+     */
+    val pendingReminder: String? = null,
     /** 按时间顺序的评估判决历史 */
     val history: List<GoalVerdict> = emptyList(),
     @Serializable(with = InstantSerializer::class)

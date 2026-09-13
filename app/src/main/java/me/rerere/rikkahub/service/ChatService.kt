@@ -77,6 +77,7 @@ import me.rerere.rikkahub.data.files.SkillManager
 import me.rerere.rikkahub.data.ai.transformers.Base64ImageToLocalFileTransformer
 import me.rerere.rikkahub.data.ai.transformers.AgentMdTransformer
 import me.rerere.rikkahub.data.ai.transformers.DocumentAsPromptTransformer
+import me.rerere.rikkahub.data.ai.transformers.GoalContextTransformer
 import me.rerere.rikkahub.data.ai.transformers.OcrTransformer
 import me.rerere.rikkahub.data.ai.transformers.PlaceholderTransformer
 import me.rerere.rikkahub.data.ai.transformers.RegexOutputTransformer
@@ -923,6 +924,24 @@ class ChatService(
                             goalPrompt = settings.goalModePrompt,
                         )
                     )
+                    // GOAL：评估完成后的一次性 <system-reminder> 注入（不落对话消息，注入后即清空）
+                    if (conversation.permissionMode == PermissionMode.GOAL) {
+                        add(
+                            GoalContextTransformer(
+                                goalProvider = { getConversationFlow(conversationId).value.goal },
+                                onConsumed = {
+                                    updateConversationState(conversationId) { c ->
+                                        val g = c.goal
+                                        if (g?.pendingReminder != null) {
+                                            c.copy(goal = g.copy(pendingReminder = null))
+                                        } else {
+                                            c
+                                        }
+                                    }
+                                },
+                            )
+                        )
+                    }
                 },
                 outputTransformers = outputTransformers,
                 tools = tools,
@@ -1100,73 +1119,40 @@ class ChatService(
 
     /**
      * 评估前的目标就绪检查：
-     * - 尚未 set_goal：注入提醒并自动续跑一轮（逼模型先定义目标），连续无果则熔断；
-     * - 已 set_goal 但最近一轮主模型没有任何工具调用：累计无进展次数，达阈值熔断。
+     * - 已 set_goal：直接交给评估器（无进展/续跑上限在评估后统一裁决）；
+     * - 尚未 set_goal：写入一次性提醒并自动续跑一轮，连续无果则熔断。
      * 返回 true 表示可以继续评估。
      */
     private suspend fun ensureGoalConditionOrStop(conversationId: Uuid): Boolean {
         val conversation = getConversationFlow(conversationId).value
         val goal = conversation.goal ?: return false
         if (goal.status != GoalStatus.ACTIVE) return false
-        val fuse = settingsStore.settingsFlow.value.goalNoProgressFuse.coerceAtLeast(1)
+        if (goal.hasCondition) return true
 
-        if (!goal.hasCondition) {
-            val streak = goal.noProgressStreak + 1
-            if (streak >= fuse) {
-                finishGoal(
-                    conversationId = conversationId,
-                    goal = goal.copy(status = GoalStatus.STOPPED, noProgressStreak = streak),
-                    message = "模型连续 $streak 轮未设定目标（set_goal），已暂停，等待你重新 /goal 或补充说明。",
-                )
-                return false
-            }
-            saveConversation(
-                conversationId,
-                conversation.copy(goal = goal.copy(noProgressStreak = streak)),
+        val fuse = settingsStore.settingsFlow.value.goalNoProgressFuse.coerceAtLeast(1)
+        val streak = goal.noProgressStreak + 1
+        if (streak >= fuse) {
+            finishGoal(
+                conversationId = conversationId,
+                goal = goal.copy(status = GoalStatus.STOPPED, noProgressStreak = streak),
+                message = "模型连续 $streak 轮未设定目标（set_goal），已暂停，等待你重新 /goal 或补充说明。",
             )
-            appendSystemMessage(
-                conversationId,
-                "<system-reminder>你还没有定义目标。请立即调用 set_goal 把目标写清楚，然后再开始工作。</system-reminder>",
-            )
-            resumeGoalTurn(conversationId)
             return false
         }
-
-        // 按「本轮」判断是否有工具调用：以最后一条 USER / SYSTEM（评估提醒）为界。
-        // 注意 GenerationLoop 会把工具结果写回同一条 assistant 消息，循环结束时最后一条
-        // assistant 通常是纯文本收尾、不含工具，因此不能只看最后一条。
         val messages = conversation.currentMessages
-        val boundary = messages.indexOfLast {
-            it.role == MessageRole.USER || it.role == MessageRole.SYSTEM
-        }
-        val turnMessages = if (boundary >= 0) messages.drop(boundary + 1) else messages
-        val usedTools = turnMessages.any { message ->
-            message.role == MessageRole.ASSISTANT &&
-                message.getTools().any { tool -> tool.isExecuted }
-        }
-        if (!usedTools) {
-            val streak = goal.noProgressStreak + 1
-            if (streak >= fuse) {
-                finishGoal(
-                    conversationId = conversationId,
-                    goal = goal.copy(status = GoalStatus.STOPPED, noProgressStreak = streak),
-                    message = "连续 $streak 轮无工具调用，判定无进展，已暂停目标。",
+        saveConversation(
+            conversationId,
+            conversation.copy(
+                goal = goal.copy(
+                    noProgressStreak = streak,
+                    evaluatedMessageCount = messages.size,
+                    pendingReminder = "<system-reminder>你还没有定义目标。请立即调用 set_goal，" +
+                        "用一句话写清「做成什么样算完成」，然后再开始工作。</system-reminder>",
                 )
-                return false
-            }
-            saveConversation(
-                conversationId,
-                conversation.copy(goal = goal.copy(noProgressStreak = streak)),
-            )
-            return true
-        }
-        if (goal.noProgressStreak != 0) {
-            saveConversation(
-                conversationId,
-                conversation.copy(goal = goal.copy(noProgressStreak = 0)),
-            )
-        }
-        return true
+            ),
+        )
+        resumeGoalTurn(conversationId)
+        return false
     }
 
     /** 预留式登记后自动续跑一轮（与用户发送互斥，用户优先） */
@@ -1239,12 +1225,25 @@ class ChatService(
         }.getOrNull().orEmpty()
         val kind = parseGoalVerdict(report)
 
-        // 记录本轮判决
-        val base = getConversationFlow(conversationId).value.goal ?: return
+        // 领取本轮结果：结合「本轮是否有工具调用」计算无进展计数，并推进消息游标
+        val current = getConversationFlow(conversationId).value
+        val base = current.goal ?: return
+        val messages = current.currentMessages
+        val from = base.evaluatedMessageCount.coerceIn(0, messages.size)
+        val usedTools = messages.drop(from).any { message ->
+            message.role == MessageRole.ASSISTANT && message.getTools().any { tool -> tool.isExecuted }
+        }
+        val streak = if (usedTools) 0 else base.noProgressStreak + 1
         val turn = base.turnCount + 1
-        val updatedGoal = base.copy(
+        val fuse = settings.goalNoProgressFuse.coerceAtLeast(1)
+
+        fun goalWith(status: GoalStatus, reminder: String? = null) = base.copy(
+            status = status,
             turnCount = turn,
             history = base.history + GoalVerdict(kind = kind, reason = report, atTurn = turn),
+            noProgressStreak = streak,
+            evaluatedMessageCount = messages.size,
+            pendingReminder = reminder,
         )
 
         when (kind) {
@@ -1252,8 +1251,8 @@ class ChatService(
                 Log.i(TAG, "goal achieved: conversation $conversationId")
                 finishGoal(
                     conversationId = conversationId,
-                    goal = updatedGoal.copy(status = GoalStatus.ACHIEVED),
-                    message = "评估器确认目标已达成。已退出 GOAL 模式，可继续提出下一个目标。\n\n$report",
+                    goal = goalWith(GoalStatus.ACHIEVED),
+                    message = "评估器确认目标已达成。已退出 GOAL 模式。\n\n$report",
                 )
             }
 
@@ -1261,51 +1260,58 @@ class ChatService(
                 Log.i(TAG, "goal impossible: conversation $conversationId")
                 finishGoal(
                     conversationId = conversationId,
-                    goal = updatedGoal.copy(status = GoalStatus.IMPOSSIBLE),
+                    goal = goalWith(GoalStatus.IMPOSSIBLE),
                     message = "评估器判断该目标无法达成，已退出 GOAL 模式。\n\n$report",
                 )
             }
 
             GoalVerdictKind.NOT_MET -> {
                 val maxResume = settings.goalMaxAutoResume
-                if (turn >= maxResume) {
-                    Log.w(TAG, "goal eval: resume limit reached for $conversationId")
-                    finishGoal(
-                        conversationId = conversationId,
-                        goal = updatedGoal.copy(status = GoalStatus.STOPPED),
-                        message = "已达自动续跑上限（$maxResume 轮），目标暂停，等待你介入。\n\n$report",
-                    )
-                    return
+                when {
+                    streak >= fuse -> {
+                        Log.w(TAG, "goal eval: no-progress fuse reached for $conversationId")
+                        finishGoal(
+                            conversationId = conversationId,
+                            goal = goalWith(GoalStatus.STOPPED),
+                            message = "连续 $streak 轮无工具调用，判定无进展，已暂停目标。\n\n$report",
+                        )
+                    }
+
+                    turn >= maxResume -> {
+                        Log.w(TAG, "goal eval: resume limit reached for $conversationId")
+                        finishGoal(
+                            conversationId = conversationId,
+                            goal = goalWith(GoalStatus.STOPPED),
+                            message = "已达自动续跑上限（$maxResume 轮），目标暂停，等待你介入。\n\n$report",
+                        )
+                    }
+
+                    else -> {
+                        Log.i(TAG, "goal eval not met: conversation $conversationId, resuming main agent")
+                        // 一次性提醒：GoalContextTransformer 注入到下一轮请求后即清空，不落对话
+                        saveConversation(
+                            conversationId,
+                            current.copy(
+                                goal = goalWith(
+                                    GoalStatus.ACTIVE,
+                                    "<system-reminder>目标评估已完成（第 $turn 轮），结论：未达成。" +
+                                        "请调用 get_goal 查看完整评审结论，然后继续推进目标。</system-reminder>",
+                                )
+                            ),
+                        )
+                        resumeGoalTurn(conversationId)
+                    }
                 }
-                Log.i(TAG, "goal eval not met: conversation $conversationId, resuming main agent")
-                saveConversation(
-                    conversationId,
-                    getConversationFlow(conversationId).value.copy(goal = updatedGoal),
-                )
-                // 不直接注入报告内容：用 system-reminder 引导主模型调用 get_goal 读取评审结果
-                appendSystemMessage(
-                    conversationId,
-                    "<system-reminder>目标评估已完成（第 $turn 轮）。请调用 get_goal 查看本轮评审结论，并据此继续推进目标。</system-reminder>",
-                )
-                resumeGoalTurn(conversationId)
             }
         }
     }
 
-    /** 目标进入终态：保存 GoalState 并把会话切回 BUILD 模式 */
+    /** 目标进入终态：保存 GoalState 并把会话切回 BUILD 模式（终态信息由 GoalPanel 展示，不写进对话） */
     private suspend fun finishGoal(conversationId: Uuid, goal: GoalState, message: String) {
+        Log.i(TAG, "goal finished: ${goal.status} — $message")
         val updated = getConversationFlow(conversationId).value.copy(
             goal = goal,
             permissionMode = PermissionMode.BUILD,
-        )
-        saveConversation(conversationId, updated)
-        appendSystemMessage(conversationId, "<goal_complete>\n$message\n</goal_complete>")
-    }
-
-    private suspend fun appendSystemMessage(conversationId: Uuid, text: String) {
-        val conversation = getConversationFlow(conversationId).value
-        val updated = conversation.copy(
-            messageNodes = conversation.messageNodes + UIMessage.system(text).toMessageNode(),
         )
         saveConversation(conversationId, updated)
     }
