@@ -7,6 +7,7 @@ import androidx.core.net.toUri
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -1020,7 +1021,14 @@ class ChatService(
     /** 生成结束统一出口：广播完成事件 + Goal 模式评审 */
     private suspend fun emitGenerationDone(conversationId: Uuid) {
         _generationDoneFlow.emit(conversationId)
-        maybeLaunchGoalEvaluation(conversationId)
+        // emitGenerationDone 运行在当前生成 job 内部，此刻 session.isGenerating 仍为 true。
+        // 用当前协程的 Job 作为「本次生成」的可靠引用（session.getJob() 在此刻可能尚未登记），
+        // 等它结束后再评估，否则会被 maybeLaunchGoalEvaluation 的 isGenerating 判定挡掉。
+        val currentJob = currentCoroutineContext()[Job]
+        appScope.launch {
+            runCatching { currentJob?.join() }
+            maybeLaunchGoalEvaluation(conversationId)
+        }
     }
 
     /**
@@ -1166,23 +1174,30 @@ class ChatService(
         if (goal.status != GoalStatus.ACTIVE || !goal.hasCondition) return
         val settings = settingsStore.settingsFlow.first()
         val assistant = settings.getAssistantById(conversation.assistantId) ?: return
-        val workspaceId = assistant.workspaceId?.toString() ?: return
-        val workspace = workspaceRepository.getById(workspaceId) ?: return
+        // 工作区可选：没有配置工作区时评估器仍可运行（只靠对话记录判断，无只读工具）
+        val workspaceId = assistant.workspaceId?.toString()
+        val workspace = workspaceId?.let { workspaceRepository.getById(it) }
 
         // 后台任务执行中：不评估（等完成自动唤醒主模型）
-        val runningTasks = workspaceBgManager.listTasks(workspace.root).count {
-            it.conversationId == conversationId.toString() && it.status == BgTaskStatus.RUNNING
-        }
-        if (runningTasks > 0) {
-            Log.i(TAG, "goal eval skip: conversation $conversationId has $runningTasks running bg task(s)")
-            return
+        if (workspace != null) {
+            val runningTasks = workspaceBgManager.listTasks(workspace.root).count {
+                it.conversationId == conversationId.toString() && it.status == BgTaskStatus.RUNNING
+            }
+            if (runningTasks > 0) {
+                Log.i(TAG, "goal eval skip: conversation $conversationId has $runningTasks running bg task(s)")
+                return
+            }
         }
 
         Log.i(TAG, "goal eval start: conversation $conversationId (GOAL mode)")
         val todoText = todoStore.todos(conversationId).value.joinToString("\n") {
             "[${it.status.name.lowercase()}] ${it.content}"
         }
-        val toolCatalog = chatToolFactory.createWorkspaceToolsIfReady(workspaceId, conversation.workspaceCwd, conversationId)
+        val toolCatalog = if (workspaceId != null) {
+            chatToolFactory.createWorkspaceToolsIfReady(workspaceId, conversation.workspaceCwd, conversationId)
+        } else {
+            emptyList()
+        }
         // 评估模型：未配置时回退主模型（助手模型 -> 全局默认模型）
         val evaluatorModel = settings.findModelById(settings.goalEvaluatorModelId)
             ?: settings.findModelById(assistant.chatModelId)
